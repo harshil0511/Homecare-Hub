@@ -36,6 +36,8 @@ frontend/build/
 .antigravity/
 brain/
 logs/
+claude.md
+CLAUDE.md
 .claude/
 docs/superpowers/
 homecare-hub-structure.md
