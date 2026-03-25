@@ -34,5 +34,9 @@ frontend/build/
 brain/
 logs/
 claud.md
+claude.md
+CLAUDE.md
+.claude/
+docs/superpowers/
 homecare-hub-structure.md
 PROJECT_MAP.md

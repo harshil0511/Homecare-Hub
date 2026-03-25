@@ -192,13 +192,25 @@ class MaintenanceTask(Base):
     __tablename__ = "maintenance_tasks"
 
     id = Column(Integer, primary_key=True, index=True)
-    title = Column(String, index=True)
+    title = Column(String, index=True) # Device Name
     description = Column(String, nullable=True)
-    due_date = Column(Date)
+    due_date = Column(Date, nullable=True)
     status = Column(String, default="Pending")
+    priority = Column(String, default="Routine") # Routine, Mandatory, Urgent
+
+    # Routine task fields
+    category = Column(String, nullable=True)
+    location = Column(String, nullable=True)
+    task_type = Column(String, default="standard") # standard, routine
+    booking_id = Column(Integer, ForeignKey("service_bookings.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
     user_id = Column(Integer, ForeignKey("users.id"))
+    service_provider_id = Column(Integer, ForeignKey("service_providers.id"), nullable=True)
 
     owner = relationship("User", back_populates="tasks")
+    provider = relationship("ServiceProvider")
+    booking = relationship("ServiceBooking")
 
 class Notification(Base):
     __tablename__ = "notifications"

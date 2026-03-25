@@ -120,9 +120,9 @@ def delete_society(
     if not society:
         raise HTTPException(status_code=404, detail="Society not found")
     
-    # Check permission (only owner can delete)
-    if society.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Only the owner can delete a society")
+    # Check permission (only owner or secretary can delete)
+    if society.owner_id != current_user.id and society.secretary_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the owner or secretary can decommission a society")
     
     # Check if this society is currently active for any user and nullify it
     db.query(User).filter(User.society_id == society_id).update({User.society_id: None})

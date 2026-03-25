@@ -250,17 +250,53 @@ class BookingDetailRead(BookingRead):
 
 # Maintenance Task Schemas
 class TaskCreate(BaseModel):
-    title: str
-    description: str = None
-    due_date: date
+    title: str # Device Name
+    description: Optional[str] = None
+    due_date: Optional[date] = None
     status: str = "Pending"
+    priority: str = "Routine" # Routine, Mandatory, Urgent
+    service_provider_id: Optional[int] = None
 
 class TaskResponse(TaskCreate):
     id: int
     user_id: int
+    category: Optional[str] = None
+    location: Optional[str] = None
+    task_type: Optional[str] = "standard"
+    booking_id: Optional[int] = None
+    created_at: Optional[datetime] = None
+    provider: Optional[ProviderResponse] = None
 
     class Config:
         from_attributes = True
+
+# Routine Task Schemas
+class RoutineTaskCreate(BaseModel):
+    title: str                          # Device name
+    description: Optional[str] = None   # Notes
+    category: str                       # Routine category
+    location: Optional[str] = None      # User location
+    priority: str = "Routine"           # Routine / Mandatory / Urgent
+
+class RoutineTaskResponse(BaseModel):
+    id: int
+    title: str
+    description: Optional[str] = None
+    category: Optional[str] = None
+    location: Optional[str] = None
+    priority: str
+    status: str
+    task_type: str
+    user_id: int
+    booking_id: Optional[int] = None
+    service_provider_id: Optional[int] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class RoutineTaskAssign(BaseModel):
+    provider_id: int
 
 # Notification Schemas
 class NotificationBase(BaseModel):
