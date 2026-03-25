@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from typing import List
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.internal import deps
 from app.internal.models import (
     MaintenanceTask, User, Notification,
@@ -178,12 +178,13 @@ def assign_routine_provider(
         raise HTTPException(status_code=404, detail="Provider not found")
 
     # Create ServiceBooking
+    # Schedule 24 hours from now by default — avoids immediate time-conflict window
     booking = ServiceBooking(
         user_id=current_user.id,
         provider_id=provider.id,
         service_type=task.category or "General",
         issue_description=f"{task.title}: {task.description}" if task.description else task.title,
-        scheduled_at=datetime.utcnow(),
+        scheduled_at=datetime.utcnow() + timedelta(hours=24),
         priority=task.priority,
         property_details=task.location,
         estimated_cost=provider.hourly_rate or 0.0

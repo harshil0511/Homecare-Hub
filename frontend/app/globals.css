@@ -1,0 +1,221 @@
+@import "tailwindcss";
+
+:root {
+  --primary: #064e3b;
+  /* emerald-950 */
+  --primary-light: #ecfdf5;
+  /* emerald-50 */
+  --text-main: #000000;
+  /* Absolute Black */
+  --text-muted: #334155;
+  /* Slate-700 (High contrast muted) */
+  --border: #e2e8f0;
+  /* slate-200 */
+  --surface: #ffffff;
+  --bg: #f8fafc;
+  /* slate-50 */
+  --shadow-elevated: 0 10px 30px rgba(0, 0, 0, 0.08);
+  --shadow-active: 0 10px 20px rgba(6, 78, 59, 0.3);
+
+  /* Font families (loaded via next/font) */
+  --font-display: var(--font-manrope), -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: var(--font-inter), -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-700;
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+  }
+
+  /* Premium Emerald Citadel focus ring */
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [tabindex="0"]:focus-visible {
+    @apply outline-none ring-4 ring-[#064e3b]/10 border-[#064e3b];
+    box-shadow: 0 0 0 1px #064e3b, 0 10px 15px -3px rgba(6, 78, 59, 0.1);
+  }
+
+  input,
+  select,
+  textarea {
+    @apply transition-shadow duration-150;
+  }
+
+  /* Inputs get green ring on focus */
+  input:focus,
+  select:focus,
+  textarea:focus {
+    @apply outline-none ring-2 ring-emerald-600 ring-offset-0 border-emerald-500;
+  }
+}
+
+@layer components {
+
+  /* Cards: white surface with a soft shadow */
+  .card {
+    @apply bg-white rounded-xl shadow-sm border border-slate-200;
+  }
+
+  /* Elevated cards (modals, dropdowns) — deeper shadow */
+  .card-elevated {
+    @apply bg-white rounded-2xl border border-slate-100;
+    box-shadow: var(--shadow-elevated);
+  }
+
+  /* ShigenTech-style active green item */
+  .active-green {
+    @apply bg-emerald-950 text-white;
+    box-shadow: var(--shadow-active);
+  }
+
+  .btn-primary {
+    @apply bg-emerald-900 hover:bg-emerald-950 text-white font-semibold py-2.5 px-5 rounded-xl transition-all shadow-sm;
+  }
+
+  .btn-ghost {
+    @apply text-slate-500 hover:bg-slate-100 hover:text-slate-800 font-medium py-2 px-4 rounded-xl transition-all;
+  }
+
+  .input-field {
+    @apply w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-slate-700 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition-all duration-150;
+  }
+
+  /* Table styles matching the clean green look */
+  .table-header {
+    @apply text-xs font-bold text-slate-500 uppercase tracking-wider py-4 px-6 bg-slate-50/50 border-b border-slate-200;
+  }
+
+  .table-cell {
+    @apply py-4 px-6 border-b border-slate-100 text-sm text-slate-700;
+  }
+
+  /* Tailwind-animate replacements — used by landing and auth pages */
+  .animate-in {
+    animation-fill-mode: both;
+    animation-duration: 0.3s;
+    animation-timing-function: ease-out;
+  }
+
+  .fade-in {
+    animation-name: fadeInOnly;
+  }
+
+  .slide-in-from-top-3 {
+    animation-name: slideInFromTop3;
+  }
+
+  .slide-in-from-top-2 {
+    animation-name: slideInFromTop2;
+  }
+
+  .slide-in-from-left-8 {
+    animation-name: slideInFromLeft8;
+  }
+
+  .slide-in-from-right-10 {
+    animation-name: slideInFromRight10;
+  }
+
+  .slide-in-from-left-10 {
+    animation-name: slideInFromLeft10;
+  }
+
+  .zoom-in-95 {
+    animation-name: zoomIn95;
+  }
+
+  .duration-700 {
+    animation-duration: 0.7s;
+  }
+
+  .duration-1000 {
+    animation-duration: 1s;
+  }
+
+  .delay-300 {
+    animation-delay: 0.3s;
+  }
+
+  .delay-500 {
+    animation-delay: 0.5s;
+  }
+}
+
+/* Keyframes for landing page animations */
+@keyframes fadeInOnly {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideInFromTop3 {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInFromTop2 {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInFromLeft8 {
+  from { opacity: 0; transform: translateX(-32px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInFromRight10 {
+  from { opacity: 0; transform: translateX(40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInFromLeft10 {
+  from { opacity: 0; transform: translateX(-40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes zoomIn95 {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Smooth fade-in animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+/* Scrollbar: minimal and clean */
+::-webkit-scrollbar {
+  width: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-400;
+}

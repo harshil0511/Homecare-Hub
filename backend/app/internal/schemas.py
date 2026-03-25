@@ -178,7 +178,7 @@ class BookingBase(BaseModel):
     estimated_cost: float = 0.0
 
 class BookingCreate(BookingBase):
-    pass
+    task_id: Optional[int] = None  # Link booking to a specific pending task
 
 class BookingUpdate(BaseModel):
     status: Optional[str] = None

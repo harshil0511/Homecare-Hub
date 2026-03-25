@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.internal import models, schemas, deps
 import datetime
+from datetime import timedelta
 
 router = APIRouter()
 
@@ -16,7 +17,22 @@ def create_booking(
     provider = db.query(models.ServiceProvider).filter(models.ServiceProvider.id == booking_in.provider_id).first()
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
-        
+
+    # Time-conflict check: reject if provider already has an active booking within ±3 hours
+    window_start = booking_in.scheduled_at - timedelta(hours=3)
+    window_end = booking_in.scheduled_at + timedelta(hours=3)
+    conflict = db.query(models.ServiceBooking).filter(
+        models.ServiceBooking.provider_id == booking_in.provider_id,
+        models.ServiceBooking.status.in_(["Pending", "Accepted", "In Progress"]),
+        models.ServiceBooking.scheduled_at >= window_start,
+        models.ServiceBooking.scheduled_at <= window_end
+    ).first()
+    if conflict:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Expert is already booked around that time (conflict with booking at {conflict.scheduled_at.strftime('%b %d, %H:%M')}). Please choose a different time."
+        )
+
     db_booking = models.ServiceBooking(
         user_id=current_user.id,
         provider_id=booking_in.provider_id,
@@ -30,6 +46,19 @@ def create_booking(
     db.add(db_booking)
     db.commit()
     db.refresh(db_booking)
+
+    # If booking was linked to a pending task → mark task as Assigned
+    if booking_in.task_id:
+        task = db.query(models.MaintenanceTask).filter(
+            models.MaintenanceTask.id == booking_in.task_id,
+            models.MaintenanceTask.user_id == current_user.id,
+            models.MaintenanceTask.booking_id == None
+        ).first()
+        if task:
+            task.booking_id = db_booking.id
+            task.service_provider_id = provider.id
+            task.status = "Assigned"
+            db.commit()
     
     # Add initial status history
     history = models.BookingStatusHistory(

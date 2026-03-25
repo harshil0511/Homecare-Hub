@@ -1,6 +1,7 @@
 import os
 import uuid
 import json
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -156,17 +157,22 @@ def register_provider(
 def get_providers(
     category: Optional[str] = None,
     search: Optional[str] = None,
+    scheduled_at: Optional[datetime] = None,  # Time-based availability check
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
     query = db.query(ServiceProvider)
 
-    # Society filtering — show all providers if user has no society
+    # Society filtering:
+    # - Providers with society_id=NULL are global — always visible to everyone
+    # - Providers with a society_id only appear to users in the same society
+    # - If the user has no society, they see all providers (global + all societies)
     if current_user.society_id:
         query = query.filter(
             (ServiceProvider.society_id == current_user.society_id) |
             (ServiceProvider.society_id == None)
         )
+    # else: no filter → user sees all providers
 
     if category:
         search_cat = f"%{category}%"
@@ -187,7 +193,25 @@ def get_providers(
             (ServiceProvider.categories.ilike(search_term))
         )
 
-    return query.all()
+    providers = query.all()
+
+    # Time-based availability: if scheduled_at provided, check for booking conflicts
+    if scheduled_at:
+        window_start = scheduled_at - timedelta(hours=3)
+        window_end = scheduled_at + timedelta(hours=3)
+        for provider in providers:
+            if provider.availability_status == "VACATION":
+                continue  # Respect manual vacation status
+            conflict = db.query(ServiceBooking).filter(
+                ServiceBooking.provider_id == provider.id,
+                ServiceBooking.status.in_(["Pending", "Accepted", "In Progress"]),
+                ServiceBooking.scheduled_at >= window_start,
+                ServiceBooking.scheduled_at <= window_end
+            ).first()
+            # Temporarily set computed status (not saved to DB)
+            provider.availability_status = "WORKING" if conflict else "AVAILABLE"
+
+    return providers
 
 @router.get("/providers/me", response_model=ProviderResponse)
 def get_my_provider_profile(
