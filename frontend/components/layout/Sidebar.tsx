@@ -7,46 +7,84 @@ import {
   LayoutDashboard, CalendarCheck, Wrench, Bell, Settings,
   LogOut, Briefcase, Star, Users, ShieldCheck,
   BarChart3, ClipboardList, UserCheck, ChevronRight,
-  User, Lock, BellRing, Zap, Search, Home
+  User, Lock, BellRing, Zap, Search, Home, Building2
 } from "lucide-react";
 import { logout, getRole, getUsername } from "@/lib/auth";
 
-const SETTINGS_CHILDREN = [
-  { name: "Profile", icon: User, path: "/dashboard/settings/profile" },
-  { name: "Password", icon: Lock, path: "/dashboard/settings/password" },
-  { name: "Notifications", icon: BellRing, path: "/dashboard/settings/notifications" },
-  { name: "Account", icon: ShieldCheck, path: "/dashboard/settings/account" },
+const USER_SETTINGS = [
+  { name: "Profile", icon: User, path: "/user/settings/profile" },
+  { name: "Password", icon: Lock, path: "/user/settings/password" },
+  { name: "Notifications", icon: BellRing, path: "/user/settings/notifications" },
+  { name: "Account", icon: ShieldCheck, path: "/user/settings/account" },
+];
+
+const ADMIN_SETTINGS = [
+  { name: "Profile", icon: User, path: "/admin/settings/profile" },
+  { name: "Password", icon: Lock, path: "/admin/settings/password" },
+  { name: "Notifications", icon: BellRing, path: "/admin/settings/notifications" },
+  { name: "Account", icon: ShieldCheck, path: "/admin/settings/account" },
+];
+
+const SERVICE_SETTINGS = [
+  { name: "Profile", icon: User, path: "/service/settings/profile" },
+  { name: "Password", icon: Lock, path: "/service/settings/password" },
+  { name: "Notifications", icon: BellRing, path: "/service/settings/notifications" },
+  { name: "Account", icon: ShieldCheck, path: "/service/settings/account" },
+];
+
+const SECRETARY_SETTINGS = [
+  { name: "Profile", icon: User, path: "/secretary/settings/profile" },
+  { name: "Password", icon: Lock, path: "/secretary/settings/password" },
+  { name: "Notifications", icon: BellRing, path: "/secretary/settings/notifications" },
+  { name: "Account", icon: ShieldCheck, path: "/secretary/settings/account" },
 ];
 
 const USER_NAV = [
-    { name: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
-    { name: "Operations", icon: ClipboardList, path: "/dashboard/bookings/history" },
-    { name: "Find Experts", icon: Search, path: "/dashboard/providers" },
-    { name: "Home Service", icon: Home, path: "/dashboard/routine" },
-    { name: "Home Health", icon: Wrench, path: "/dashboard/maintenance" },
-    { name: "Settings", icon: Settings, path: "/dashboard/settings" },
+    { name: "Dashboard", icon: LayoutDashboard, path: "/user/dashboard" },
+    { name: "Operations", icon: ClipboardList, path: "/user/bookings/history" },
+    { name: "Find Experts", icon: Search, path: "/user/providers" },
+    { name: "Home Service", icon: Home, path: "/user/routine" },
+    { name: "Alerts", icon: Bell, path: "/user/alerts" },
+    { name: "Settings", icon: Settings, path: "/user/settings" },
 ];
 
 const SERVICER_NAV = [
-  { name: "Overview", icon: LayoutDashboard, path: "/dashboard/servicer" },
-  { name: "My Jobs", icon: Briefcase, path: "/dashboard/servicer/jobs" },
-  { name: "Ratings", icon: Star, path: "/dashboard/servicer/ratings" },
-  { name: "Settings", icon: Settings, path: "/dashboard/settings" },
+  { name: "Overview", icon: LayoutDashboard, path: "/service/dashboard" },
+  { name: "My Jobs", icon: Briefcase, path: "/service/jobs" },
+  { name: "Ratings", icon: Star, path: "/service/ratings" },
+  { name: "Settings", icon: Settings, path: "/service/settings" },
 ];
 
 const ADMIN_NAV = [
-  { name: "Overview", icon: BarChart3, path: "/admin" },
+  { name: "Overview", icon: BarChart3, path: "/admin/dashboard" },
   { name: "All Users", icon: Users, path: "/admin/users" },
   { name: "Providers", icon: UserCheck, path: "/admin/providers" },
   { name: "Bookings", icon: ClipboardList, path: "/admin/bookings" },
   { name: "System Logs", icon: ShieldCheck, path: "/admin/logs" },
-  { name: "Settings", icon: Settings, path: "/dashboard/settings" },
+  { name: "Settings", icon: Settings, path: "/admin/settings" },
+];
+
+const SECRETARY_NAV = [
+  { name: "Overview", icon: LayoutDashboard, path: "/secretary/dashboard" },
+  { name: "Society", icon: Building2, path: "/secretary/society" },
+  { name: "Members", icon: Users, path: "/secretary/members" },
+  { name: "Alerts", icon: Bell, path: "/secretary/alerts" },
+  { name: "Providers", icon: Wrench, path: "/secretary/providers" },
+  { name: "Settings", icon: Settings, path: "/secretary/settings" },
 ];
 
 const ROLE_BADGE: Record<string, { label: string; color: string }> = {
   ADMIN: { label: "Admin", color: "text-purple-700 bg-purple-50" },
   SERVICER: { label: "Servicer", color: "text-emerald-700 bg-emerald-50" },
   USER: { label: "Home User", color: "text-blue-700 bg-blue-50" },
+  SECRETARY: { label: "Secretary", color: "text-amber-700 bg-amber-50" },
+};
+
+const SETTINGS_PATH_PREFIX: Record<string, string> = {
+  ADMIN: "/admin/settings",
+  USER: "/user/settings",
+  SERVICER: "/service/settings",
+  SECRETARY: "/secretary/settings",
 };
 
 export default function Sidebar() {
@@ -60,23 +98,31 @@ export default function Sidebar() {
     setUsername(getUsername());
   }, []);
 
-  // Auto-open settings sub-menu when on a settings page
   useEffect(() => {
-    if (pathname.startsWith("/dashboard/settings")) {
+    if (role && pathname.startsWith(SETTINGS_PATH_PREFIX[role] ?? "/settings")) {
       setSettingsOpen(true);
     }
-  }, [pathname]);
+  }, [pathname, role]);
 
   const menuItems =
     role === "ADMIN" ? ADMIN_NAV :
-      role === "SERVICER" ? SERVICER_NAV :
-        USER_NAV;
+    role === "SERVICER" ? SERVICER_NAV :
+    role === "SECRETARY" ? SECRETARY_NAV :
+    USER_NAV;
+
+  const settingsChildren =
+    role === "ADMIN" ? ADMIN_SETTINGS :
+    role === "SERVICER" ? SERVICE_SETTINGS :
+    role === "SECRETARY" ? SECRETARY_SETTINGS :
+    USER_SETTINGS;
+
+  const settingsPrefix = role ? (SETTINGS_PATH_PREFIX[role] ?? "/user/settings") : "/user/settings";
 
   const badge = role ? ROLE_BADGE[role] : null;
 
   return (
     <div className="w-64 min-h-screen bg-white border-r border-slate-200 flex flex-col flex-shrink-0 animate-fade-in relative z-20 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
-      {/* Brand Logo - ShigenTech Style */}
+      {/* Brand Logo */}
       <div className="flex items-center gap-3 px-6 py-8">
         <div className="w-10 h-10 bg-[#064e3b] rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-emerald-900/10 transition-transform hover:scale-105 cursor-pointer">
           <Wrench className="w-5 h-5 text-white" />
@@ -108,15 +154,17 @@ export default function Sidebar() {
         <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Module Index</p>
       </div>
 
-      {/* Navigation - INTERACTIVE ONLY Green Surrounding */}
+      {/* Navigation */}
       <nav className="flex-1 px-4 space-y-1">
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isSettings = item.name === "Settings";
-          const isOnSettingsPage = pathname.startsWith("/dashboard/settings");
+          const isOnSettingsPage = pathname.startsWith(settingsPrefix);
           const isActive = isSettings
             ? isOnSettingsPage
-            : pathname === item.path || pathname.startsWith(item.path + "/");
+            : item.path === menuItems[0].path
+              ? pathname === item.path
+              : pathname === item.path || pathname.startsWith(item.path + "/");
 
           return (
             <div key={item.name}>
@@ -124,36 +172,36 @@ export default function Sidebar() {
                 <button
                   onClick={() => setSettingsOpen(!settingsOpen)}
                   className={`w-full group flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl text-sm font-black transition-all duration-150 relative outline-none ${isActive
-                    ? "bg-[#064e3b] text-white shadow-lg shadow-emerald-900/20"
-                    : "text-slate-500 hover:bg-[#064e3b] hover:text-white hover:shadow-xl hover:shadow-emerald-900/20"
+                    ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/20"
+                    : "text-slate-500 hover:bg-emerald-50 hover:text-emerald-700 hover:shadow-sm"
                     }`}
                 >
                   <div className="flex items-center gap-3">
-                    <Icon className={`w-4.5 h-4.5 flex-shrink-0 transition-colors ${isActive ? "text-white" : "text-slate-400"} group-hover:text-white`} />
+                    <Icon className={`w-4.5 h-4.5 flex-shrink-0 transition-colors ${isActive ? "text-white" : "text-slate-400 group-hover:text-emerald-600"}`} />
                     <span className="tracking-tight">{item.name}</span>
                   </div>
-                  <ChevronRight className={`w-3.5 h-3.5 transition-all duration-200 ${settingsOpen ? "rotate-90" : ""} ${isActive ? "text-white opacity-100" : "text-slate-300 opacity-0 group-hover:opacity-100"} group-hover:text-white`} />
+                  <ChevronRight className={`w-3.5 h-3.5 transition-all duration-200 ${settingsOpen ? "rotate-90" : ""} ${isActive ? "text-white opacity-100" : "text-slate-300 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:text-emerald-500"}`} />
                 </button>
               ) : (
                 <Link
                   href={item.path}
                   className={`group flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl text-sm font-black transition-all duration-150 relative outline-none ${isActive
-                    ? "bg-[#064e3b] text-white shadow-lg shadow-emerald-900/20"
-                    : "text-slate-500 hover:bg-[#064e3b] hover:text-white hover:shadow-xl hover:shadow-emerald-900/20"
+                    ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/20"
+                    : "text-slate-500 hover:bg-emerald-50 hover:text-emerald-700 hover:shadow-sm"
                     }`}
                 >
                   <div className="flex items-center gap-3">
                     <Icon className={`w-4.5 h-4.5 flex-shrink-0 transition-colors ${isActive ? "text-white" : "text-slate-400"} group-hover:text-white`} />
                     <span className="tracking-tight">{item.name}</span>
                   </div>
-                  <ChevronRight className={`w-3.5 h-3.5 transition-all ${isActive ? "text-white opacity-100" : "text-slate-300 opacity-0 group-hover:opacity-100 group-hover:translate-x-1"} group-hover:text-white`} />
+                  <ChevronRight className={`w-3.5 h-3.5 transition-all ${isActive ? "text-white opacity-100" : "text-slate-300 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:text-emerald-500"}`} />
                 </Link>
               )}
 
-              {/* Settings Sub-menu (toggle) */}
+              {/* Settings Sub-menu */}
               {isSettings && settingsOpen && (
                 <div className="ml-4 mt-1 space-y-0.5 border-l-2 border-slate-100 pl-3">
-                  {SETTINGS_CHILDREN.map((sub) => {
+                  {settingsChildren.map((sub) => {
                     const SubIcon = sub.icon;
                     const isSubActive = pathname === sub.path;
                     return (
@@ -178,7 +226,7 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Bottom Profile/Logout Area */}
+      {/* Bottom Logout */}
       <div className="px-4 py-6 border-t border-slate-100 mt-auto">
         <button
           onClick={logout}
