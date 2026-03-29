@@ -34,8 +34,11 @@ frontend/build/
 # Project documentation / system files
 .gemini/
 .antigravity/
+.superpowers/
 brain/
 logs/
+!frontend/app/**/logs/
+!frontend/app/**/logs/**
 claude.md
 CLAUDE.md
 .claude/

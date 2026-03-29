@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Users, Mail, Shield, ShieldCheck, ShieldAlert, Search, CheckCircle, XCircle } from "lucide-react";
+import { Users, Mail, Shield, ShieldCheck, ShieldAlert, Search, CheckCircle, XCircle, Trash2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
 interface User {
@@ -46,6 +46,19 @@ export default function AdminUsersPage() {
             setTimeout(() => setActionMsg(""), 2000);
         } catch (err: any) {
             setActionMsg(err.message || "Failed to update.");
+            setTimeout(() => setActionMsg(""), 3000);
+        }
+    };
+
+    const deleteUser = async (uuid: string, username: string) => {
+        if (!confirm(`Permanently delete account for "${username}"? This cannot be undone.`)) return;
+        try {
+            await apiFetch(`/admin/users/${uuid}`, { method: "DELETE" });
+            setUsers((prev) => prev.filter((u) => u.user_uuid !== uuid));
+            setActionMsg(`Account "${username}" deleted.`);
+            setTimeout(() => setActionMsg(""), 3000);
+        } catch (err: any) {
+            setActionMsg(err.message || "Failed to delete.");
             setTimeout(() => setActionMsg(""), 3000);
         }
     };
@@ -182,16 +195,27 @@ export default function AdminUsersPage() {
                                                 </span>
                                             </td>
                                             <td className="px-10 py-5">
-                                                <button
-                                                    onClick={() => toggleActive(user.user_uuid, user.is_active)}
-                                                    className={`text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest border transition-all ${
-                                                        user.is_active
-                                                            ? "border-rose-200 text-rose-600 hover:bg-rose-50"
-                                                            : "border-emerald-200 text-emerald-600 hover:bg-emerald-50"
-                                                    }`}
-                                                >
-                                                    {user.is_active ? "Deactivate" : "Activate"}
-                                                </button>
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={() => toggleActive(user.user_uuid, user.is_active)}
+                                                        className={`text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest border transition-all ${
+                                                            user.is_active
+                                                                ? "border-rose-200 text-rose-600 hover:bg-rose-50"
+                                                                : "border-emerald-200 text-emerald-600 hover:bg-emerald-50"
+                                                        }`}
+                                                    >
+                                                        {user.is_active ? "Deactivate" : "Activate"}
+                                                    </button>
+                                                    {user.role !== "ADMIN" && (
+                                                        <button
+                                                            onClick={() => deleteUser(user.user_uuid, user.username)}
+                                                            className="p-1.5 rounded-lg border border-rose-200 text-rose-500 hover:bg-rose-50 transition-all"
+                                                            title="Delete account"
+                                                        >
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     );

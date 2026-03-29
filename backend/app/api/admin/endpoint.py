@@ -18,7 +18,7 @@ def get_stats(
 ):
     """Overview numbers for the Admin dashboard cards."""
     return {
-        "total_users": db.query(User).filter(User.role == "USER").count(),
+        "total_users": db.query(User).count(),
         "total_servicers": db.query(User).filter(User.role == "SERVICER").count(),
         "total_bookings": db.query(ServiceBooking).count(),
         "total_tasks": db.query(MaintenanceTask).count(),
@@ -42,9 +42,9 @@ def change_user_role(
     db: Session = Depends(deps.get_db),
     _: User = Depends(admin_only)
 ):
-    """Change a user's role. Allowed values: USER, SERVICER, ADMIN."""
-    if new_role not in ["USER", "SERVICER", "ADMIN"]:
-        raise HTTPException(status_code=400, detail="Invalid role. Must be USER, SERVICER, or ADMIN.")
+    """Change a user's role. Allowed: USER, SERVICER, ADMIN, SECRETARY."""
+    if new_role not in ["USER", "SERVICER", "ADMIN", "SECRETARY"]:
+        raise HTTPException(status_code=400, detail="Invalid role.")
 
     user = db.query(User).filter(User.user_uuid == user_uuid).first()
     if not user:
@@ -61,15 +61,81 @@ def toggle_user_active(
     db: Session = Depends(deps.get_db),
     _: User = Depends(admin_only)
 ):
-    """Toggle a user's is_active status (enable/disable account)."""
+    """Toggle a user's is_active status."""
     user = db.query(User).filter(User.user_uuid == user_uuid).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
 
     user.is_active = not user.is_active
     db.commit()
-    status_text = "activated" if user.is_active else "deactivated"
-    return {"message": f"Account {status_text} for {user.email}", "is_active": user.is_active}
+    return {"message": f"Account {'activated' if user.is_active else 'deactivated'}", "is_active": user.is_active}
+
+
+@router.delete("/users/{user_uuid}")
+def delete_user(
+    user_uuid: str,
+    db: Session = Depends(deps.get_db),
+    current_admin: User = Depends(admin_only)
+):
+    """Permanently delete a user account."""
+    if current_admin.user_uuid == user_uuid:
+        raise HTTPException(status_code=400, detail="Cannot delete your own admin account.")
+
+    user = db.query(User).filter(User.user_uuid == user_uuid).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    db.delete(user)
+    db.commit()
+    return {"message": f"Account for {user.email} permanently deleted."}
+
+
+@router.get("/bookings")
+def get_all_bookings(
+    db: Session = Depends(deps.get_db),
+    _: User = Depends(admin_only)
+):
+    """List all bookings in the system."""
+    bookings = db.query(ServiceBooking).order_by(ServiceBooking.id.desc()).all()
+    return [
+        {
+            "id": b.id,
+            "user_id": b.user_id,
+            "provider_id": b.provider_id,
+            "service_type": b.service_type,
+            "status": b.status,
+            "priority": b.priority,
+            "scheduled_at": b.scheduled_at.isoformat() if b.scheduled_at else None,
+            "estimated_cost": b.estimated_cost,
+            "created_at": b.created_at.isoformat() if b.created_at else None,
+        }
+        for b in bookings
+    ]
+
+
+@router.get("/providers")
+def get_all_providers(
+    db: Session = Depends(deps.get_db),
+    _: User = Depends(admin_only)
+):
+    """List all service providers."""
+    providers = db.query(ServiceProvider).order_by(ServiceProvider.id.desc()).all()
+    return [
+        {
+            "id": p.id,
+            "company_name": p.company_name,
+            "owner_name": p.owner_name,
+            "first_name": p.first_name,
+            "last_name": p.last_name,
+            "category": p.category,
+            "email": p.email,
+            "phone": p.phone,
+            "rating": p.rating,
+            "is_verified": p.is_verified,
+            "availability_status": p.availability_status,
+        }
+        for p in providers
+    ]
 
 
 @router.get("/providers/pending")
@@ -77,7 +143,7 @@ def get_pending_providers(
     db: Session = Depends(deps.get_db),
     _: User = Depends(admin_only)
 ):
-    """List all service providers that are not yet verified."""
+    """List all unverified service providers."""
     providers = db.query(ServiceProvider).filter(ServiceProvider.is_verified == False).all()
     return [
         {
@@ -106,3 +172,36 @@ def verify_provider(
     provider.is_verified = True
     db.commit()
     return {"message": f"Provider '{provider.company_name}' is now verified."}
+
+
+@router.get("/logs")
+def get_activity_logs(
+    db: Session = Depends(deps.get_db),
+    _: User = Depends(admin_only)
+):
+    """Recent system activity: latest bookings and maintenance tasks."""
+    bookings = db.query(ServiceBooking).order_by(ServiceBooking.id.desc()).limit(20).all()
+    tasks = db.query(MaintenanceTask).order_by(MaintenanceTask.id.desc()).limit(20).all()
+
+    logs = []
+    for b in bookings:
+        logs.append({
+            "type": "BOOKING",
+            "id": b.id,
+            "description": f"Booking #{b.id} — {b.service_type or 'Service'} [{b.status}]",
+            "status": b.status,
+            "user_id": b.user_id,
+            "created_at": b.created_at.isoformat() if b.created_at else None,
+        })
+    for t in tasks:
+        logs.append({
+            "type": "TASK",
+            "id": t.id,
+            "description": f"Task: {t.title} [{t.status}]",
+            "status": t.status,
+            "user_id": t.user_id,
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+        })
+
+    logs.sort(key=lambda x: x["created_at"] or "", reverse=True)
+    return logs[:30]
