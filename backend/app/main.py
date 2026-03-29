@@ -1,6 +1,10 @@
-import os 
-from datetime import datetime
+import logging
+import os
+from datetime import datetime, timezone
+
 from fastapi import FastAPI
+
+logger = logging.getLogger(__name__)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.api.auth.endpoint import router as auth_router
@@ -11,11 +15,16 @@ from app.api.admin.endpoint import router as admin_router
 from app.api.booking.endpoint import router as booking_router
 from app.api.ai.endpoint import router as ai_router
 from app.api.notification.endpoint import router as notification_router
+from app.api.secretary.endpoint import router as secretary_router
 from app.core.database import Base, engine
 from app.core.config import settings       # ← reads from .env
 from app.internal import models            # Load models so SQLAlchemy creates tables
 
-Base.metadata.create_all(bind=engine)
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as e:
+    logger.warning("Database connection failed on startup: %s", e)
+    logger.warning("App will start but DB-dependent endpoints may fail until DB is available.")
 
 app = FastAPI(
     title="HomeCare Hub API",
@@ -25,18 +34,22 @@ app = FastAPI(
     openapi_url="/api/v1/openapi.json"
 )
 
-# CORS — allow local development origins
+# CORS — allow local development origins + dynamic frontend URL
+cors_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
+if settings.FRONTEND_URL and settings.FRONTEND_URL not in cors_origins:
+    cors_origins.append(settings.FRONTEND_URL)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-    ],
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 
@@ -55,6 +68,7 @@ app.include_router(admin_router,   prefix="/api/v1/admin")
 app.include_router(ai_router,      prefix="/api/v1/ai")
 app.include_router(booking_router, prefix="/api/v1/bookings")
 app.include_router(notification_router, prefix="/api/v1/notifications")
+app.include_router(secretary_router, prefix="/api/v1/secretary")
 
 @app.get("/")
 def root():
@@ -62,4 +76,4 @@ def root():
 
 @app.get("/api/v1/health")
 def health_check():
-    return {"status": "healthy", "timestamp": str(datetime.utcnow())}
+    return {"status": "healthy", "timestamp": str(datetime.now(timezone.utc))}
