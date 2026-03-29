@@ -2,7 +2,21 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { isLoggedIn, getRole, logout } from "@/lib/auth";
+import { isLoggedIn, getRole } from "@/lib/auth";
+
+const ROLE_HOME: Record<string, string> = {
+    ADMIN: "/admin/dashboard",
+    SECRETARY: "/secretary/dashboard",
+    USER: "/user/dashboard",
+    SERVICER: "/service/dashboard",
+};
+
+const ROUTE_ROLE: Array<{ prefix: string; role: string }> = [
+    { prefix: "/admin", role: "ADMIN" },
+    { prefix: "/secretary", role: "SECRETARY" },
+    { prefix: "/user", role: "USER" },
+    { prefix: "/service", role: "SERVICER" },
+];
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
     const router = useRouter();
@@ -10,30 +24,24 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     const [authorized, setAuthorized] = useState(false);
 
     useEffect(() => {
-        // Run auth check on every route change
         const checkAuth = () => {
-            const loggedIn = isLoggedIn();
-            
-            if (!loggedIn) {
-                // Not logged in -> Redirect to login
+            if (!isLoggedIn()) {
                 setAuthorized(false);
                 router.push("/login");
                 return;
             }
 
             const role = getRole();
-            
-            // Basic role-based access logic
-            // 1. Admin paths restricted to ADMIN role
-            if (pathname.startsWith("/admin") && role !== "ADMIN") {
-                router.push("/dashboard");
+            if (!role) {
+                router.push("/login");
                 return;
             }
 
-            // 2. Servicer paths restricted to SERVICER role
-            // Note: Currently servicer paths are mixed in dashboard/servicer
-            if (pathname.includes("/servicer") && role !== "SERVICER" && role !== "ADMIN") {
-                router.push("/dashboard");
+            // Find which route tree we're in
+            const routeEntry = ROUTE_ROLE.find((r) => pathname.startsWith(r.prefix));
+            if (routeEntry && routeEntry.role !== role) {
+                // Wrong role for this route tree → send to their correct home
+                router.push(ROLE_HOME[role] ?? "/login");
                 return;
             }
 
@@ -44,7 +52,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     }, [pathname, router]);
 
     if (!authorized) {
-        // Show a loading state or nothing while redirecting
         return (
             <div className="flex items-center justify-center min-h-screen bg-slate-50">
                 <div className="w-10 h-10 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
