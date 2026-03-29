@@ -16,15 +16,44 @@ from app.api.booking.endpoint import router as booking_router
 from app.api.ai.endpoint import router as ai_router
 from app.api.notification.endpoint import router as notification_router
 from app.api.secretary.endpoint import router as secretary_router
-from app.core.database import Base, engine
+from app.core.database import Base, engine, SessionLocal
 from app.core.config import settings       # ← reads from .env
 from app.internal import models            # Load models so SQLAlchemy creates tables
+from app.core import security
 
 try:
     Base.metadata.create_all(bind=engine)
 except Exception as e:
     logger.warning("Database connection failed on startup: %s", e)
     logger.warning("App will start but DB-dependent endpoints may fail until DB is available.")
+
+
+def seed_superadmin():
+    """Create the superadmin user on startup if they don't exist yet."""
+    try:
+        db = SessionLocal()
+        existing = db.query(models.User).filter(
+            models.User.email == settings.SUPERADMIN_EMAIL
+        ).first()
+        if not existing:
+            admin = models.User(
+                username="Harshil Chaudhary",
+                email=settings.SUPERADMIN_EMAIL,
+                hashed_password=security.get_password_hash(settings.SUPERADMIN_PASSWORD),
+                role="ADMIN",
+                is_active=True,
+            )
+            db.add(admin)
+            db.commit()
+            logger.info("Superadmin seeded: %s", settings.SUPERADMIN_EMAIL)
+        else:
+            logger.info("Superadmin already exists: %s", settings.SUPERADMIN_EMAIL)
+        db.close()
+    except Exception as e:
+        logger.warning("Could not seed superadmin: %s", e)
+
+
+seed_superadmin()
 
 app = FastAPI(
     title="HomeCare Hub API",
