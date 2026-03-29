@@ -1,16 +1,20 @@
 /**
  * Auth helpers for Homecare Hub
- * Stores role, username, and JWT token in localStorage
- * after a successful login.
+ * Stores role, username, and JWT token in localStorage + cookie (for middleware).
  */
 
-// Keys used in localStorage
 const TOKEN_KEY = "hc_token";
 const ROLE_KEY = "hc_role";
 const USERNAME_KEY = "hc_username";
 const UUID_KEY = "hc_uuid";
 
-// Save all auth data at once after login
+const ROLE_HOME: Record<string, string> = {
+    ADMIN: "/admin/dashboard",
+    SECRETARY: "/secretary/dashboard",
+    USER: "/user/dashboard",
+    SERVICER: "/service/dashboard",
+};
+
 export function saveAuthData(data: {
     access_token: string;
     role: string;
@@ -21,24 +25,22 @@ export function saveAuthData(data: {
     localStorage.setItem(ROLE_KEY, data.role);
     localStorage.setItem(USERNAME_KEY, data.username);
     localStorage.setItem(UUID_KEY, data.user_uuid);
+    // Write cookie so Next.js middleware can check token existence
+    document.cookie = `hc_token=${data.access_token}; path=/; SameSite=Strict; Max-Age=3600`;
 }
 
-// Get the raw JWT token
 export function getToken(): string | null {
     return localStorage.getItem(TOKEN_KEY);
 }
 
-// Get the logged-in user's role: "USER" | "SERVICER" | "ADMIN"
 export function getRole(): string | null {
     return localStorage.getItem(ROLE_KEY);
 }
 
-// Get the logged-in user's display name
 export function getUsername(): string | null {
     return localStorage.getItem(USERNAME_KEY);
 }
 
-// Role boolean helpers — easy to use in components
 export function isAdmin(): boolean {
     return getRole() === "ADMIN";
 }
@@ -51,21 +53,30 @@ export function isUser(): boolean {
     return getRole() === "USER";
 }
 
-// Check if there is any active session
+export function isSecretary(): boolean {
+    return getRole() === "SECRETARY";
+}
+
 export function isLoggedIn(): boolean {
     return !!getToken();
 }
 
-// Clear all session data and redirect to login
+export function getRoleHome(): string {
+    const role = getRole();
+    return role ? (ROLE_HOME[role] ?? "/login") : "/login";
+}
+
 export function logout() {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(ROLE_KEY);
     localStorage.removeItem(USERNAME_KEY);
     localStorage.removeItem(UUID_KEY);
+    // Clear cookie
+    document.cookie = "hc_token=; path=/; Max-Age=0";
     window.location.href = "/login";
 }
 
-// Legacy compat — some old code calls saveToken directly
+// Legacy compat
 export function saveToken(token: string) {
     localStorage.setItem(TOKEN_KEY, token);
 }
