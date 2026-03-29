@@ -32,7 +32,16 @@ export default function LoginPage() {
     // Redirect if already logged in
     useEffect(() => {
         const token = localStorage.getItem("hc_token");
-        if (token) router.push("/dashboard");
+        const role = localStorage.getItem("hc_role");
+        if (token && role) {
+            const roleHome: Record<string, string> = {
+                ADMIN: "/admin/dashboard",
+                SECRETARY: "/secretary/dashboard",
+                SERVICER: "/service/dashboard",
+                USER: "/user/dashboard",
+            };
+            router.push(roleHome[role] ?? "/user/dashboard");
+        }
     }, [router]);
 
     const handleLogin = async (e: React.FormEvent) => {
@@ -49,14 +58,14 @@ export default function LoginPage() {
             // Save all auth info to localStorage
             saveAuthData(data);
 
-            // Route to different dashboards based on role
-            if (data.role === "ADMIN") {
-                router.push("/admin");
-            } else if (data.role === "SERVICER") {
-                router.push("/dashboard/servicer");
-            } else {
-                router.push("/dashboard");
-            }
+            // Route to role-specific dashboards
+            const roleHome: Record<string, string> = {
+                ADMIN: "/admin/dashboard",
+                SECRETARY: "/secretary/dashboard",
+                SERVICER: "/service/dashboard",
+                USER: "/user/dashboard",
+            };
+            router.push(roleHome[data.role] ?? "/user/dashboard");
         } catch (err: any) {
             const msg = err.message || "Incorrect email or password.";
             setError(msg);
