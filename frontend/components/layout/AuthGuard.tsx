@@ -37,6 +37,12 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                 return;
             }
 
+            // Legacy /dashboard paths → redirect to role-specific home
+            if (pathname.startsWith("/dashboard")) {
+                router.push(ROLE_HOME[role] ?? "/login");
+                return;
+            }
+
             // Find which route tree we're in
             const routeEntry = ROUTE_ROLE.find((r) => pathname.startsWith(r.prefix));
             if (routeEntry && routeEntry.role !== role) {
