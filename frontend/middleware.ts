@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Routes that don't need auth
-const PUBLIC_PATHS = ["/login", "/register", "/"];
-
 // Protected route prefixes
 const PROTECTED_PREFIXES = ["/admin", "/secretary", "/user", "/service"];
 
-// Role → home path mapping
+// Role → home path mapping (used for redirect when logged-in user hits /login)
 const ROLE_HOME: Record<string, string> = {
     ADMIN: "/admin/dashboard",
     SECRETARY: "/secretary/dashboard",
@@ -37,10 +34,11 @@ export function middleware(request: NextRequest) {
         return NextResponse.redirect(loginUrl);
     }
 
-    // Has token on /login or /register → redirect to /user/dashboard
-    // (actual role-based redirect handled by login page after reading localStorage)
+    // Has token on /login or /register → redirect to role's dashboard
     if (token && (pathname === "/login" || pathname === "/register")) {
-        return NextResponse.redirect(new URL("/user/dashboard", request.url));
+        const role = request.cookies.get("hc_role")?.value;
+        const home = role ? (ROLE_HOME[role] ?? "/user/dashboard") : "/user/dashboard";
+        return NextResponse.redirect(new URL(home, request.url));
     }
 
     return NextResponse.next();

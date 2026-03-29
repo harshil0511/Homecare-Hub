@@ -26,7 +26,10 @@ export function saveAuthData(data: {
     localStorage.setItem(USERNAME_KEY, data.username);
     localStorage.setItem(UUID_KEY, data.user_uuid);
     // Write cookie so Next.js middleware can check token existence
-    document.cookie = `hc_token=${data.access_token}; path=/; SameSite=Strict; Max-Age=3600`;
+    const secure = window.location.protocol === "https:" ? "; Secure" : "";
+    // Max-Age=3600 must match ACCESS_TOKEN_EXPIRE_MINUTES in backend/.env
+    document.cookie = `hc_token=${data.access_token}; path=/; SameSite=Strict; Max-Age=3600${secure}`;
+    document.cookie = `hc_role=${data.role}; path=/; SameSite=Strict; Max-Age=3600${secure}`;
 }
 
 export function getToken(): string | null {
@@ -71,12 +74,14 @@ export function logout() {
     localStorage.removeItem(ROLE_KEY);
     localStorage.removeItem(USERNAME_KEY);
     localStorage.removeItem(UUID_KEY);
-    // Clear cookie
-    document.cookie = "hc_token=; path=/; Max-Age=0";
+    // Clear cookies
+    const secure = window.location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = `hc_token=; path=/; Max-Age=0${secure}`;
+    document.cookie = `hc_role=; path=/; Max-Age=0${secure}`;
     window.location.href = "/login";
 }
 
-// Legacy compat
+/** @deprecated Use saveAuthData instead — saveToken does not write the auth cookie required by middleware. */
 export function saveToken(token: string) {
     localStorage.setItem(TOKEN_KEY, token);
 }
