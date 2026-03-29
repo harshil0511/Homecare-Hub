@@ -8,6 +8,7 @@ class UserRole(str, Enum):
     USER = "USER"
     SERVICER = "SERVICER"
     ADMIN = "ADMIN"
+    SECRETARY = "SECRETARY"
 
 # User Schemas
 class UserBase(BaseModel):
@@ -17,6 +18,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    society_id: Optional[int] = None   # required when role == SECRETARY
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -34,7 +36,7 @@ class UserResponse(UserBase):
 class Token(BaseModel):
     access_token: str
     token_type: str
-    role: str       # USER | SERVICER | ADMIN
+    role: str       # USER | SERVICER | ADMIN | SECRETARY
     user_uuid: str
     username: str
 
@@ -88,22 +90,22 @@ class SocietyDetailResponse(SocietyResponse):
 
 # Service Provider Schemas
 class ProviderBase(BaseModel):
-    company_name: str
-    owner_name: str
+    company_name: Optional[str] = "Unknown"
+    owner_name: Optional[str] = "Unknown"
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     age: Optional[int] = None
     gender: Optional[str] = None
-    category: str
-    categories: Optional[List[str]] = [] # Role list
-    phone: str
-    email: str
-    hourly_rate: float = 0.0
+    category: Optional[str] = "General"
+    categories: Optional[List[str]] = []
+    phone: Optional[str] = ""
+    email: Optional[str] = ""
+    hourly_rate: Optional[float] = 0.0
     availability: Optional[str] = None
     bio: Optional[str] = None
     education: Optional[str] = None
-    experience_years: int = 0
-    availability_status: str = "AVAILABLE"
+    experience_years: Optional[int] = 0
+    availability_status: Optional[str] = "AVAILABLE"
     qualification: Optional[str] = None
     government_id: Optional[str] = None
     certification_url: Optional[str] = None
@@ -112,13 +114,17 @@ class ProviderBase(BaseModel):
     society_id: Optional[int] = None
 
 class ProviderCreate(ProviderBase):
-    pass
+    company_name: str = "Unknown"
+    owner_name: str = "Unknown"
+    category: str = "General"
+    phone: str = ""
+    email: str = ""
 
 class ProviderResponse(ProviderBase):
     id: int
     user_id: Optional[int] = None
-    is_verified: bool
-    rating: float
+    is_verified: Optional[bool] = False
+    rating: Optional[float] = 5.0
     certificates: List["CertificateResponse"] = []
 
     @field_validator('categories', mode='before')
@@ -189,6 +195,18 @@ class BookingReschedule(BaseModel):
 
 class BookingCancel(BaseModel):
     reason: str
+
+class EmergencyCreate(BaseModel):
+    category: str
+    description: str
+    location: Optional[str] = None
+
+class EmergencyResponse(BaseModel):
+    provider_found: bool
+    booking_id: Optional[int] = None
+    provider_name: Optional[str] = None
+    provider_id: Optional[int] = None
+    redirect_url: Optional[str] = None
 
 class BookingStatusHistoryRead(BaseModel):
     id: int
@@ -297,6 +315,7 @@ class RoutineTaskResponse(BaseModel):
 
 class RoutineTaskAssign(BaseModel):
     provider_id: int
+    scheduled_at: datetime
 
 # Notification Schemas
 class NotificationBase(BaseModel):
