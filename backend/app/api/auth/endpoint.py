@@ -4,7 +4,7 @@ from app.internal import deps
 from app.core import security
 from app.core.security import validate_password
 from app.core.config import settings
-from app.internal.models import User
+from app.internal.models import User, Society
 from app.internal.schemas import UserCreate, UserLogin, UserResponse, Token, ForgotPassword
 
 router = APIRouter(tags=["Authentication API"])
@@ -25,12 +25,23 @@ def signup(user_in: UserCreate, db: Session = Depends(deps.get_db)):
     if user_in.email == settings.SUPERADMIN_EMAIL:
         role = "ADMIN"
 
-    # 4. Create and save the user
+    # 4. Secretary must provide a valid society_id
+    society_id = None
+    if role == "SECRETARY":
+        if not user_in.society_id:
+            raise HTTPException(status_code=400, detail="Secretary must select a society.")
+        society = db.query(Society).filter(Society.id == user_in.society_id).first()
+        if not society:
+            raise HTTPException(status_code=404, detail="Selected society not found.")
+        society_id = user_in.society_id
+
+    # 5. Create and save the user
     db_user = User(
         email=user_in.email,
         username=user_in.username,
         hashed_password=security.get_password_hash(user_in.password),
-        role=role
+        role=role,
+        society_id=society_id
     )
     db.add(db_user)
     db.commit()
