@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
 from app.internal import deps
-from app.internal.models import User, Society, MaintenanceTask, ServiceProvider
+from app.internal.models import User, Society, MaintenanceTask
 from app.internal.schemas import SocietyResponse, SocietyUpdate, UserResponse
 
 router = APIRouter(tags=["Secretary API"])
+
+secretary_only = deps.RoleChecker(["SECRETARY"])
+
 
 def get_secretary_society(current_user: User, db: Session) -> Society:
     """Get the society this secretary manages."""
@@ -20,10 +22,9 @@ def get_secretary_society(current_user: User, db: Session) -> Society:
 @router.get("/society", response_model=SocietyResponse)
 def get_my_society(
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.get_current_user)
+    current_user: User = Depends(secretary_only)
 ):
     """Get the society this secretary is assigned to."""
-    deps.RoleChecker(["SECRETARY"])(current_user)
     return get_secretary_society(current_user, db)
 
 
@@ -31,10 +32,9 @@ def get_my_society(
 def update_my_society(
     society_in: SocietyUpdate,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.get_current_user)
+    current_user: User = Depends(secretary_only)
 ):
     """Update society details."""
-    deps.RoleChecker(["SECRETARY"])(current_user)
     society = get_secretary_society(current_user, db)
     for field, value in society_in.model_dump(exclude_unset=True).items():
         setattr(society, field, value)
@@ -46,10 +46,9 @@ def update_my_society(
 @router.get("/members")
 def get_society_members(
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.get_current_user)
+    current_user: User = Depends(secretary_only)
 ):
     """Get all home users in the secretary's society."""
-    deps.RoleChecker(["SECRETARY"])(current_user)
     society = get_secretary_society(current_user, db)
     members = db.query(User).filter(
         User.society_id == society.id,
@@ -61,27 +60,23 @@ def get_society_members(
 @router.get("/alerts")
 def get_society_alerts(
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.get_current_user)
+    current_user: User = Depends(secretary_only)
 ):
     """Get maintenance tasks from all society members."""
-    deps.RoleChecker(["SECRETARY"])(current_user)
-    society = get_secretary_society(current_user, db)
-    member_ids = [u.id for u in db.query(User).filter(
-        User.society_id == society.id,
-        User.role == "USER"
-    ).all()]
-    if not member_ids:
-        return []
-    tasks = db.query(MaintenanceTask).filter(
-        MaintenanceTask.user_id.in_(member_ids)
-    ).order_by(MaintenanceTask.created_at.desc()).all()
+    tasks = (
+        db.query(MaintenanceTask)
+        .join(User, User.id == MaintenanceTask.user_id)
+        .filter(User.society_id == current_user.society_id, User.role == "USER")
+        .order_by(MaintenanceTask.created_at.desc())
+        .all()
+    )
     return [
         {
             "id": t.id,
             "title": t.title,
             "status": t.status,
             "priority": t.priority,
-            "created_at": str(t.created_at),
+            "created_at": t.created_at.isoformat() if t.created_at else None,
             "user_id": t.user_id
         }
         for t in tasks
@@ -91,10 +86,9 @@ def get_society_alerts(
 @router.get("/providers")
 def get_society_providers(
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.get_current_user)
+    current_user: User = Depends(secretary_only)
 ):
     """Get trusted service providers for the society."""
-    deps.RoleChecker(["SECRETARY"])(current_user)
     society = get_secretary_society(current_user, db)
     return [
         {
