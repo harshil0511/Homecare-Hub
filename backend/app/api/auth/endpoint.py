@@ -28,7 +28,7 @@ def signup(user_in: UserCreate, db: Session = Depends(deps.get_db)):
     # 4. Secretary must provide a valid society_id
     society_id = None
     if role == "SECRETARY":
-        if not user_in.society_id:
+        if user_in.society_id is None:
             raise HTTPException(status_code=400, detail="Secretary must select a society.")
         society = db.query(Society).filter(Society.id == user_in.society_id).first()
         if not society:
