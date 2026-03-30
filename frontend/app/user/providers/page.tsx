@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, MapPin, ShieldCheck, DollarSign, ChevronRight, Briefcase, Filter, WifiOff, RefreshCw, Award, AlertTriangle, Star } from "lucide-react";
+import { Search, MapPin, ShieldCheck, DollarSign, ChevronRight, Briefcase, Filter, WifiOff, RefreshCw, Award, AlertTriangle, Star, CheckSquare, Square, Send, Users, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 
@@ -46,6 +46,20 @@ function ProvidersContent() {
     const [focusedIndex, setFocusedIndex] = useState(-1);
     const [isEmergency, setIsEmergency] = useState(false);
 
+    // Multi-select state
+    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+    const [showRequestModal, setShowRequestModal] = useState(false);
+    const [submittingRequest, setSubmittingRequest] = useState(false);
+    const [reqName, setReqName] = useState("");
+    const [reqMobile, setReqMobile] = useState("");
+    const [reqLocation, setReqLocation] = useState("");
+    const [reqProblemType, setReqProblemType] = useState("");
+    const [reqDescription, setReqDescription] = useState("");
+    const [reqPhotos, setReqPhotos] = useState<File[]>([]);
+    const [reqDateStart, setReqDateStart] = useState("");
+    const [reqDateEnd, setReqDateEnd] = useState("");
+    const [reqUrgency, setReqUrgency] = useState<"Normal" | "High" | "Emergency">("Normal");
+
     // Read URL params on mount: ?category=X&emergency=true
     useEffect(() => {
         const catParam = searchParams.get("category");
@@ -85,6 +99,51 @@ function ProvidersContent() {
         fetchProviders();
     }, [activeCategory]);
 
+    // Toggle provider selection
+    const toggleSelect = (id: number) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    // Photo handler
+    const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        setReqPhotos(prev => [...prev, ...files].slice(0, 3));
+    };
+
+    // Submit handler
+    const handleSubmitRequest = async () => {
+        if (!reqName || !reqMobile || !reqLocation || !reqProblemType) return;
+        setSubmittingRequest(true);
+        try {
+            const body = {
+                provider_ids: Array.from(selectedIds),
+                contact_name: reqName,
+                contact_mobile: reqMobile,
+                location: reqLocation,
+                device_or_issue: reqProblemType,
+                description: reqDescription,
+                preferred_dates: reqDateStart ? [reqDateStart, reqDateEnd].filter(Boolean) : [],
+                urgency: reqUrgency,
+            };
+            await apiFetch("/requests", { method: "POST", body: JSON.stringify(body) });
+            setShowRequestModal(false);
+            setSelectedIds(new Set());
+            setReqName(""); setReqMobile(""); setReqLocation("");
+            setReqProblemType(""); setReqDescription(""); setReqPhotos([]);
+            setReqDateStart(""); setReqDateEnd(""); setReqUrgency("Normal");
+            router.push("/user/bookings");
+        } catch (err) {
+            console.error("Failed to submit request:", err);
+        } finally {
+            setSubmittingRequest(false);
+        }
+    };
+
     // Keyboard Navigation Logic
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -106,8 +165,11 @@ function ProvidersContent() {
                 setFocusedIndex(prev => Math.max(prev - 1, 0));
                 e.preventDefault();
             } else if (e.key === "Enter" && focusedIndex !== -1) {
-                const p = providers[focusedIndex];
-                router.push(`/dashboard/bookings/new?provider=${p.id}&category=${p.category}`);
+                if (focusedIndex >= 0 && providers[focusedIndex]) {
+                    const p = providers[focusedIndex];
+                    setSelectedIds(new Set([p.id]));
+                    setShowRequestModal(true);
+                }
             }
         };
 
@@ -234,11 +296,21 @@ function ProvidersContent() {
                             key={provider.id}
                             tabIndex={0}
                             onFocus={() => setFocusedIndex(index)}
-                            className={`bg-white border rounded-3xl p-6 transition-all duration-200 group outline-none cursor-pointer ${focusedIndex === index
+                            className={`relative bg-white border rounded-3xl p-6 transition-all duration-200 group outline-none cursor-pointer ${focusedIndex === index
                                 ? "border-[#064e3b] ring-4 ring-[#064e3b]/5 shadow-xl shadow-emerald-900/5 -translate-y-1"
                                 : "border-slate-100 hover:shadow-xl hover:shadow-slate-900/5 hover:-translate-y-1 hover:border-slate-200"
                                 }`}
                         >
+                            {/* Checkbox overlay */}
+                            <button
+                                onClick={(e) => { e.stopPropagation(); toggleSelect(provider.id); }}
+                                className="absolute top-3 left-3 z-10 p-1 rounded-lg bg-white/90 shadow-sm hover:bg-white transition-colors"
+                            >
+                                {selectedIds.has(provider.id)
+                                    ? <CheckSquare className="w-5 h-5 text-[#064e3b]" />
+                                    : <Square className="w-5 h-5 text-slate-400" />}
+                            </button>
+
                             {/* Provider Header */}
                             <div className="flex items-start gap-4 mb-5">
                                 <div className="w-16 h-16 rounded-2xl bg-slate-100 overflow-hidden flex-shrink-0">
@@ -342,17 +414,18 @@ function ProvidersContent() {
                             )}
 
                             {/* Action */}
-                            <Link
-                                href={`/dashboard/bookings/new?provider=${provider.id}&category=${provider.category}`}
-                                className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95 ${focusedIndex === index
-                                    ? "bg-[#064e3b] text-white shadow-lg"
-                                    : "bg-slate-900 text-white hover:bg-[#064e3b]"
-                                    }`}
+                            <button
+                                onClick={() => {
+                                    if (!selectedIds.has(provider.id)) {
+                                        setSelectedIds(new Set([provider.id]));
+                                    }
+                                    setShowRequestModal(true);
+                                }}
+                                className="flex items-center gap-2 px-4 py-2 bg-[#064e3b] text-white text-xs font-black uppercase rounded-xl hover:bg-emerald-800 transition-colors"
                             >
-                                <Briefcase className="w-3.5 h-3.5" />
+                                <Send className="w-4 h-4" />
                                 Send Request
-                                <ChevronRight className="w-3.5 h-3.5" />
-                            </Link>
+                            </button>
                         </div>
                     ))}
                 </div>
@@ -363,6 +436,119 @@ function ProvidersContent() {
                 <p className="text-center text-[10px] font-black text-slate-300 uppercase tracking-widest">
                     Showing {providers.length} servicer{providers.length !== 1 ? "s" : ""}
                 </p>
+            )}
+
+            {/* Request Form Modal */}
+            {showRequestModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
+                        <div className="p-8">
+                            <div className="flex items-center justify-between mb-8">
+                                <div>
+                                    <h2 className="text-xl font-black text-slate-900 uppercase tracking-widest">Send Service Request</h2>
+                                    <p className="text-xs text-slate-500 mt-1">Sending to {selectedIds.size} provider{selectedIds.size !== 1 ? "s" : ""}</p>
+                                </div>
+                                <button onClick={() => setShowRequestModal(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
+                                    <X className="w-5 h-5 text-slate-500" />
+                                </button>
+                            </div>
+
+                            {/* Contact Info */}
+                            <div className="mb-6">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Contact Information</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <input value={reqName} onChange={e => setReqName(e.target.value)} placeholder="Your Name *" className="border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b]" />
+                                    <input value={reqMobile} onChange={e => setReqMobile(e.target.value)} placeholder="Mobile Number *" type="tel" className="border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b]" />
+                                </div>
+                                <input value={reqLocation} onChange={e => setReqLocation(e.target.value)} placeholder="Your Address / Location *" className="mt-3 w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b]" />
+                            </div>
+
+                            {/* Problem */}
+                            <div className="mb-6">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Problem Details</p>
+                                <select value={reqProblemType} onChange={e => setReqProblemType(e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b] bg-white mb-3">
+                                    <option value="">Select Problem Type *</option>
+                                    {["Plumbing", "Electrical", "Cleaning", "Mechanical", "Carpentry", "Painting", "Gardening", "HVAC", "Pest Control", "Appliance Repair", "Other"].map(t => (
+                                        <option key={t} value={t}>{t}</option>
+                                    ))}
+                                </select>
+                                <textarea value={reqDescription} onChange={e => setReqDescription(e.target.value)} placeholder="Describe the problem in detail..." rows={4} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b] resize-none" />
+                            </div>
+
+                            {/* Dates */}
+                            <div className="mb-6">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Preferred Schedule</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-xs text-slate-500 mb-1 block">From Date</label>
+                                        <input type="date" value={reqDateStart} onChange={e => setReqDateStart(e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b]" />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs text-slate-500 mb-1 block">To Date</label>
+                                        <input type="date" value={reqDateEnd} onChange={e => setReqDateEnd(e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b]" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Urgency */}
+                            <div className="mb-8">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Urgency Level</p>
+                                <div className="flex gap-3">
+                                    {(["Normal", "High", "Emergency"] as const).map(u => (
+                                        <button
+                                            key={u}
+                                            onClick={() => setReqUrgency(u)}
+                                            className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-colors ${
+                                                reqUrgency === u
+                                                    ? u === "Emergency" ? "bg-rose-600 text-white"
+                                                        : u === "High" ? "bg-amber-500 text-white"
+                                                        : "bg-[#064e3b] text-white"
+                                                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                                            }`}
+                                        >
+                                            {u === "High" ? "Urgent" : u}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Footer */}
+                            <div className="flex gap-3">
+                                <button onClick={() => setShowRequestModal(false)} className="flex-1 py-4 border border-slate-200 rounded-2xl text-sm font-black uppercase text-slate-500 hover:bg-slate-50 transition-colors">
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleSubmitRequest}
+                                    disabled={submittingRequest || !reqName || !reqMobile || !reqLocation || !reqProblemType}
+                                    className="flex-1 py-4 bg-[#064e3b] text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-emerald-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                >
+                                    {submittingRequest ? "Sending..." : <><Send className="w-4 h-4" /> Send Request</>}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Floating Selection Bar */}
+            {selectedIds.size > 0 && (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 bg-[#064e3b] text-white rounded-2xl px-8 py-4 shadow-2xl">
+                    <Users className="w-5 h-5" />
+                    <span className="text-sm font-bold">{selectedIds.size} servicer{selectedIds.size !== 1 ? "s" : ""} selected</span>
+                    <button
+                        onClick={() => setShowRequestModal(true)}
+                        className="flex items-center gap-2 px-5 py-2 bg-white text-[#064e3b] text-xs font-black uppercase rounded-xl hover:bg-emerald-50 transition-colors"
+                    >
+                        <Send className="w-4 h-4" />
+                        Send Request ({selectedIds.size})
+                    </button>
+                    <button
+                        onClick={() => setSelectedIds(new Set())}
+                        className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
             )}
 
         </div>

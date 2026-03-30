@@ -16,6 +16,7 @@ from app.api.booking.endpoint import router as booking_router
 from app.api.ai.endpoint import router as ai_router
 from app.api.notification.endpoint import router as notification_router
 from app.api.secretary.endpoint import router as secretary_router
+from app.api.request.endpoint import router as request_router
 from app.core.database import Base, engine, SessionLocal
 from app.core.config import settings       # ← reads from .env
 from app.internal import models            # Load models so SQLAlchemy creates tables
@@ -98,6 +99,7 @@ app.include_router(ai_router,      prefix="/api/v1/ai")
 app.include_router(booking_router, prefix="/api/v1/bookings")
 app.include_router(notification_router, prefix="/api/v1/notifications")
 app.include_router(secretary_router, prefix="/api/v1/secretary")
+app.include_router(request_router, prefix="/api/v1/requests")
 
 @app.get("/")
 def root():

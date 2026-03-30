@@ -41,7 +41,7 @@ const SECRETARY_SETTINGS = [
 
 const USER_NAV = [
     { name: "Dashboard", icon: LayoutDashboard, path: "/user/dashboard" },
-    { name: "Operations", icon: ClipboardList, path: "/user/bookings/history" },
+    { name: "My Requests", icon: ClipboardList, path: "/user/bookings" },
     { name: "Find Experts", icon: Search, path: "/user/providers" },
     { name: "Home Service", icon: Home, path: "/user/routine" },
     { name: "Alerts", icon: Bell, path: "/user/alerts" },

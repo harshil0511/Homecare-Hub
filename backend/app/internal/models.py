@@ -31,6 +31,7 @@ class User(Base):
     bookings = relationship("ServiceBooking", back_populates="user")
     provider_profile = relationship("ServiceProvider", back_populates="user", uselist=False)
     notifications = relationship("Notification", back_populates="user")
+    service_requests = relationship("ServiceRequest", back_populates="user")
 
 class Society(Base):
     __tablename__ = "societies"
@@ -108,6 +109,8 @@ class ServiceProvider(Base):
     society = relationship("Society", back_populates="service_providers")
     bookings = relationship("ServiceBooking", back_populates="provider")
     certificates = relationship("ServiceCertificate", back_populates="provider")
+    received_requests = relationship("ServiceRequestRecipient", back_populates="provider")
+    submitted_responses = relationship("ServiceRequestResponse", back_populates="provider")
 
 class ServiceCertificate(Base):
     __tablename__ = "service_certificates"
@@ -240,3 +243,59 @@ class SocietyRequest(Base):
 
     society = relationship("Society", back_populates="requests")
     provider = relationship("ServiceProvider")
+
+
+class ServiceRequest(Base):
+    __tablename__ = "service_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    contact_name = Column(String, nullable=False)
+    contact_mobile = Column(String, nullable=False)
+    location = Column(String, nullable=False)
+    device_or_issue = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    photos = Column(Text, nullable=True)              # JSON list of image URLs
+    preferred_dates = Column(Text, nullable=True)     # JSON list of ISO datetime strings
+    urgency = Column(String, default="Normal")        # Normal, High, Emergency
+    status = Column(String, default="OPEN")           # OPEN, ACCEPTED, CANCELLED, EXPIRED
+    expires_at = Column(DateTime, nullable=False)
+    resulting_booking_id = Column(Integer, ForeignKey("service_bookings.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+    user = relationship("User", back_populates="service_requests")
+    recipients = relationship("ServiceRequestRecipient", back_populates="request", cascade="all, delete-orphan")
+    responses = relationship("ServiceRequestResponse", back_populates="request", cascade="all, delete-orphan")
+    resulting_booking = relationship("ServiceBooking", foreign_keys=[resulting_booking_id])
+
+
+class ServiceRequestRecipient(Base):
+    __tablename__ = "service_request_recipients"
+
+    id = Column(Integer, primary_key=True, index=True)
+    request_id = Column(Integer, ForeignKey("service_requests.id"), nullable=False)
+    provider_id = Column(Integer, ForeignKey("service_providers.id"), nullable=False)
+    is_read = Column(Boolean, default=False)
+    notified_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    request = relationship("ServiceRequest", back_populates="recipients")
+    provider = relationship("ServiceProvider", back_populates="received_requests")
+
+
+class ServiceRequestResponse(Base):
+    __tablename__ = "service_request_responses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    request_id = Column(Integer, ForeignKey("service_requests.id"), nullable=False)
+    provider_id = Column(Integer, ForeignKey("service_providers.id"), nullable=False)
+    proposed_date = Column(DateTime, nullable=False)
+    proposed_price = Column(Float, nullable=False)
+    estimated_hours = Column(Float, nullable=True)
+    message = Column(Text, nullable=True)
+    status = Column(String, default="PENDING")        # PENDING, ACCEPTED, REJECTED
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+    request = relationship("ServiceRequest", back_populates="responses")
+    provider = relationship("ServiceProvider", back_populates="submitted_responses")

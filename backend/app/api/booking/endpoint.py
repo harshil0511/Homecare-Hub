@@ -1,9 +1,17 @@
+import logging
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
+
 from app.internal import models, schemas, deps
-import datetime
-from datetime import timedelta
+from app.internal.services import (
+    find_verified_provider, get_provider_display_name,
+    ALLOWED_CATEGORIES, BOOKING_CONFLICT_WINDOW_HOURS, EMERGENCY_RATE_MULTIPLIER,
+)
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -18,9 +26,9 @@ def create_booking(
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
 
-    # Time-conflict check: reject if provider already has an active booking within ±3 hours
-    window_start = booking_in.scheduled_at - timedelta(hours=3)
-    window_end = booking_in.scheduled_at + timedelta(hours=3)
+    # Time-conflict check: reject if provider already has an active booking within ± window
+    window_start = booking_in.scheduled_at - timedelta(hours=BOOKING_CONFLICT_WINDOW_HOURS)
+    window_end = booking_in.scheduled_at + timedelta(hours=BOOKING_CONFLICT_WINDOW_HOURS)
     conflict = db.query(models.ServiceBooking).filter(
         models.ServiceBooking.provider_id == booking_in.provider_id,
         models.ServiceBooking.status.in_(["Pending", "Accepted", "In Progress"]),
@@ -95,17 +103,25 @@ def create_booking(
 
 @router.get("/list", response_model=List[schemas.BookingRead])
 def list_bookings(
+    status: Optional[str] = None,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user)
 ):
     if current_user.role == "SERVICER" or current_user.role == "provider":
-        # Get provider profile
         profile = db.query(models.ServiceProvider).filter(models.ServiceProvider.user_id == current_user.id).first()
         if not profile:
             return []
-        return db.query(models.ServiceBooking).filter(models.ServiceBooking.provider_id == profile.id).all()
-    
-    return db.query(models.ServiceBooking).filter(models.ServiceBooking.user_id == current_user.id).all()
+        query = db.query(models.ServiceBooking).filter(models.ServiceBooking.provider_id == profile.id)
+    else:
+        query = db.query(models.ServiceBooking).filter(models.ServiceBooking.user_id == current_user.id)
+
+    # Status filter: "contracted" = Accepted/In Progress/Completed, "pending" = Pending only
+    if status == "contracted":
+        query = query.filter(models.ServiceBooking.status.in_(["Accepted", "In Progress", "Completed"]))
+    elif status == "pending":
+        query = query.filter(models.ServiceBooking.status == "Pending")
+
+    return query.order_by(models.ServiceBooking.created_at.desc()).all()
 
 @router.get("/incoming", response_model=List[schemas.BookingRead])
 def get_incoming_bookings(
@@ -145,11 +161,31 @@ def update_booking_status(
     if "status" in update_data and update_data["status"] != old_status:
         notif_title = f"Booking {update_data['status']}"
         notif_msg = f"Your project for {booking.service_type} is now {update_data['status']}."
-        
+
+        # Record status change in history
+        db.add(models.BookingStatusHistory(
+            booking_id=booking.id,
+            status=update_data["status"],
+            notes=f"Status changed from {old_status} to {update_data['status']} by {'provider' if is_provider else 'client'}"
+        ))
+
+        # Emergency acceptance bonus: boost provider rating by 0.2 (capped at 5.0)
+        if update_data["status"] == "Accepted" and booking.priority == "Emergency" and is_provider and provider:
+            bonus = 0.2
+            provider.rating = min(5.0, (provider.rating or 0) + bonus)
+
+        # Reset provider availability when booking is completed
+        if update_data["status"] == "Completed":
+            provider = db.query(models.ServiceProvider).filter(
+                models.ServiceProvider.id == booking.provider_id
+            ).first()
+            if provider:
+                provider.availability_status = "AVAILABLE"
+
         # Determine target: notify the party that DID NOT make the change
         # If provider updated it, notify user. If user updated it, notify provider.
         target_user_id = booking.user_id if is_provider else provider.user_id
-        
+
         if target_user_id:
             new_notif = models.Notification(
                 user_id=target_user_id,
@@ -335,3 +371,102 @@ def send_message(
     db.commit()
     db.refresh(db_message)
     return db_message
+
+
+@router.post("/emergency", response_model=schemas.EmergencyResponse)
+def create_emergency_request(
+    emergency_in: schemas.EmergencyCreate,
+    db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_user)
+):
+    """
+    Emergency SOS: Check if a verified expert is available for the category.
+    Returns provider info for manual request, or redirect URL to Find Expert page.
+    """
+    # Validate category against allowed list
+    if emergency_in.category not in ALLOWED_CATEGORIES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid category '{emergency_in.category}'. Must be one of: {', '.join(ALLOWED_CATEGORIES)}"
+        )
+
+    # Find verified provider matching the emergency category
+    provider = find_verified_provider(
+        db,
+        category=emergency_in.category,
+        location=emergency_in.location,
+        society_id=current_user.society_id
+    )
+
+    if provider:
+        # Create an emergency booking as Pending (awaiting provider acceptance)
+        now = datetime.now(timezone.utc)
+        booking = models.ServiceBooking(
+            user_id=current_user.id,
+            provider_id=provider.id,
+            service_type=emergency_in.category,
+            issue_description=f"[EMERGENCY] {emergency_in.description}",
+            scheduled_at=now,
+            priority="Emergency",
+            property_details=emergency_in.location,
+            estimated_cost=(provider.hourly_rate or 0.0) * EMERGENCY_RATE_MULTIPLIER
+        )
+        db.add(booking)
+        db.flush()
+
+        history = models.BookingStatusHistory(
+            booking_id=booking.id,
+            status="Pending",
+            notes="Emergency request — awaiting provider acceptance"
+        )
+        db.add(history)
+
+        provider_name = get_provider_display_name(provider)
+
+        # Notify user
+        db.add(models.Notification(
+            user_id=current_user.id,
+            title="Emergency Request Sent",
+            message=f"Emergency request for '{emergency_in.category}' sent to '{provider_name}'. Awaiting acceptance.",
+            notification_type="URGENT",
+            link=f"/dashboard/bookings/{booking.id}"
+        ))
+
+        # Notify provider
+        if provider.user_id:
+            db.add(models.Notification(
+                user_id=provider.user_id,
+                title="EMERGENCY: Immediate Action Required",
+                message=f"Emergency {emergency_in.category} request from {current_user.username}. Please respond immediately.",
+                notification_type="URGENT",
+                link=f"/dashboard/bookings/{booking.id}"
+            ))
+
+        db.commit()
+        db.refresh(booking)
+
+        return schemas.EmergencyResponse(
+            provider_found=True,
+            booking_id=booking.id,
+            provider_name=provider_name,
+            provider_id=provider.id,
+            redirect_url=None,
+        )
+    else:
+        # No verified expert available — redirect to Find Expert
+        db.add(models.Notification(
+            user_id=current_user.id,
+            title="Emergency: No Expert Available",
+            message=f"No verified expert found for '{emergency_in.category}'. Please select one manually from Find Expert.",
+            notification_type="URGENT",
+            link=f"/dashboard/providers?category={emergency_in.category}&emergency=true"
+        ))
+        db.commit()
+
+        return schemas.EmergencyResponse(
+            provider_found=False,
+            booking_id=None,
+            provider_name=None,
+            provider_id=None,
+            redirect_url=f"/dashboard/providers?category={emergency_in.category}&emergency=true",
+        )

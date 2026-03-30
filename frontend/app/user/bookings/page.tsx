@@ -1,11 +1,443 @@
 "use client";
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 
-export default function BookingsRedirect() {
-    const router = useRouter();
-    useEffect(() => {
-        router.replace("/dashboard/bookings/history");
-    }, [router]);
-    return null;
+import { useEffect, useState, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  ClipboardList, Clock, CheckCircle, XCircle, MessageSquare,
+  Calendar, IndianRupee, Users, ChevronRight, AlertTriangle,
+  Search, X, MapPin, Star
+} from "lucide-react";
+import { apiFetch } from "@/lib/api";
+
+interface ServiceRequest {
+  id: number;
+  contact_name: string;
+  location: string;
+  device_or_issue: string;
+  description?: string;
+  urgency: "Normal" | "High" | "Emergency";
+  preferred_dates?: string[];
+  status: "OPEN" | "ACCEPTED" | "CANCELLED" | "EXPIRED";
+  expires_at: string;
+  created_at: string;
+  resulting_booking_id?: number;
+  recipients?: { provider_id: number }[];
+  responses?: ServiceRequestResponse[];
+}
+
+interface ServiceRequestResponse {
+  id: number;
+  request_id: number;
+  provider_id: number;
+  proposed_date: string;
+  proposed_price: number;
+  estimated_hours?: number;
+  message?: string;
+  status: "PENDING" | "ACCEPTED" | "REJECTED";
+  created_at: string;
+  provider?: {
+    id: number;
+    first_name?: string;
+    last_name?: string;
+    company_name?: string;
+    owner_name?: string;
+    rating?: number;
+  };
+}
+
+interface ActiveBooking {
+  id: number;
+  service_type: string;
+  status: string;
+  scheduled_at?: string;
+  estimated_cost?: number;
+  provider?: {
+    first_name?: string;
+    last_name?: string;
+    company_name?: string;
+  };
+}
+
+type Tab = "active" | "responses" | "contracts" | "history";
+
+interface HistoryBooking {
+  id: number;
+  service_type: string;
+  status: string;
+  scheduled_at?: string;
+  estimated_cost?: number;
+  final_cost?: number;
+  provider?: { first_name?: string; last_name?: string; company_name?: string };
+}
+
+export default function UserBookingsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab") as Tab | null;
+
+  const [activeTab, setActiveTab] = useState<Tab>(tabParam || "active");
+  const [requests, setRequests] = useState<ServiceRequest[]>([]);
+  const [bookings, setBookings] = useState<ActiveBooking[]>([]);
+  const [history, setHistory] = useState<HistoryBooking[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [confirmAccept, setConfirmAccept] = useState<{
+    requestId: number;
+    responseId: number;
+    servicerName: string;
+    price: number;
+    date: string;
+  } | null>(null);
+  const [accepting, setAccepting] = useState(false);
+  const [cancelling, setCancelling] = useState<number | null>(null);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [reqData, bookData] = await Promise.all([
+        apiFetch("/requests?status_filter=OPEN").catch(() => []),
+        apiFetch("/bookings/list").catch(() => []),
+      ]);
+      setRequests(Array.isArray(reqData) ? reqData : []);
+      setBookings(Array.isArray(bookData) ? bookData : []);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    if (activeTab === "history" && history.length === 0) {
+      apiFetch("/bookings/list?status=Completed").then(d => setHistory(Array.isArray(d) ? d : [])).catch(() => {});
+    }
+  }, [activeTab, history.length]);
+
+  // Sync URL param to tab state
+  useEffect(() => {
+    if (tabParam && tabParam !== activeTab) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
+
+  const openRequests = requests.filter(r => r.status === "OPEN");
+  const allResponses = requests
+    .filter(r => r.status === "OPEN" && r.responses && r.responses.length > 0)
+    .flatMap(r => (r.responses || []).filter(resp => resp.status === "PENDING").map(resp => ({ ...resp, request: r })));
+  const activeContracts = bookings.filter(b => b.status === "Accepted" || b.status === "In Progress");
+
+  const handleAccept = async () => {
+    if (!confirmAccept) return;
+    setAccepting(true);
+    try {
+      await apiFetch(`/requests/${confirmAccept.requestId}/responses/${confirmAccept.responseId}/accept`, { method: "POST" });
+      setConfirmAccept(null);
+      await loadData();
+      setActiveTab("contracts");
+    } catch (err) {
+      console.error("Failed to accept response:", err);
+    } finally {
+      setAccepting(false);
+    }
+  };
+
+  const handleCancelRequest = async (requestId: number) => {
+    if (!confirm("Cancel this request? All providers will be notified.")) return;
+    setCancelling(requestId);
+    try {
+      await apiFetch(`/requests/${requestId}`, { method: "DELETE" });
+      setRequests(prev => prev.filter(r => r.id !== requestId));
+    } catch (err) {
+      console.error("Failed to cancel:", err);
+    } finally {
+      setCancelling(null);
+    }
+  };
+
+  const getProviderName = (provider?: { first_name?: string; last_name?: string; company_name?: string; owner_name?: string }) => {
+    if (!provider) return "Unknown Provider";
+    if (provider.first_name || provider.last_name) return `${provider.first_name || ""} ${provider.last_name || ""}`.trim();
+    return provider.company_name || provider.owner_name || "Unknown Provider";
+  };
+
+  const tabs: { key: Tab; label: string; count?: number }[] = [
+    { key: "active", label: "Active Requests", count: openRequests.length },
+    { key: "responses", label: "Incoming Responses", count: allResponses.length },
+    { key: "contracts", label: "Active Contracts", count: activeContracts.length },
+    { key: "history", label: "History" },
+  ];
+
+  return (
+    <div className="min-h-screen bg-slate-50 p-6">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-black text-slate-900 uppercase tracking-widest">My Requests</h1>
+        <p className="text-xs text-slate-400 mt-1">Manage your service requests, review offers, and track contracts</p>
+      </div>
+
+      {/* Tab Strip */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-1.5 flex gap-1 mb-6 overflow-x-auto">
+        {tabs.map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => { setActiveTab(tab.key); router.replace(`/user/bookings?tab=${tab.key}`, { scroll: false }); }}
+            className={`flex-1 min-w-max flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              activeTab === tab.key
+                ? "bg-[#064e3b] text-white shadow-lg"
+                : "text-slate-400 hover:text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            {tab.label}
+            {tab.count !== undefined && tab.count > 0 && (
+              <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${
+                activeTab === tab.key ? "bg-white/20" : "bg-slate-100 text-slate-600"
+              }`}>{tab.count}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="text-center py-16 text-slate-400 text-sm">Loading...</div>
+      ) : (
+        <>
+          {/* Tab 1: Active Requests */}
+          {activeTab === "active" && (
+            <div className="space-y-4">
+              {openRequests.length === 0 ? (
+                <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center">
+                  <ClipboardList className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                  <p className="text-slate-500 text-sm font-bold">No active requests</p>
+                  <p className="text-slate-400 text-xs mt-1">Browse providers to send a request</p>
+                  <button onClick={() => router.push("/user/providers")} className="mt-4 px-6 py-2.5 bg-[#064e3b] text-white text-xs font-black uppercase rounded-xl hover:bg-emerald-800 transition-colors">
+                    Find Providers
+                  </button>
+                </div>
+              ) : (
+                openRequests.map(req => {
+                  const urgencyColor = req.urgency === "Emergency" ? "border-l-rose-500"
+                    : req.urgency === "High" ? "border-l-amber-500"
+                    : "border-l-emerald-500";
+                  const urgencyBadge = req.urgency === "Emergency" ? "bg-rose-100 text-rose-700"
+                    : req.urgency === "High" ? "bg-amber-100 text-amber-700"
+                    : "bg-emerald-100 text-emerald-700";
+                  const responseCount = (req.responses || []).filter(r => r.status === "PENDING").length;
+
+                  return (
+                    <div key={req.id} className={`bg-white border border-slate-200 border-l-4 ${urgencyColor} rounded-2xl p-6`}>
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <p className="font-black text-slate-900 text-base">{req.device_or_issue}</p>
+                          <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
+                            <MapPin className="w-3 h-3" />{req.location}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase ${urgencyBadge}`}>{req.urgency}</span>
+                          {responseCount > 0 && (
+                            <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-lg text-[10px] font-black">
+                              {responseCount} offer{responseCount !== 1 ? "s" : ""}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {req.description && <p className="text-xs text-slate-500 italic mb-3 border-l-2 border-slate-200 pl-3">{req.description}</p>}
+                      <div className="flex items-center justify-between text-xs text-slate-400">
+                        <span className="flex items-center gap-1"><Users className="w-3 h-3" />Sent to {(req.recipients || []).length} provider{(req.recipients || []).length !== 1 ? "s" : ""}</span>
+                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(req.created_at).toLocaleDateString()}</span>
+                      </div>
+                      <div className="flex gap-2 mt-4">
+                        {responseCount > 0 && (
+                          <button onClick={() => { setActiveTab("responses"); router.replace("/user/bookings?tab=responses", { scroll: false }); }} className="px-4 py-2 bg-[#064e3b] text-white text-xs font-black uppercase rounded-xl hover:bg-emerald-800 transition-colors">
+                            View {responseCount} Offer{responseCount !== 1 ? "s" : ""}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleCancelRequest(req.id)}
+                          disabled={cancelling === req.id}
+                          className="px-4 py-2 border border-slate-200 text-slate-500 text-xs font-black uppercase rounded-xl hover:bg-slate-50 transition-colors disabled:opacity-50"
+                        >
+                          {cancelling === req.id ? "Cancelling..." : "Cancel"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+
+          {/* Tab 2: Incoming Responses */}
+          {activeTab === "responses" && (
+            <div className="space-y-4">
+              {allResponses.length === 0 ? (
+                <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center">
+                  <MessageSquare className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                  <p className="text-slate-500 text-sm font-bold">No responses yet</p>
+                  <p className="text-slate-400 text-xs mt-1">Providers will submit their offers here</p>
+                </div>
+              ) : (
+                allResponses.map(({ request: req, ...resp }) => {
+                  const urgencyColor = req.urgency === "Emergency" ? "border-l-rose-500"
+                    : req.urgency === "High" ? "border-l-amber-500"
+                    : "border-l-emerald-500";
+                  const servicerName = getProviderName(resp.provider);
+                  const initials = servicerName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+
+                  return (
+                    <div key={`${req.id}-${resp.id}`} className={`bg-white border border-slate-200 border-l-4 ${urgencyColor} rounded-2xl p-6`}>
+                      <div className="flex items-start gap-4 mb-4">
+                        <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-sm font-black text-slate-600 flex-shrink-0">
+                          {initials || "?"}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-black text-slate-900 text-sm">{servicerName}</p>
+                          <p className="text-xs text-slate-500">Response to: <span className="font-bold">{req.device_or_issue}</span></p>
+                        </div>
+                        <button
+                          onClick={() => setConfirmAccept({
+                            requestId: req.id,
+                            responseId: resp.id,
+                            servicerName,
+                            price: resp.proposed_price,
+                            date: resp.proposed_date,
+                          })}
+                          className="flex items-center gap-1.5 px-4 py-2 bg-[#064e3b] text-white text-xs font-black uppercase rounded-xl hover:bg-emerald-800 transition-colors"
+                        >
+                          <CheckCircle className="w-4 h-4" /> Accept
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div className="flex items-center gap-2 text-slate-600">
+                          <Calendar className="w-4 h-4 text-slate-400" />
+                          {new Date(resp.proposed_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                        </div>
+                        <div className="flex items-center gap-2 text-slate-600 font-bold">
+                          <IndianRupee className="w-4 h-4 text-slate-400" />
+                          ₹{resp.proposed_price.toLocaleString("en-IN")}
+                        </div>
+                        {resp.estimated_hours && (
+                          <div className="flex items-center gap-2 text-slate-600">
+                            <Clock className="w-4 h-4 text-slate-400" />
+                            ~{resp.estimated_hours}h estimated
+                          </div>
+                        )}
+                        {resp.provider?.rating && (
+                          <div className="flex items-center gap-2 text-slate-600">
+                            <Star className="w-4 h-4 text-amber-400" />
+                            {resp.provider.rating.toFixed(1)} rating
+                          </div>
+                        )}
+                      </div>
+                      {resp.message && (
+                        <p className="mt-3 text-xs text-slate-500 italic border-l-2 border-slate-200 pl-3">&ldquo;{resp.message}&rdquo;</p>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+
+          {/* Tab 3: Active Contracts */}
+          {activeTab === "contracts" && (
+            <div className="space-y-4">
+              {activeContracts.length === 0 ? (
+                <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center">
+                  <CheckCircle className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                  <p className="text-slate-500 text-sm font-bold">No active contracts</p>
+                  <p className="text-slate-400 text-xs mt-1">Accept a servicer offer to create a contract</p>
+                </div>
+              ) : (
+                activeContracts.map(b => (
+                  <div key={b.id} className="bg-white border border-slate-200 rounded-2xl p-6 flex items-center gap-4">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-black text-slate-900 text-sm">{b.service_type}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{getProviderName(b.provider)}</p>
+                      {b.scheduled_at && (
+                        <p className="text-xs text-slate-400 flex items-center gap-1 mt-1">
+                          <Calendar className="w-3 h-3" />
+                          {new Date(b.scheduled_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {b.estimated_cost && (
+                        <span className="text-sm font-black text-slate-700">₹{b.estimated_cost.toLocaleString("en-IN")}</span>
+                      )}
+                      <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase ${
+                        b.status === "Accepted" ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700"
+                      }`}>{b.status}</span>
+                      <button onClick={() => router.push(`/user/bookings/${b.id}`)} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
+                        <ChevronRight className="w-4 h-4 text-slate-400" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* Tab 4: History */}
+          {activeTab === "history" && (
+            <div className="space-y-4">
+              {history.length === 0 ? (
+                <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center">
+                  <Clock className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                  <p className="text-slate-500 text-sm font-bold">No completed bookings</p>
+                </div>
+              ) : (
+                history.map(b => (
+                  <div key={b.id} className="bg-white border border-slate-200 rounded-2xl p-6 flex items-center gap-4">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-black text-slate-900 text-sm">{b.service_type}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{getProviderName(b.provider)}</p>
+                      {b.scheduled_at && (
+                        <p className="text-xs text-slate-400 mt-1">{new Date(b.scheduled_at).toLocaleDateString("en-IN")}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {(b.final_cost || b.estimated_cost) && (
+                        <span className="text-sm font-black text-slate-700">₹{(b.final_cost || b.estimated_cost || 0).toLocaleString("en-IN")}</span>
+                      )}
+                      <span className="px-2 py-1 bg-slate-100 text-slate-500 rounded-lg text-[10px] font-black uppercase">{b.status}</span>
+                      <button onClick={() => router.push(`/user/bookings/${b.id}`)} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
+                        <ChevronRight className="w-4 h-4 text-slate-400" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Accept Confirmation Dialog */}
+      {confirmAccept && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl">
+            <h2 className="text-lg font-black text-slate-900 uppercase tracking-widest mb-2">Confirm Acceptance</h2>
+            <p className="text-sm text-slate-600 mb-6">
+              Accept <span className="font-bold">{confirmAccept.servicerName}</span>&apos;s offer for{" "}
+              <span className="font-bold text-[#064e3b]">₹{confirmAccept.price.toLocaleString("en-IN")}</span>{" "}
+              on <span className="font-bold">{new Date(confirmAccept.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>?
+            </p>
+            <p className="text-xs text-slate-400 mb-6">This will create a service contract. Other providers will be notified that you selected someone else.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmAccept(null)} className="flex-1 py-3 border border-slate-200 rounded-2xl text-sm font-black uppercase text-slate-500 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button
+                onClick={handleAccept}
+                disabled={accepting}
+                className="flex-1 py-3 bg-[#064e3b] text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-emerald-800 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {accepting ? "Creating..." : <><CheckCircle className="w-4 h-4" /> Confirm</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }

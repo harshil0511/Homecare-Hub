@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from app.internal import deps
 from app.internal.models import User, ServiceProvider, ServiceBooking, MaintenanceTask
 from app.internal.schemas import UserResponse
@@ -172,6 +172,70 @@ def verify_provider(
     provider.is_verified = True
     db.commit()
     return {"message": f"Provider '{provider.company_name}' is now verified."}
+
+
+@router.get("/contracts")
+def get_all_contracts(
+    status: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    min_amount: Optional[float] = None,
+    max_amount: Optional[float] = None,
+    db: Session = Depends(deps.get_db),
+    _: User = Depends(admin_only),
+):
+    """List all service bookings with optional filters. Used as the admin contracts view."""
+    query = db.query(ServiceBooking)
+
+    if status and status != "ALL":
+        query = query.filter(ServiceBooking.status == status)
+    if date_from:
+        query = query.filter(ServiceBooking.scheduled_at >= date_from)
+    if date_to:
+        query = query.filter(ServiceBooking.scheduled_at <= date_to)
+    if min_amount is not None:
+        query = query.filter(ServiceBooking.estimated_cost >= min_amount)
+    if max_amount is not None:
+        query = query.filter(ServiceBooking.estimated_cost <= max_amount)
+
+    bookings = query.order_by(ServiceBooking.id.desc()).all()
+
+    # Batch load users and providers
+    from app.internal.models import User as UserModel, ServiceProvider
+    user_ids = list({b.user_id for b in bookings if b.user_id})
+    provider_ids = list({b.provider_id for b in bookings if b.provider_id})
+
+    users_map = {}
+    if user_ids:
+        users = db.query(UserModel).filter(UserModel.id.in_(user_ids)).all()
+        users_map = {u.id: u for u in users}
+
+    providers_map = {}
+    if provider_ids:
+        providers = db.query(ServiceProvider).filter(
+            ServiceProvider.id.in_(provider_ids)
+        ).all()
+        providers_map = {p.id: p for p in providers}
+
+    result = []
+    for b in bookings:
+        user = users_map.get(b.user_id)
+        provider = providers_map.get(b.provider_id)
+        pname = ""
+        if provider:
+            pname = f"{provider.first_name or ''} {provider.last_name or ''}".strip() or provider.company_name or "Unknown"
+        result.append({
+            "id": b.id,
+            "user_name": user.username if user else "Unknown",
+            "servicer_name": pname if pname else "Unknown",
+            "service_type": b.service_type,
+            "scheduled_at": b.scheduled_at.isoformat() if b.scheduled_at else None,
+            "estimated_cost": b.estimated_cost,
+            "status": b.status,
+            "created_at": b.created_at.isoformat() if hasattr(b, 'created_at') and b.created_at else None,
+        })
+
+    return result
 
 
 @router.get("/logs")
