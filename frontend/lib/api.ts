@@ -8,8 +8,24 @@ interface ApiOptions extends RequestInit {
 export async function apiFetch(endpoint: string, options: ApiOptions = {}) {
     const { timeout = 10000, ...fetchOptions } = options;
 
+    // Get the token for the role that owns the current URL
     const token = typeof window !== "undefined"
-        ? localStorage.getItem("hc_token")
+        ? (() => {
+            const p = window.location.pathname;
+            const roleKey =
+                p.startsWith("/admin")     ? "hc_token_ADMIN" :
+                p.startsWith("/user")      ? "hc_token_USER" :
+                p.startsWith("/service")   ? "hc_token_SERVICER" :
+                p.startsWith("/secretary") ? "hc_token_SECRETARY" :
+                null;
+            if (roleKey) return localStorage.getItem(roleKey);
+            // Fallback: any available token
+            for (const k of ["hc_token_ADMIN","hc_token_USER","hc_token_SERVICER","hc_token_SECRETARY"]) {
+                const t = localStorage.getItem(k);
+                if (t) return t;
+            }
+            return null;
+        })()
         : null;
 
     const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
@@ -28,37 +44,46 @@ export async function apiFetch(endpoint: string, options: ApiOptions = {}) {
     const id = setTimeout(() => controller.abort(), timeout);
 
     const url = `${API}${endpoint}`;
-    console.log(`🚀 [apiFetch] Requesting: ${url}`);
+    const isDev = process.env.NODE_ENV === "development";
+    if (isDev) console.log(`🚀 [apiFetch] Requesting: ${url}`);
 
     try {
-        console.time(`fetch:${endpoint}`);
+        if (isDev) console.time(`fetch:${endpoint}`);
         const res = await fetch(url, {
             ...fetchOptions,
             headers,
             signal: controller.signal,
         });
 
-        console.timeEnd(`fetch:${endpoint}`);
+        if (isDev) console.timeEnd(`fetch:${endpoint}`);
         clearTimeout(id);
 
         if (!res.ok) {
             let errorMessage = "Something went wrong. Please try again.";
             try {
                 const errorBody = await res.json();
-                if (typeof errorBody.detail === "string") {
-                    errorMessage = errorBody.detail;
-                } else if (Array.isArray(errorBody.detail)) {
-                    errorMessage = errorBody.detail.map((e: any) => e.msg).join(", ");
-                } else {
-                    errorMessage = JSON.stringify(errorBody);
+                // Only surface detail for client errors (4xx); hide server error internals (5xx)
+                if (res.status < 500) {
+                    if (typeof errorBody.detail === "string") {
+                        errorMessage = errorBody.detail;
+                    } else if (Array.isArray(errorBody.detail)) {
+                        errorMessage = errorBody.detail.map((e: { msg: string }) => e.msg).join(", ");
+                    }
                 }
             } catch {
-                errorMessage = res.statusText || errorMessage;
+                errorMessage = res.status < 500 ? (res.statusText || errorMessage) : errorMessage;
             }
 
             // Centralized Auth Handling
             if (res.status === 401 && typeof window !== "undefined") {
-                localStorage.removeItem("hc_token");
+                // Clear only the current route's role token
+                const p = window.location.pathname;
+                const roleKey =
+                    p.startsWith("/admin")     ? "hc_token_ADMIN" :
+                    p.startsWith("/user")      ? "hc_token_USER" :
+                    p.startsWith("/service")   ? "hc_token_SERVICER" :
+                    p.startsWith("/secretary") ? "hc_token_SECRETARY" : null;
+                if (roleKey) localStorage.removeItem(roleKey);
                 window.location.href = "/login";
             }
 

@@ -1,33 +1,24 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
-from typing import List
-from datetime import datetime, timedelta
+from typing import List, Optional
+from datetime import datetime, timedelta, timezone
 from app.internal import deps
 from app.internal.models import (
     MaintenanceTask, User, Notification,
-    ServiceProvider, ServiceBooking, BookingStatusHistory
+    ServiceProvider, ServiceBooking, BookingStatusHistory,
 )
 from app.internal.schemas import (
     TaskCreate, TaskResponse,
     RoutineTaskCreate, RoutineTaskResponse, RoutineTaskAssign,
     ProviderResponse
 )
+from app.internal.services import (
+    find_verified_provider, get_provider_display_name,
+    ROUTINE_CATEGORY_MAP, BOOKING_CONFLICT_WINDOW_HOURS,
+)
 
 router = APIRouter(tags=["Maintenance Tasks API"])
-
-# Category mapping: routine category -> provider categories to search
-ROUTINE_CATEGORY_MAP = {
-    "AC Service": ["HVAC", "Air Conditioning", "AC Service"],
-    "Appliance Repair": ["Appliance Repair", "Electrical", "General"],
-    "Home Cleaning": ["Cleaning", "Home Cleaning"],
-    "Plumbing": ["Plumbing"],
-    "Electrical": ["Electrical"],
-    "Pest Control": ["Pest Control"],
-    "Painting": ["Painting"],
-    "Carpentry": ["Carpentry"],
-    "General Maintenance": ["General", "General Maintenance"],
-}
 
 # ── Existing endpoints ──
 
@@ -83,11 +74,26 @@ def create_routine_task(
         user_id=current_user.id
     )
     db.add(db_task)
+    db.flush()
+
+    # Check if a verified expert is available for this category
+    provider = find_verified_provider(
+        db,
+        category=task_in.category,
+        location=task_in.location,
+        society_id=current_user.society_id
+    )
+
+    has_verified_expert = provider is not None
 
     notif = Notification(
         user_id=current_user.id,
         title="Routine Service Created",
-        message=f"Routine request for '{db_task.title}' has been created. Find an expert to assign.",
+        message=(
+            f"Routine request for '{db_task.title}' created. Verified experts available — assign from the request page."
+            if has_verified_expert
+            else f"Routine request for '{db_task.title}' created. No verified expert found — use Find Expert to search."
+        ),
         notification_type="INFO",
         link="/dashboard/routine"
     )
@@ -159,12 +165,21 @@ def assign_routine_provider(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
-    # Validate task
+    # Validate scheduled_at is in the future (strip tz info for naive comparison if needed)
+    now_utc = datetime.now(timezone.utc)
+    scheduled = assign_in.scheduled_at
+    # Normalise to offset-aware for comparison
+    if scheduled.tzinfo is None:
+        scheduled = scheduled.replace(tzinfo=timezone.utc)
+    if scheduled <= now_utc:
+        raise HTTPException(status_code=400, detail="scheduled_at must be a future date and time")
+
+    # Validate task — use SELECT FOR UPDATE to prevent double-assignment race condition
     task = db.query(MaintenanceTask).filter(
         MaintenanceTask.id == task_id,
         MaintenanceTask.user_id == current_user.id,
         MaintenanceTask.task_type == "routine"
-    ).first()
+    ).with_for_update().first()
     if not task:
         raise HTTPException(status_code=404, detail="Routine task not found")
     if task.booking_id:
@@ -177,27 +192,41 @@ def assign_routine_provider(
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
 
-    # Create ServiceBooking
-    # Schedule 24 hours from now by default — avoids immediate time-conflict window
+    # Time-conflict check: reject if provider already has an active booking within ± window
+    # Use the normalised aware datetime for consistent arithmetic
+    window_start = scheduled - timedelta(hours=BOOKING_CONFLICT_WINDOW_HOURS)
+    window_end = scheduled + timedelta(hours=BOOKING_CONFLICT_WINDOW_HOURS)
+    conflict = db.query(ServiceBooking).filter(
+        ServiceBooking.provider_id == assign_in.provider_id,
+        ServiceBooking.status.in_(["Pending", "Accepted", "In Progress"]),
+        ServiceBooking.scheduled_at >= window_start,
+        ServiceBooking.scheduled_at <= window_end
+    ).first()
+    if conflict:
+        raise HTTPException(
+            status_code=409,
+            detail="Provider has a conflicting booking near this time. Please choose a different time."
+        )
+
+    # Create ServiceBooking as Pending request (not direct assignment)
     booking = ServiceBooking(
         user_id=current_user.id,
         provider_id=provider.id,
         service_type=task.category or "General",
         issue_description=f"{task.title}: {task.description}" if task.description else task.title,
-        scheduled_at=datetime.utcnow() + timedelta(hours=24),
+        scheduled_at=scheduled,
         priority=task.priority,
         property_details=task.location,
         estimated_cost=provider.hourly_rate or 0.0
     )
     db.add(booking)
-    db.commit()
-    db.refresh(booking)
+    db.flush()
 
     # Status history
     history = BookingStatusHistory(
         booking_id=booking.id,
         status="Pending",
-        notes="Routine service request — awaiting provider acceptance"
+        notes="Service request sent — awaiting provider acceptance"
     )
     db.add(history)
 
@@ -206,21 +235,23 @@ def assign_routine_provider(
     task.service_provider_id = provider.id
     task.status = "Assigned"
 
-    # Notifications
+    # Notify user: request sent
+    provider_name = get_provider_display_name(provider)
     user_notif = Notification(
         user_id=current_user.id,
-        title="Expert Assigned",
-        message=f"Provider '{provider.company_name}' has been assigned to your routine request for '{task.title}'.",
+        title="Request Sent",
+        message=f"Service request for '{task.title}' sent to '{provider_name}'. Awaiting their response.",
         notification_type="INFO",
         link=f"/dashboard/bookings/{booking.id}"
     )
     db.add(user_notif)
 
+    # Notify provider: new request to accept/reject
     if provider.user_id:
         provider_notif = Notification(
             user_id=provider.user_id,
-            title="Action Required: New Request",
-            message=f"New routine {task.category} request from {current_user.username}.",
+            title="New Service Request",
+            message=f"New {task.category} request from {current_user.username} scheduled for {scheduled.strftime('%d %b %Y at %H:%M')}. Accept or reject.",
             notification_type="URGENT",
             link=f"/dashboard/bookings/{booking.id}"
         )

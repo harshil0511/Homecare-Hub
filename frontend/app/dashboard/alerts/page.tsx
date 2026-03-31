@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, AlertCircle, ShieldAlert, CheckCircle2, Clock, MoreHorizontal, Search, Loader2, Wrench, ArrowRight, CalendarClock, ChevronDown } from "lucide-react";
+import { Bell, AlertCircle, ShieldAlert, CheckCircle2, Clock, MoreHorizontal, Search, Loader2, Wrench, ArrowRight, CalendarClock, ChevronDown, Send, DollarSign } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 
@@ -26,6 +26,34 @@ interface PendingTask {
     created_at: string | null;
 }
 
+interface PendingBooking {
+    id: number;
+    service_type: string;
+    scheduled_at: string;
+    status: string;
+    priority: string;
+    estimated_cost: number;
+    issue_description?: string;
+    created_at: string;
+}
+
+interface BookingDetailData {
+    id: number;
+    service_type: string;
+    scheduled_at: string;
+    status: string;
+    priority: string;
+    estimated_cost?: number;
+    issue_description?: string;
+    property_details?: string;
+    provider?: {
+        first_name?: string;
+        last_name?: string;
+        company_name?: string;
+        owner_name?: string;
+    };
+}
+
 const PRIORITY_BADGE: Record<string, string> = {
     Routine: "bg-slate-100 text-slate-500",
     Mandatory: "bg-amber-50 text-amber-700",
@@ -35,13 +63,36 @@ const PRIORITY_BADGE: Record<string, string> = {
 export default function AlertsPage() {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [pendingTasks, setPendingTasks] = useState<PendingTask[]>([]);
+    const [pendingBookings, setPendingBookings] = useState<PendingBooking[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadingTasks, setLoadingTasks] = useState(true);
+    const [loadingBookings, setLoadingBookings] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
     const [expandedId, setExpandedId] = useState<number | null>(null);
+    const [expandedBookingId, setExpandedBookingId] = useState<number | null>(null);
+    const [bookingDetail, setBookingDetail] = useState<BookingDetailData | null>(null);
+    const [loadingDetail, setLoadingDetail] = useState(false);
 
     const toggleExpand = (id: number) => {
         setExpandedId(prev => prev === id ? null : id);
+    };
+
+    const toggleBookingExpand = async (bookingId: number) => {
+        if (expandedBookingId === bookingId) {
+            setExpandedBookingId(null);
+            setBookingDetail(null);
+            return;
+        }
+        setExpandedBookingId(bookingId);
+        setLoadingDetail(true);
+        try {
+            const data = await apiFetch(`/bookings/${bookingId}`);
+            setBookingDetail(data);
+        } catch (err) {
+            console.error("Failed to fetch booking detail", err);
+        } finally {
+            setLoadingDetail(false);
+        }
     };
 
     const fetchNotifications = async () => {
@@ -52,6 +103,18 @@ export default function AlertsPage() {
             console.error("Failed to fetch notifications", err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchPendingBookings = async () => {
+        setLoadingBookings(true);
+        try {
+            const data = await apiFetch("/bookings/list?status=pending");
+            setPendingBookings(data);
+        } catch (err) {
+            console.warn("Failed to fetch pending bookings:", err);
+        } finally {
+            setLoadingBookings(false);
         }
     };
 
@@ -70,6 +133,7 @@ export default function AlertsPage() {
     useEffect(() => {
         fetchNotifications();
         fetchPendingTasks();
+        fetchPendingBookings();
     }, []);
 
     const clearAll = async () => {
@@ -146,11 +210,7 @@ export default function AlertsPage() {
                     <div className="bg-white border border-amber-100 rounded-[1.75rem] overflow-hidden shadow-sm">
                         <div className="divide-y divide-amber-50">
                             {pendingTasks.map((task) => (
-                                <Link
-                                    key={task.id}
-                                    href={`/dashboard/routine?taskId=${task.id}`}
-                                    className="flex items-center gap-5 px-7 py-5 hover:bg-amber-50/60 transition-all group"
-                                >
+                                <div key={task.id} className="flex items-center gap-5 px-7 py-5 hover:bg-amber-50/60 transition-all group">
                                     {/* Icon */}
                                     <div className="w-12 h-12 bg-amber-50 border border-amber-100 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:bg-amber-100 transition-colors">
                                         <Wrench className="w-5 h-5 text-amber-600" />
@@ -159,7 +219,7 @@ export default function AlertsPage() {
                                     {/* Info */}
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-0.5">
-                                            <p className="text-sm font-black text-[#000000] truncate tracking-tight group-hover:text-[#064e3b] transition-colors">
+                                            <p className="text-sm font-black text-[#000000] truncate tracking-tight">
                                                 {task.title}
                                             </p>
                                             <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest flex-shrink-0 ${PRIORITY_BADGE[task.priority] || "bg-slate-100 text-slate-500"}`}>
@@ -173,15 +233,169 @@ export default function AlertsPage() {
                                         </p>
                                     </div>
 
-                                    {/* CTA */}
+                                    {/* CTAs */}
                                     <div className="flex items-center gap-2 flex-shrink-0">
-                                        <span className="text-[9px] font-black text-amber-600 bg-amber-50 border border-amber-100 px-3 py-1.5 rounded-lg uppercase tracking-widest group-hover:bg-[#064e3b] group-hover:text-white group-hover:border-[#064e3b] transition-all">
+                                        <Link
+                                            href={`/dashboard/routine?taskId=${task.id}`}
+                                            className="text-[9px] font-black text-amber-600 bg-amber-50 border border-amber-100 px-3 py-1.5 rounded-lg uppercase tracking-widest hover:bg-[#064e3b] hover:text-white hover:border-[#064e3b] transition-all"
+                                        >
                                             Assign Expert
-                                        </span>
-                                        <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-[#064e3b] group-hover:translate-x-0.5 transition-all" />
+                                        </Link>
+                                        <Link
+                                            href={`/dashboard/providers?category=${encodeURIComponent(task.category || "")}`}
+                                            className="text-[9px] font-black text-[#064e3b] bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-lg uppercase tracking-widest hover:bg-emerald-900 hover:text-white hover:border-emerald-900 transition-all"
+                                        >
+                                            Find Expert
+                                        </Link>
+                                        <ArrowRight className="w-4 h-4 text-slate-300" />
                                     </div>
-                                </Link>
+                                </div>
                             ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Pending Requests (Awaiting Servicer Response) ── */}
+            {!loadingBookings && pendingBookings.length > 0 && (
+                <div className="space-y-3">
+                    <div className="flex items-center gap-2 px-1">
+                        <Send className="w-4 h-4 text-blue-500" />
+                        <h2 className="text-xs font-black text-slate-500 uppercase tracking-[0.25em]">
+                            Pending Requests — Awaiting Response
+                        </h2>
+                        <span className="ml-auto text-[9px] font-black bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                            {pendingBookings.length} pending
+                        </span>
+                    </div>
+
+                    <div className="bg-white border border-blue-100 rounded-[1.75rem] overflow-hidden shadow-sm">
+                        <div className="divide-y divide-blue-50">
+                            {pendingBookings.map((booking) => {
+                                const isOpen = expandedBookingId === booking.id;
+                                return (
+                                    <div key={booking.id}>
+                                        {/* Row Header — click to expand */}
+                                        <button
+                                            onClick={() => toggleBookingExpand(booking.id)}
+                                            className="w-full flex items-center gap-5 px-7 py-5 hover:bg-blue-50/60 transition-all group text-left"
+                                        >
+                                            <div className="w-12 h-12 bg-blue-50 border border-blue-100 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:bg-blue-100 transition-colors">
+                                                <Send className="w-5 h-5 text-blue-600" />
+                                            </div>
+
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 mb-0.5">
+                                                    <p className="text-sm font-black text-[#000000] truncate tracking-tight group-hover:text-[#064e3b] transition-colors">
+                                                        {booking.service_type}
+                                                    </p>
+                                                    {booking.priority === "Emergency" && (
+                                                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-red-50 text-red-700 uppercase tracking-widest flex-shrink-0">
+                                                            Emergency
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                    Scheduled: {new Date(booking.scheduled_at).toLocaleDateString()} at {new Date(booking.scheduled_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                                    {booking.estimated_cost > 0 && <> &bull; ${booking.estimated_cost.toFixed(2)}</>}
+                                                </p>
+                                            </div>
+
+                                            <div className="flex items-center gap-2 flex-shrink-0">
+                                                <span className="text-[9px] font-black text-blue-600 bg-blue-50 border border-blue-100 px-3 py-1.5 rounded-lg uppercase tracking-widest">
+                                                    Awaiting Response
+                                                </span>
+                                                <ChevronDown className={`w-4 h-4 text-slate-300 transition-transform duration-200 ${isOpen ? "rotate-180 text-blue-600" : ""}`} />
+                                            </div>
+                                        </button>
+
+                                        {/* Expanded Detail — inline scrollable box */}
+                                        {isOpen && (
+                                            <div className="px-7 pb-6 pt-2 bg-blue-50/40 border-t border-blue-100 animate-fade-in">
+                                                {loadingDetail ? (
+                                                    <div className="py-8 text-center">
+                                                        <Loader2 className="w-5 h-5 text-blue-500 animate-spin mx-auto" />
+                                                    </div>
+                                                ) : bookingDetail ? (
+                                                    <div className="max-h-[360px] overflow-y-auto space-y-4 pr-2">
+                                                        {/* Status & ID */}
+                                                        <div className="flex items-center gap-3 flex-wrap">
+                                                            <span className="text-[9px] font-black bg-amber-100 text-amber-700 px-2.5 py-1 rounded uppercase tracking-widest">
+                                                                {bookingDetail.status}
+                                                            </span>
+                                                            <span className="text-[9px] font-black bg-slate-100 text-slate-500 px-2.5 py-1 rounded uppercase tracking-widest">
+                                                                ID: #{bookingDetail.id?.toString().padStart(5, "0")}
+                                                            </span>
+                                                            <span className="text-[9px] font-black bg-blue-100 text-blue-700 px-2.5 py-1 rounded uppercase tracking-widest">
+                                                                {bookingDetail.priority}
+                                                            </span>
+                                                        </div>
+
+                                                        {/* Info Grid */}
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                            <div className="bg-white border border-slate-100 rounded-xl p-4">
+                                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Service Type</p>
+                                                                <p className="text-sm font-black text-[#000000]">{bookingDetail.service_type}</p>
+                                                            </div>
+                                                            <div className="bg-white border border-slate-100 rounded-xl p-4">
+                                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Scheduled</p>
+                                                                <p className="text-sm font-black text-[#000000]">
+                                                                    {new Date(bookingDetail.scheduled_at).toLocaleDateString()} @ {new Date(bookingDetail.scheduled_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                                                </p>
+                                                            </div>
+                                                            <div className="bg-white border border-slate-100 rounded-xl p-4">
+                                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Estimated Cost</p>
+                                                                <p className="text-sm font-black text-[#000000]">${bookingDetail.estimated_cost?.toFixed(2) || "0.00"}</p>
+                                                            </div>
+                                                            {bookingDetail.property_details && (
+                                                                <div className="bg-white border border-slate-100 rounded-xl p-4">
+                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Location</p>
+                                                                    <p className="text-sm font-black text-[#000000]">{bookingDetail.property_details}</p>
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Description */}
+                                                        {bookingDetail.issue_description && (
+                                                            <div className="bg-white border border-slate-100 rounded-xl p-4">
+                                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Description</p>
+                                                                <p className="text-xs font-medium text-slate-600 leading-relaxed">{bookingDetail.issue_description}</p>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Provider */}
+                                                        {bookingDetail.provider && (
+                                                            <div className="bg-white border border-slate-100 rounded-xl p-4 flex items-center gap-3">
+                                                                <div className="w-10 h-10 bg-[#064e3b] rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0">
+                                                                    {(bookingDetail.provider.first_name || bookingDetail.provider.company_name || "?")[0].toUpperCase()}
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Assigned Expert</p>
+                                                                    <p className="text-sm font-black text-[#000000]">
+                                                                        {bookingDetail.provider.first_name && bookingDetail.provider.last_name
+                                                                            ? `${bookingDetail.provider.first_name} ${bookingDetail.provider.last_name}`
+                                                                            : bookingDetail.provider.company_name || bookingDetail.provider.owner_name}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* View Full Detail link */}
+                                                        <Link
+                                                            href={`/dashboard/bookings/${bookingDetail.id}`}
+                                                            className="inline-flex items-center gap-2 text-[10px] font-black text-[#064e3b] uppercase tracking-widest hover:underline"
+                                                        >
+                                                            Open Full Detail <ArrowRight className="w-3 h-3" />
+                                                        </Link>
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-xs text-slate-400 py-4">Failed to load details.</p>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
                 </div>

@@ -78,8 +78,8 @@ export default function AdminLogsPage() {
                 ))}
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-[2.5rem] shadow-sm overflow-hidden">
-                <div className="px-10 py-8 border-b border-slate-100 flex items-center gap-3 bg-slate-50/30">
+            <div className="bg-white border border-slate-200 rounded-[2.5rem] shadow-sm">
+                <div className="px-10 py-8 border-b border-slate-100 flex items-center gap-3 bg-slate-50/30 rounded-t-[2.5rem]">
                     <Activity className="w-4 h-4 text-purple-600" />
                     <h2 className="text-sm font-black text-[#000000] uppercase tracking-[0.2em]">
                         System Activity — {filtered.length} event{filtered.length !== 1 ? "s" : ""}
@@ -96,7 +96,7 @@ export default function AdminLogsPage() {
                         <p className="font-semibold text-sm">No activity found</p>
                     </div>
                 ) : (
-                    <div className="divide-y divide-slate-100">
+                    <div className="divide-y divide-slate-100 h-[520px] overflow-y-auto">
                         {filtered.map((log, idx) => {
                             const typeInfo = TYPE_STYLE[log.type] ?? TYPE_STYLE.TASK;
                             const TypeIcon = typeInfo.icon;

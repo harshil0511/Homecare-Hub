@@ -59,13 +59,13 @@ export default function BookingHistoryPage() {
                 {filtered.length === 0 ? (
                     <div className="p-20 bg-white border border-dashed border-slate-200 rounded-[3rem] text-center space-y-4">
                         <p className="text-sm font-black text-slate-400 uppercase tracking-widest">No entries found for this category</p>
-                        <button onClick={() => router.push("/dashboard/bookings/new")} className="text-xs font-black text-emerald-600 uppercase underline">Create New Booking</button>
+                        <button onClick={() => router.push("/user/providers")} className="text-xs font-black text-emerald-600 uppercase underline">Find an Expert</button>
                     </div>
                 ) : (
                     filtered.map((booking) => (
                         <div
                             key={booking.id}
-                            onClick={() => router.push(`/dashboard/bookings/${booking.id}`)}
+                            onClick={() => router.push(`/user/bookings/${booking.id}`)}
                             className="bg-white border border-slate-200 rounded-[2.5rem] p-4 pr-10 hover:shadow-2xl hover:shadow-slate-200/50 transition-all cursor-pointer group"
                         >
                             <div className="flex flex-col md:flex-row md:items-center gap-8">

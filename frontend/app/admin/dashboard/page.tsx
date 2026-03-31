@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import {
-    Users, ShieldCheck, Activity, Search, MoreVertical,
-    BadgeCheck, AlertTriangle, Mail, ArrowUpRight,
+    Users, ShieldCheck, Activity, Search,
+    BadgeCheck, Mail,
     TrendingUp, Shield, ClipboardList, Wrench,
-    BarChart3, Trash2
+    BarChart3, Trash2, DollarSign, X, Calendar, User
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { getUsername } from "@/lib/auth";
@@ -38,6 +38,26 @@ interface AdminContract {
     created_at?: string;
 }
 
+interface Revenue {
+    total_revenue: number;
+    completed_bookings: number;
+    avg_booking_value: number;
+    top_categories: { category: string; revenue: number }[];
+}
+
+interface BookingDetail {
+    id: number;
+    status: string;
+    priority: string;
+    service_type: string;
+    scheduled_at: string | null;
+    estimated_cost: number | null;
+    issue_description: string | null;
+    property_details: string | null;
+    user: { username: string; email: string } | null;
+    provider: { name: string; category: string; is_verified: boolean } | null;
+}
+
 type AdminTab = "overview" | "users" | "contracts";
 
 const ROLE_STYLE: Record<string, string> = {
@@ -57,7 +77,13 @@ export default function AdminDashboardPage() {
     const [contractsLoading, setContractsLoading] = useState(false);
     const [contractStatusFilter, setContractStatusFilter] = useState("ALL");
     const [contractDateFilter, setContractDateFilter] = useState("");
+    const [revenue, setRevenue] = useState<Revenue | null>(null);
+    const [selectedBooking, setSelectedBooking] = useState<BookingDetail | null>(null);
+    const [bookingDetailLoading, setBookingDetailLoading] = useState(false);
     const adminName = getUsername();
+
+    interface HealthStatus { database: boolean; api: boolean; jwt: boolean; checked_at: string | null; }
+    const [health, setHealth] = useState<HealthStatus | null>(null);
 
     useEffect(() => {
         Promise.all([
@@ -67,6 +93,14 @@ export default function AdminDashboardPage() {
             setStats(s);
             setUsers(u || []);
         }).catch(() => {}).finally(() => setLoading(false));
+
+        apiFetch("/admin/health")
+            .then((d: HealthStatus) => setHealth(d))
+            .catch(() => setHealth({ database: false, api: true, jwt: true, checked_at: null }));
+
+        apiFetch("/admin/revenue")
+            .then((d: Revenue) => setRevenue(d))
+            .catch(() => {});
     }, []);
 
     useEffect(() => {
@@ -78,6 +112,19 @@ export default function AdminDashboardPage() {
                 .finally(() => setContractsLoading(false));
         }
     }, [adminTab, contractStatusFilter]);
+
+    const openBookingDetail = async (id: number) => {
+        setBookingDetailLoading(true);
+        setSelectedBooking(null);
+        try {
+            const detail = await apiFetch(`/admin/bookings/${id}`);
+            setSelectedBooking(detail);
+        } catch {
+            // silently fail
+        } finally {
+            setBookingDetailLoading(false);
+        }
+    };
 
     const deleteUser = async (uuid: string, username: string) => {
         if (!confirm(`Permanently delete account "${username}"? This cannot be undone.`)) return;
@@ -176,6 +223,42 @@ export default function AdminDashboardPage() {
                         </div>
                     )}
 
+                    {/* Revenue Summary */}
+                    {revenue && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="bg-[#064e3b] rounded-[2rem] p-8 text-white shadow-xl">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <DollarSign className="w-5 h-5 text-emerald-300" />
+                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-300">Total Revenue</p>
+                                </div>
+                                <p className="text-3xl font-black tracking-tighter">₹{revenue.total_revenue.toLocaleString("en-IN")}</p>
+                                <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mt-1">From completed bookings</p>
+                            </div>
+                            <div className="bg-white border border-slate-200 rounded-[2rem] p-8 shadow-sm">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <TrendingUp className="w-5 h-5 text-blue-500" />
+                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Avg Booking Value</p>
+                                </div>
+                                <p className="text-3xl font-black tracking-tighter text-[#000000]">₹{revenue.avg_booking_value.toLocaleString("en-IN")}</p>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{revenue.completed_bookings} completed</p>
+                            </div>
+                            <div className="bg-white border border-slate-200 rounded-[2rem] p-8 shadow-sm">
+                                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-4">Top Categories</p>
+                                <div className="space-y-2">
+                                    {revenue.top_categories.slice(0, 3).map((cat) => (
+                                        <div key={cat.category} className="flex items-center justify-between">
+                                            <span className="text-[10px] font-black text-slate-600 uppercase truncate max-w-[140px]">{cat.category}</span>
+                                            <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg">₹{cat.revenue.toLocaleString("en-IN")}</span>
+                                        </div>
+                                    ))}
+                                    {revenue.top_categories.length === 0 && (
+                                        <p className="text-[10px] text-slate-300 uppercase">No data yet</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Users + System Health */}
                     <div className="grid grid-cols-1 xl:grid-cols-3 gap-10">
 
@@ -257,21 +340,33 @@ export default function AdminDashboardPage() {
                                 <h3 className="text-sm font-black text-[#000000] uppercase tracking-[0.2em] mb-8 flex items-center gap-3">
                                     <ShieldCheck className="w-4 h-4 text-[#064e3b]" /> System Status
                                 </h3>
-                                <div className="space-y-6">
-                                    {[
-                                        { label: "Database", value: "Connected", status: "UP" },
-                                        { label: "JWT Auth", value: "Active", status: "SECURE" },
-                                        { label: "API Server", value: "Running", status: "ONLINE" },
-                                    ].map(item => (
-                                        <div key={item.label} className="flex items-center justify-between">
-                                            <div>
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{item.label}</p>
-                                                <p className="text-sm font-black text-[#000000]">{item.value}</p>
+                                {health === null ? (
+                                    <p className="text-xs text-slate-400">Checking...</p>
+                                ) : (
+                                    <div className="space-y-6">
+                                        {[
+                                            { label: "Database", ok: health.database },
+                                            { label: "API Server", ok: health.api },
+                                            { label: "JWT Auth", ok: health.jwt },
+                                        ].map(item => (
+                                            <div key={item.label} className="flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{item.label}</p>
+                                                    <p className="text-sm font-black text-[#000000]">{item.ok ? "Online" : "Offline"}</p>
+                                                </div>
+                                                <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase flex items-center gap-1.5 ${item.ok ? "text-emerald-600 bg-emerald-50" : "text-rose-500 bg-rose-50"}`}>
+                                                    <span className={`w-1.5 h-1.5 rounded-full ${item.ok ? "bg-emerald-500" : "bg-rose-500"}`} />
+                                                    {item.ok ? "UP" : "DOWN"}
+                                                </span>
                                             </div>
-                                            <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md uppercase">{item.status}</span>
-                                        </div>
-                                    ))}
-                                </div>
+                                        ))}
+                                        {health.checked_at && (
+                                            <p className="text-[10px] text-slate-300 pt-1">
+                                                Checked {new Date(health.checked_at).toLocaleTimeString()}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
                             {stats && (
@@ -418,7 +513,11 @@ export default function AdminDashboardPage() {
                                 </thead>
                                 <tbody>
                                     {contracts.map(c => (
-                                        <tr key={c.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                                        <tr
+                                            key={c.id}
+                                            onClick={() => openBookingDetail(c.id)}
+                                            className="border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer"
+                                        >
                                             <td className="px-6 py-4 text-xs text-slate-400 font-mono">#{c.id}</td>
                                             <td className="px-6 py-4 text-xs font-bold text-slate-700">{c.user_name}</td>
                                             <td className="px-6 py-4 text-xs text-slate-600">{c.servicer_name}</td>
@@ -442,6 +541,116 @@ export default function AdminDashboardPage() {
                             </table>
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* Booking Detail Modal */}
+            {(selectedBooking || bookingDetailLoading) && (
+                <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
+                    <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => setSelectedBooking(null)} />
+                    <div className="relative bg-white w-full max-w-lg rounded-t-[2.5rem] md:rounded-[2.5rem] shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
+                        <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
+                            <div>
+                                <h2 className="text-lg font-black text-[#000000] uppercase tracking-tight">Booking Detail</h2>
+                                {selectedBooking && <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">#{selectedBooking.id}</p>}
+                            </div>
+                            <button onClick={() => setSelectedBooking(null)} className="p-3 bg-slate-50 rounded-xl text-slate-400 hover:text-slate-700 transition-all">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {bookingDetailLoading ? (
+                            <div className="flex items-center justify-center py-16">
+                                <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                            </div>
+                        ) : selectedBooking && (
+                            <div className="overflow-y-auto flex-1 p-8 space-y-6">
+                                {/* Status & Priority */}
+                                <div className="flex items-center gap-3 flex-wrap">
+                                    <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase ${
+                                        selectedBooking.status === "Completed" ? "bg-emerald-50 text-emerald-700"
+                                        : selectedBooking.status === "Accepted" || selectedBooking.status === "In Progress" ? "bg-blue-50 text-blue-700"
+                                        : "bg-slate-100 text-slate-500"
+                                    }`}>{selectedBooking.status}</span>
+                                    {selectedBooking.priority && selectedBooking.priority !== "Normal" && (
+                                        <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase ${selectedBooking.priority === "Emergency" ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700"}`}>
+                                            {selectedBooking.priority}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Core Fields */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-4">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Service</p>
+                                        <p className="text-sm font-black text-[#000000]">{selectedBooking.service_type}</p>
+                                    </div>
+                                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-4">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Cost</p>
+                                        <p className="text-sm font-black text-[#000000]">
+                                            {selectedBooking.estimated_cost ? `₹${selectedBooking.estimated_cost.toLocaleString("en-IN")}` : "—"}
+                                        </p>
+                                    </div>
+                                    {selectedBooking.scheduled_at && (
+                                        <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 col-span-2 flex items-center gap-3">
+                                            <Calendar className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                                            <div>
+                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Scheduled</p>
+                                                <p className="text-sm font-black text-[#000000]">
+                                                    {new Date(selectedBooking.scheduled_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
+                                                    {" @ "}
+                                                    {new Date(selectedBooking.scheduled_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* User */}
+                                {selectedBooking.user && (
+                                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-center gap-3">
+                                        <User className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                                        <div>
+                                            <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest mb-0.5">Customer</p>
+                                            <p className="text-sm font-black text-[#000000]">{selectedBooking.user.username}</p>
+                                            <p className="text-[10px] text-slate-500">{selectedBooking.user.email}</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Provider */}
+                                {selectedBooking.provider && (
+                                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex items-center gap-3">
+                                        <Wrench className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-0.5">Provider</p>
+                                            <p className="text-sm font-black text-[#000000]">{selectedBooking.provider.name}</p>
+                                            <p className="text-[10px] text-slate-500 uppercase">{selectedBooking.provider.category}</p>
+                                        </div>
+                                        {selectedBooking.provider.is_verified && (
+                                            <BadgeCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Description */}
+                                {selectedBooking.issue_description && (
+                                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-4">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Issue Description</p>
+                                        <p className="text-sm text-slate-600 leading-relaxed">{selectedBooking.issue_description}</p>
+                                    </div>
+                                )}
+
+                                {/* Property */}
+                                {selectedBooking.property_details && (
+                                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-4">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Property / Location</p>
+                                        <p className="text-sm text-slate-600">{selectedBooking.property_details}</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
         </div>

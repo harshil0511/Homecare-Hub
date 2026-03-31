@@ -236,13 +236,13 @@ export default function AlertsPage() {
                                     {/* CTAs */}
                                     <div className="flex items-center gap-2 flex-shrink-0">
                                         <Link
-                                            href={`/dashboard/routine?taskId=${task.id}`}
+                                            href={`/user/routine?taskId=${task.id}`}
                                             className="text-[9px] font-black text-amber-600 bg-amber-50 border border-amber-100 px-3 py-1.5 rounded-lg uppercase tracking-widest hover:bg-[#064e3b] hover:text-white hover:border-[#064e3b] transition-all"
                                         >
                                             Assign Expert
                                         </Link>
                                         <Link
-                                            href={`/dashboard/providers?category=${encodeURIComponent(task.category || "")}`}
+                                            href={`/user/providers?category=${encodeURIComponent(task.category || "")}`}
                                             className="text-[9px] font-black text-[#064e3b] bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-lg uppercase tracking-widest hover:bg-emerald-900 hover:text-white hover:border-emerald-900 transition-all"
                                         >
                                             Find Expert
@@ -382,7 +382,7 @@ export default function AlertsPage() {
 
                                                         {/* View Full Detail link */}
                                                         <Link
-                                                            href={`/dashboard/bookings/${bookingDetail.id}`}
+                                                            href={`/user/bookings/${bookingDetail.id}`}
                                                             className="inline-flex items-center gap-2 text-[10px] font-black text-[#064e3b] uppercase tracking-widest hover:underline"
                                                         >
                                                             Open Full Detail <ArrowRight className="w-3 h-3" />

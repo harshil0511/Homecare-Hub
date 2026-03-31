@@ -29,20 +29,7 @@ export default function LoginPage() {
     const [forgotMsg, setForgotMsg] = useState("");
     const [forgotLoading, setForgotLoading] = useState(false);
 
-    // Redirect if already logged in
-    useEffect(() => {
-        const token = localStorage.getItem("hc_token");
-        const role = localStorage.getItem("hc_role");
-        if (token && role) {
-            const roleHome: Record<string, string> = {
-                ADMIN: "/admin/dashboard",
-                SECRETARY: "/secretary/dashboard",
-                SERVICER: "/service/dashboard",
-                USER: "/user/dashboard",
-            };
-            router.push(roleHome[role] ?? "/user/dashboard");
-        }
-    }, [router]);
+    // Login page is always accessible — no redirect even if other roles are logged in
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();

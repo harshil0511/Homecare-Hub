@@ -129,38 +129,6 @@ export default function HomecareLandingPage() {
                 />
               </div>
 
-              {/* Floating Info Card */}
-              <div className="absolute top-12 -right-10 hidden md:block glass bg-white/80 backdrop-blur-lg border border-white/50 p-5 rounded-3xl shadow-2xl w-56 animate-in slide-in-from-right-10 duration-1000 delay-300">
-                <div className="flex items-center space-x-4 mb-3">
-                  <div className="w-12 h-12 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center justify-center">
-                    <Wrench size={24} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-black text-slate-800 leading-tight">Expert Techs</p>
-                    <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Certified</p>
-                  </div>
-                </div>
-                <p className="text-xs text-slate-500 font-medium leading-relaxed">Every professional is background checked and skill-verified.</p>
-              </div>
-
-              {/* Tech Card */}
-              <div className="absolute -bottom-6 -left-10 hidden md:block glass bg-white/80 backdrop-blur-lg border border-white/50 p-5 rounded-3xl shadow-2xl w-52 animate-in slide-in-from-left-10 duration-1000 delay-500">
-                <div className="flex items-center space-x-4 mb-3">
-                  <div className="w-12 h-12 bg-teal-50 text-teal-700 rounded-2xl flex items-center justify-center">
-                    <ShieldCheck size={24} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-black text-slate-800 leading-tight">Safe Solutions</p>
-                    <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Verified IDs</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5 overflow-hidden">
-                  <div className="flex -space-x-2">
-                    <div className="w-6 h-6 rounded-full border-2 border-white bg-green-100 flex items-center justify-center text-[10px] font-bold text-green-700">✓</div>
-                  </div>
-                  <span className="text-[10px] font-bold text-slate-600">ID Verification Complete</span>
-                </div>
-              </div>
             </div>
           </div>
         </div>

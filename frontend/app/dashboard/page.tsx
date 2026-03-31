@@ -20,15 +20,50 @@ import {
     Zap,
     Cpu,
     X,
-    CheckCircle2
+    CheckCircle2,
+    ChevronDown,
+    Loader2,
+    MapPin,
+    DollarSign
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 
+interface LedgerEntry {
+    id: number;
+    type: "BOOKING" | "TASK";
+    title: string;
+    status: string;
+    priority?: string;
+    date?: string;
+    description?: string;
+    issue_description?: string;
+    category?: string;
+    location?: string;
+    provider?: { company_name?: string; first_name?: string; last_name?: string; owner_name?: string };
+}
+
+interface BookingDetailData {
+    id: number;
+    service_type: string;
+    scheduled_at: string;
+    status: string;
+    priority: string;
+    estimated_cost?: number;
+    issue_description?: string;
+    property_details?: string;
+    provider?: {
+        first_name?: string;
+        last_name?: string;
+        company_name?: string;
+        owner_name?: string;
+    };
+}
+
 interface StatCardProps {
     title: string;
     value: string | number;
-    icon: any;
+    icon: React.ComponentType<{ className?: string }>;
     trend?: string;
     color: string;
     onClick?: () => void;
@@ -88,6 +123,35 @@ export default function DashboardPage() {
     const [newSociety, setNewSociety] = useState({ name: "", address: "", registration_number: "" });
     const [activeFilter, setActiveFilter] = useState("ALL");
     const [creatorRole, setCreatorRole] = useState("OWNER");
+
+    // Inline expandable records in Active Log Alerts
+    const [expandedEntryKey, setExpandedEntryKey] = useState<string | null>(null);
+    const [expandedDetail, setExpandedDetail] = useState<BookingDetailData | LedgerEntry | null>(null);
+    const [loadingDetail, setLoadingDetail] = useState(false);
+
+    const toggleEntry = async (entry: LedgerEntry) => {
+        const key = `${entry.type}-${entry.id}`;
+        if (expandedEntryKey === key) {
+            setExpandedEntryKey(null);
+            setExpandedDetail(null);
+            return;
+        }
+        setExpandedEntryKey(key);
+        setExpandedDetail(null);
+        if (entry.type === 'BOOKING') {
+            setLoadingDetail(true);
+            try {
+                const detail = await apiFetch(`/bookings/${entry.id}`);
+                setExpandedDetail(detail);
+            } catch (err) {
+                console.error("Failed to fetch booking detail", err);
+            } finally {
+                setLoadingDetail(false);
+            }
+        } else {
+            setExpandedDetail(entry);
+        }
+    };
 
     const fetchData = async () => {
         try {
@@ -229,8 +293,8 @@ export default function DashboardPage() {
     // Filtered Entries based on activeFilter
     const filteredEntries = ledgerEntries.filter(entry => {
         if (activeFilter === "ALL") return true;
-        if (activeFilter === "OPERATIONS") return entry.type === 'BOOKING' && (entry.status === 'Accepted' || entry.status === 'In Progress');
-        if (activeFilter === "ALERTS") return entry.type === 'TASK';
+        if (activeFilter === "OPERATIONS") return entry.type === 'BOOKING' && (entry.status === 'Accepted' || entry.status === 'In Progress' || entry.status === 'Completed');
+        if (activeFilter === "ALERTS") return entry.type === 'TASK' || (entry.type === 'BOOKING' && entry.status === 'Pending');
         if (activeFilter === "PRIORITY") return entry.priority === 'Emergency' || entry.priority === 'Urgent';
         if (activeFilter === "NETWORK") return !!entry.provider;
         return true;
@@ -253,6 +317,13 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="flex items-center gap-4">
+                    <Link
+                        href="/dashboard/bookings/emergency"
+                        className="bg-rose-600 text-white px-8 py-5 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] shadow-xl shadow-rose-900/20 hover:bg-rose-700 transition-all active:scale-95 flex items-center gap-3 border border-rose-500/50"
+                    >
+                        <Zap className="w-5 h-5 animate-pulse" />
+                        Emergency SOS
+                    </Link>
                     <button
                         onClick={() => setShowTaskModal(true)}
                         className="bg-[#064e3b] text-white px-8 py-5 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] shadow-xl shadow-emerald-900/20 hover:bg-emerald-800 transition-all active:scale-95 flex items-center gap-3"
@@ -262,15 +333,7 @@ export default function DashboardPage() {
                     </button>
                     
                     <div className="relative ml-2">
-                        <button
-                            onClick={() => setShowNotifications(!showNotifications)}
-                            className="w-14 h-14 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center relative hover:bg-slate-50 transition-colors"
-                        >
-                            {unreadNotifications > 0 && (
-                                <div className="absolute top-0 right-0 w-3 h-3 bg-rose-500 border-2 border-white rounded-full translate-x-1/4 -translate-y-1/4 animate-pulse" />
-                            )}
-                            <AlertCircle className="w-6 h-6 text-slate-400" />
-                        </button>
+                        
 
                         {/* Notifications Dropdown */}
                         {showNotifications && (
@@ -391,47 +454,173 @@ export default function DashboardPage() {
                                 };
                                 const statusColor = statusColors[statusText.toUpperCase()] || 'text-slate-400';
 
-                                const entryHref = entry.type === 'BOOKING'
-                                    ? `/dashboard/bookings/${entry.id}`
-                                    : `/dashboard/logs`;
+                                const entryKey = `${entry.type}-${entry.id}`;
+                                const isEntryExpanded = expandedEntryKey === entryKey;
 
                                 return (
-                                    <Link href={entryHref} key={idx} className={`flex items-center justify-between p-6 rounded-[1.5rem] border transition-all group cursor-pointer ${isExpired ? 'bg-rose-50/50 border-rose-100 hover:shadow-md hover:shadow-rose-100/50' : 'bg-slate-50 border-slate-100 hover:bg-white hover:shadow-lg hover:border-emerald-100'}`}>
-                                        <div className="flex items-center gap-8">
-                                            {/* Icon Box */}
-                                            <div className={`w-16 h-16 rounded-[1.25rem] flex items-center justify-center shadow-inner relative ${isExpired ? 'bg-rose-500 text-white' : entry.type === 'TASK' ? 'bg-emerald-100 text-emerald-600' : 'bg-[#064e3b] text-white'}`}>
-                                                {isExpired && <div className="absolute inset-0 bg-rose-500 rounded-[1.25rem] animate-ping opacity-20" />}
-                                                {entry.type === 'TASK' ? <Activity className="w-7 h-7" /> : <ShieldCheck className="w-7 h-7" />}
+                                    <div key={idx} className="rounded-[1.5rem] border overflow-hidden transition-all">
+                                        {/* Clickable Row Header */}
+                                        <button
+                                            onClick={() => toggleEntry(entry)}
+                                            className={`w-full flex items-center justify-between p-6 transition-all group cursor-pointer text-left ${isExpired ? 'bg-rose-50/50 border-rose-100 hover:shadow-md' : 'bg-slate-50 hover:bg-white hover:shadow-lg'} ${isEntryExpanded ? 'border-b border-slate-100' : ''}`}
+                                        >
+                                            <div className="flex items-center gap-8">
+                                                <div className={`w-16 h-16 rounded-[1.25rem] flex items-center justify-center shadow-inner relative flex-shrink-0 ${isExpired ? 'bg-rose-500 text-white' : entry.type === 'TASK' ? 'bg-emerald-100 text-emerald-600' : 'bg-[#064e3b] text-white'}`}>
+                                                    {isExpired && <div className="absolute inset-0 bg-rose-500 rounded-[1.25rem] animate-ping opacity-20" />}
+                                                    {entry.type === 'TASK' ? <Activity className="w-7 h-7" /> : <ShieldCheck className="w-7 h-7" />}
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center gap-4">
+                                                        <span className={`px-4 py-1 rounded-lg text-[9px] font-black uppercase tracking-[0.2em] ${isExpired ? 'bg-rose-600 text-white' : isUrgent ? 'bg-rose-100 text-rose-600 border border-rose-200' : entry.priority === 'Mandatory' ? 'bg-amber-100 text-amber-600 border border-amber-200' : 'bg-slate-200 text-slate-600 border border-slate-300'}`}>
+                                                            {isExpired ? 'EXPIRED' : entry.priority || 'ROUTINE'}
+                                                        </span>
+                                                        <h4 className="text-xl font-black text-black uppercase tracking-tighter leading-none">{entry.title}</h4>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                            {entry.provider ? `Provider: ${entry.provider.company_name}` : 'Self-Managed'}
+                                                        </p>
+                                                        <span className="w-1 h-1 rounded-full bg-slate-300" />
+                                                        <p className="text-[10px] font-bold text-slate-400 max-w-xs truncate">
+                                                            {entry.description || entry.issue_description || 'No additional logs provided.'}
+                                                        </p>
+                                                    </div>
+                                                </div>
                                             </div>
 
-                                            <div className="space-y-2">
-                                                <div className="flex items-center gap-4">
-                                                    <span className={`px-4 py-1 rounded-lg text-[9px] font-black uppercase tracking-[0.2em] ${isExpired ? 'bg-rose-600 text-white' : isUrgent ? 'bg-rose-100 text-rose-600 border border-rose-200' : entry.priority === 'Mandatory' ? 'bg-amber-100 text-amber-600 border border-amber-200' : 'bg-slate-200 text-slate-600 border border-slate-300'}`}>
-                                                        {isExpired ? 'EXPIRED' : entry.priority || 'ROUTINE'}
-                                                    </span>
-                                                    <h4 className="text-xl font-black text-black uppercase tracking-tighter leading-none">{entry.title}</h4>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                                        {entry.provider ? `Provider: ${entry.provider.company_name}` : 'Self-Managed'}
+                                            <div className="flex items-center gap-6">
+                                                <div className="text-right space-y-2">
+                                                    <p className={`text-[11px] font-black uppercase tracking-[0.3em] ${isExpired ? 'text-rose-600' : 'text-slate-400'}`}>
+                                                        {entry.date ? new Date(entry.date).toLocaleDateString() : 'No deadline'}
                                                     </p>
-                                                    <span className="w-1 h-1 rounded-full bg-slate-300" />
-                                                    <p className="text-[10px] font-bold text-slate-400 max-w-xs truncate">
-                                                        {entry.description || entry.issue_description || 'No additional logs provided.'}
+                                                    <p className={`text-lg font-black uppercase tracking-tighter ${statusColor}`}>
+                                                        {statusText}
                                                     </p>
                                                 </div>
+                                                <ChevronDown className={`w-5 h-5 text-slate-300 transition-transform duration-200 flex-shrink-0 ${isEntryExpanded ? 'rotate-180 text-[#064e3b]' : ''}`} />
                                             </div>
-                                        </div>
+                                        </button>
 
-                                        <div className="text-right space-y-2">
-                                            <p className={`text-[11px] font-black uppercase tracking-[0.3em] ${isExpired ? 'text-rose-600' : 'text-slate-400'}`}>
-                                                {entry.date ? new Date(entry.date).toLocaleDateString() : 'No deadline'}
-                                            </p>
-                                            <p className={`text-lg font-black uppercase tracking-tighter ${statusColor}`}>
-                                                {statusText}
-                                            </p>
-                                        </div>
-                                    </Link>
+                                        {/* Expanded Inline Detail */}
+                                        {isEntryExpanded && (
+                                            <div className="bg-white px-8 py-6 border-t border-slate-100 animate-fade-in">
+                                                {loadingDetail ? (
+                                                    <div className="py-6 text-center">
+                                                        <Loader2 className="w-5 h-5 text-[#064e3b] animate-spin mx-auto" />
+                                                    </div>
+                                                ) : expandedDetail ? (
+                                                    <div className="max-h-[300px] overflow-y-auto space-y-4 pr-2">
+                                                        {entry.type === 'BOOKING' ? (() => {
+                                                            const detail = expandedDetail as BookingDetailData;
+                                                            return (
+                                                            <>
+                                                                {/* Booking Detail */}
+                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                    <span className="text-[9px] font-black bg-blue-100 text-blue-700 px-2.5 py-1 rounded uppercase tracking-widest">{detail.status}</span>
+                                                                    <span className="text-[9px] font-black bg-slate-100 text-slate-500 px-2.5 py-1 rounded uppercase tracking-widest">ID: #{detail.id?.toString().padStart(5, '0')}</span>
+                                                                    {detail.priority !== 'Normal' && (
+                                                                        <span className={`text-[9px] font-black px-2.5 py-1 rounded uppercase tracking-widest ${detail.priority === 'Emergency' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{detail.priority}</span>
+                                                                    )}
+                                                                </div>
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Service</p>
+                                                                        <p className="text-sm font-black text-[#000000]">{detail.service_type}</p>
+                                                                    </div>
+                                                                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Schedule</p>
+                                                                        <p className="text-sm font-black text-[#000000]">{new Date(detail.scheduled_at).toLocaleDateString()} @ {new Date(detail.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                                                    </div>
+                                                                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Cost</p>
+                                                                        <p className="text-sm font-black text-[#000000]">${detail.estimated_cost?.toFixed(2) || '0.00'}</p>
+                                                                    </div>
+                                                                    {detail.property_details && (
+                                                                        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Location</p>
+                                                                            <p className="text-sm font-black text-[#000000]">{detail.property_details}</p>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                {detail.issue_description && (
+                                                                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Description</p>
+                                                                        <p className="text-xs font-medium text-slate-600 leading-relaxed">{detail.issue_description}</p>
+                                                                    </div>
+                                                                )}
+                                                                {detail.provider && (
+                                                                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center gap-3">
+                                                                        <div className="w-8 h-8 bg-[#064e3b] rounded-lg flex items-center justify-center text-white font-black text-xs flex-shrink-0">
+                                                                            {(detail.provider.first_name || detail.provider.company_name || '?')[0].toUpperCase()}
+                                                                        </div>
+                                                                        <div>
+                                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Expert</p>
+                                                                            <p className="text-sm font-black text-[#000000]">
+                                                                                {detail.provider.first_name && detail.provider.last_name
+                                                                                    ? `${detail.provider.first_name} ${detail.provider.last_name}`
+                                                                                    : detail.provider.company_name || detail.provider.owner_name}
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                                <Link href={`/dashboard/bookings/${detail.id}`} className="inline-flex items-center gap-2 text-[10px] font-black text-[#064e3b] uppercase tracking-widest hover:underline">
+                                                                    Open Full Detail <ArrowRight className="w-3 h-3" />
+                                                                </Link>
+                                                            </>
+                                                            );
+                                                        })() : (() => {
+                                                            const detail = expandedDetail as LedgerEntry;
+                                                            return (
+                                                            <>
+                                                                {/* Task Detail */}
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                                    {detail.category && (
+                                                                        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Category</p>
+                                                                            <p className="text-sm font-black text-[#000000]">{detail.category}</p>
+                                                                        </div>
+                                                                    )}
+                                                                    {detail.location && (
+                                                                        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Location</p>
+                                                                            <p className="text-sm font-black text-[#000000]">{detail.location}</p>
+                                                                        </div>
+                                                                    )}
+                                                                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Priority</p>
+                                                                        <p className="text-sm font-black text-[#000000]">{detail.priority || 'Routine'}</p>
+                                                                    </div>
+                                                                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
+                                                                        <p className="text-sm font-black text-[#000000]">{detail.status || 'Pending'}</p>
+                                                                    </div>
+                                                                </div>
+                                                                {detail.description && (
+                                                                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Description</p>
+                                                                        <p className="text-xs font-medium text-slate-600 leading-relaxed">{detail.description}</p>
+                                                                    </div>
+                                                                )}
+                                                                {detail.date && (
+                                                                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Due Date</p>
+                                                                        <p className="text-sm font-black text-[#000000]">{new Date(detail.date).toLocaleDateString()}</p>
+                                                                    </div>
+                                                                )}
+                                                                <Link href={`/dashboard/routine?taskId=${detail.id}`} className="inline-flex items-center gap-2 text-[10px] font-black text-[#064e3b] uppercase tracking-widest hover:underline">
+                                                                    Go to Home Service <ArrowRight className="w-3 h-3" />
+                                                                </Link>
+                                                            </>
+                                                            );
+                                                        })()}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-xs text-slate-400 py-4">No details available.</p>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
                                 );
                             })}
                         </div>
@@ -751,16 +940,6 @@ export default function DashboardPage() {
                 </div>,
                 document.body
             )}
-            {/* Floating SOS Action - Restored exactly as requested but in new position */}
-            <div className="fixed bottom-12 right-12 z-[100]">
-                <Link
-                    href="/dashboard/bookings/emergency"
-                    className="bg-rose-600 text-white px-8 py-5 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] shadow-xl shadow-rose-900/20 hover:bg-rose-700 transition-all active:scale-95 flex items-center gap-3 border border-rose-500/50"
-                >
-                    <Zap className="w-5 h-5 animate-pulse" />
-                    Emergency SOS
-                </Link>
-            </div>
         </div>
     );
 }

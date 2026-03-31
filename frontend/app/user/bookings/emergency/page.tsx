@@ -194,14 +194,14 @@ export default function EmergencyBookingPage() {
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
                         {bookingId && (
                             <Link
-                                href={`/dashboard/bookings/${bookingId}`}
+                                href={`/user/bookings/${bookingId}`}
                                 className="px-8 py-4 bg-[#064e3b] text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-950 transition-all shadow-lg shadow-emerald-900/10"
                             >
                                 View Request
                             </Link>
                         )}
                         <Link
-                            href="/dashboard"
+                            href="/user/dashboard"
                             className="px-8 py-4 bg-white border border-slate-200 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all"
                         >
                             Back to Dashboard
@@ -226,7 +226,7 @@ export default function EmergencyBookingPage() {
                     </div>
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
                         <Link
-                            href={`/dashboard/providers?category=${encodeURIComponent(category)}&emergency=true`}
+                            href={`/user/providers?category=${encodeURIComponent(category)}&emergency=true`}
                             className="px-8 py-4 bg-[#064e3b] text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-950 transition-all shadow-lg shadow-emerald-900/10 flex items-center gap-2"
                         >
                             <Search size={16} />

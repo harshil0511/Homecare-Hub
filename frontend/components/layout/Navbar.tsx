@@ -9,11 +9,33 @@ import {
     Settings,
     LogOut,
     Shield,
-    BadgeCheck
+    Menu,
+    Wrench,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import { logout } from "@/lib/auth";
+import { logout, getRole } from "@/lib/auth";
 import Link from "next/link";
+
+const ROLE_ALERTS: Record<string, string> = {
+    ADMIN: "/admin/dashboard",
+    USER: "/user/alerts",
+    SERVICER: "/service/dashboard",
+    SECRETARY: "/secretary/alerts",
+};
+
+const ROLE_SETTINGS: Record<string, string> = {
+    ADMIN: "/admin/settings",
+    USER: "/user/settings",
+    SERVICER: "/service/settings",
+    SECRETARY: "/secretary/settings",
+};
+
+const ROLE_PROFILE: Record<string, string> = {
+    ADMIN: "/admin/settings/profile",
+    USER: "/user/settings/profile",
+    SERVICER: "/service/settings/profile",
+    SECRETARY: "/secretary/settings/profile",
+};
 
 interface UserProfile {
     username: string;
@@ -30,8 +52,11 @@ interface Notification {
     created_at: string;
 }
 
-export default function Navbar() {
+interface NavbarProps { onMenuToggle: () => void; isSidebarOpen: boolean; }
+
+export default function Navbar({ onMenuToggle, isSidebarOpen }: NavbarProps) {
     const [user, setUser] = useState<UserProfile | null>(null);
+    const [role, setRole] = useState<string>("USER");
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isNotifOpen, setIsNotifOpen] = useState(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -49,15 +74,19 @@ export default function Navbar() {
     };
 
     useEffect(() => {
+        const storedRole = getRole() || "USER";
+        setRole(storedRole);
+
         const fetchUser = async () => {
             try {
                 const data = await apiFetch("/user/me");
                 setUser(data);
+                setRole(data.role || storedRole);
             } catch (err) {
                 setUser({
                     username: localStorage.getItem("hc_username") || "User",
                     email: "",
-                    role: localStorage.getItem("hc_role") || "USER",
+                    role: storedRole,
                 });
             }
         };
@@ -103,9 +132,29 @@ export default function Navbar() {
     };
 
     return (
-        <header className="h-16 bg-[#064e3b] px-8 flex items-center justify-between sticky top-0 z-50 shadow-lg shadow-black/5">
-            {/* Search - High Contrast White Theme */}
-            <div className="flex-1 max-w-md">
+        <header className="fixed top-0 left-0 right-0 h-16 bg-[#064e3b] px-4 flex items-center justify-between z-[1000] shadow-lg shadow-black/10">
+            {/* Left: Toggle + Logo */}
+            <div className="flex items-center gap-3 flex-shrink-0">
+                <button
+                    onClick={onMenuToggle}
+                    className="w-9 h-9 flex items-center justify-center text-emerald-300 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+                    aria-label="Toggle sidebar"
+                >
+                    <Menu className="w-5 h-5" />
+                </button>
+                <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Wrench className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="hidden sm:block">
+                        <p className="font-black text-white text-sm leading-tight tracking-tight">Homecare Hub</p>
+                        <p className="text-[9px] text-emerald-300 font-black uppercase tracking-[0.2em]">Control Center</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Search */}
+            <div className="flex-1 max-w-md mx-4">
                 <div className="relative group">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-emerald-600 transition-colors" />
                     <input
@@ -169,8 +218,8 @@ export default function Navbar() {
                                 )}
                             </div>
                             
-                            <Link 
-                                href="/dashboard/alerts"
+                            <Link
+                                href={ROLE_ALERTS[role] ?? "/user/alerts"}
                                 onClick={() => setIsNotifOpen(false)}
                                 className="block text-center py-2.5 mt-1 text-[10px] font-black text-[#064e3b] uppercase tracking-widest hover:bg-emerald-50 rounded-lg transition-all"
                             >
@@ -210,7 +259,7 @@ export default function Navbar() {
                             </div>
 
                             <Link
-                                href="/dashboard/settings/profile"
+                                href={ROLE_PROFILE[role] ?? "/user/settings/profile"}
                                 className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-[#000000] hover:bg-slate-50 hover:text-emerald-700 transition-all font-black"
                                 onClick={() => setIsDropdownOpen(false)}
                             >
@@ -219,7 +268,7 @@ export default function Navbar() {
                             </Link>
 
                             <Link
-                                href="/dashboard/settings"
+                                href={ROLE_SETTINGS[role] ?? "/user/settings"}
                                 className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-[#000000] hover:bg-slate-50 hover:text-emerald-700 transition-all font-black"
                                 onClick={() => setIsDropdownOpen(false)}
                             >

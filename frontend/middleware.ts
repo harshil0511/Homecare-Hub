@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Protected route prefixes
-const PROTECTED_PREFIXES = ["/admin", "/secretary", "/user", "/service"];
+// Each route prefix has its own token cookie
+const ROUTE_COOKIES: Array<{ prefix: string; cookie: string }> = [
+    { prefix: "/admin",     cookie: "hc_token_ADMIN" },
+    { prefix: "/user",      cookie: "hc_token_USER" },
+    { prefix: "/service",   cookie: "hc_token_SERVICER" },
+    { prefix: "/secretary", cookie: "hc_token_SECRETARY" },
+];
 
 export function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
@@ -17,19 +22,18 @@ export function middleware(request: NextRequest) {
         return NextResponse.next();
     }
 
-    const token = request.cookies.get("hc_token")?.value;
-    const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
-
-    // No token on protected route → redirect to login
-    if (isProtected && !token) {
-        const loginUrl = new URL("/login", request.url);
-        return NextResponse.redirect(loginUrl);
+    // /login and /register are always accessible — never redirect away
+    if (pathname === "/login" || pathname === "/register") {
+        return NextResponse.next();
     }
 
-    // Has token on /login or /register → redirect to default dashboard
-    // (client-side login page handles role-specific redirect after reading localStorage)
-    if (token && (pathname === "/login" || pathname === "/register")) {
-        return NextResponse.redirect(new URL("/user/dashboard", request.url));
+    // Find which role this route belongs to
+    const routeMatch = ROUTE_COOKIES.find(r => pathname.startsWith(r.prefix));
+    if (routeMatch) {
+        const token = request.cookies.get(routeMatch.cookie)?.value;
+        if (!token) {
+            return NextResponse.redirect(new URL("/login", request.url));
+        }
     }
 
     return NextResponse.next();

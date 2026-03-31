@@ -3,11 +3,11 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
-import { 
-    MessageSquare, Clock as ClockIcon, Calendar, 
-    ChevronLeft, Settings, AlertTriangle, 
-    ShieldCheck, Send, Phone, MapPin, 
-    X, Check, FileText
+import {
+    Clock as ClockIcon, Calendar,
+    ChevronLeft, Settings, AlertTriangle,
+    ShieldCheck, Send, Phone, MapPin,
+    X, FileText, Star, CheckCircle2
 } from "lucide-react";
 import BookingStatusTimeline from "@/components/bookings/BookingStatusTimeline";
 
@@ -24,12 +24,26 @@ export default function BookingDetailsPage() {
     const chatEndRef = useRef<HTMLDivElement>(null);
     const [showReschedule, setShowReschedule] = useState(false);
     const [rescheduleDate, setRescheduleDate] = useState("");
+    const [userRole, setUserRole] = useState<string | null>(null);
+    const [showReview, setShowReview] = useState(false);
+    const [reviewRating, setReviewRating] = useState(0);
+    const [reviewHover, setReviewHover] = useState(0);
+    const [reviewText, setReviewText] = useState("");
+    const [qualityRating, setQualityRating] = useState(0);
+    const [punctualityRating, setPunctualityRating] = useState(0);
+    const [professionalismRating, setProfessionalismRating] = useState(0);
+    const [submittingReview, setSubmittingReview] = useState(false);
+    const [completing, setCompleting] = useState(false);
 
     const fetchData = async () => {
         try {
-            const data = await apiFetch(`/bookings/${id}`);
+            const [data, me] = await Promise.all([
+                apiFetch(`/bookings/${id}`),
+                apiFetch("/user/me")
+            ]);
             setBooking(data);
             setMessages(data.chats || []);
+            setUserRole(me.role);
         } catch (err) {
             console.error(err);
         } finally {
@@ -40,6 +54,54 @@ export default function BookingDetailsPage() {
     useEffect(() => {
         fetchData();
     }, [id]);
+
+    // Auto-prompt review modal when USER visits a completed booking with no review
+    useEffect(() => {
+        if (!loading && booking && booking.status === "Completed" && userRole === "USER" && !booking.review) {
+            setShowReview(true);
+        }
+    }, [loading, booking, userRole]);
+
+    const handleMarkComplete = async () => {
+        setCompleting(true);
+        try {
+            await apiFetch(`/bookings/${id}/status`, {
+                method: "PATCH",
+                body: JSON.stringify({ status: "Completed" })
+            });
+            await fetchData();
+        } catch (err: any) {
+            alert(err.message || "Failed to mark as completed");
+        } finally {
+            setCompleting(false);
+        }
+    };
+
+    const handleSubmitReview = async () => {
+        if (reviewRating === 0) {
+            alert("Please select a star rating");
+            return;
+        }
+        setSubmittingReview(true);
+        try {
+            await apiFetch(`/bookings/${id}/review`, {
+                method: "POST",
+                body: JSON.stringify({
+                    rating: reviewRating,
+                    review_text: reviewText || null,
+                    quality_rating: qualityRating || reviewRating,
+                    punctuality_rating: punctualityRating || reviewRating,
+                    professionalism_rating: professionalismRating || reviewRating
+                })
+            });
+            setShowReview(false);
+            await fetchData();
+        } catch (err: any) {
+            alert(err.message || "Failed to submit review");
+        } finally {
+            setSubmittingReview(false);
+        }
+    };
 
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -117,13 +179,30 @@ export default function BookingDetailsPage() {
                     <ChevronLeft size={16} /> Back to dashboard
                 </button>
                 <div className="flex items-center gap-4">
-                    <button 
+                    {booking.status === "Completed" && userRole === "USER" && !booking.review && (
+                        <button
+                            onClick={() => setShowReview(true)}
+                            className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest bg-amber-50 border border-amber-200 px-6 py-3 rounded-xl hover:bg-amber-100 transition-all text-amber-700"
+                        >
+                            <Star size={14} /> Give Feedback
+                        </button>
+                    )}
+                    {(booking.status === "Accepted" || booking.status === "In Progress") && userRole === "SERVICER" && (
+                        <button
+                            onClick={handleMarkComplete}
+                            disabled={completing}
+                            className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-widest px-6 py-3 rounded-xl transition-all shadow-sm ${completing ? "bg-slate-300 text-slate-500 cursor-not-allowed" : "bg-[#064e3b] text-white hover:bg-emerald-800 active:scale-95 shadow-emerald-900/20"}`}
+                        >
+                            <CheckCircle2 size={14} /> {completing ? "Completing..." : "Mark Complete"}
+                        </button>
+                    )}
+                    <button
                         onClick={() => setShowReschedule(true)}
                         className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest bg-white border border-slate-200 px-6 py-3 rounded-xl hover:bg-slate-50 transition-all text-slate-600 shadow-sm"
                     >
                         <Calendar size={14} /> Reschedule
                     </button>
-                    <button 
+                    <button
                         onClick={() => setShowCancel(true)}
                         className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest bg-rose-50 border border-rose-100 px-6 py-3 rounded-xl hover:bg-rose-100 transition-all text-rose-600"
                     >
@@ -317,6 +396,99 @@ export default function BookingDetailsPage() {
                                 }`}
                             >
                                 {rescheduling ? "Updating..." : "Update Schedule"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Review / Feedback Modal */}
+            {showReview && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-lg p-10 space-y-8 animate-in fade-in zoom-in duration-200">
+                        <div className="flex items-center justify-between">
+                            <div className="space-y-1">
+                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Rate Service</h3>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">
+                                    {booking.provider?.company_name} · {booking.service_type}
+                                </p>
+                            </div>
+                            <button onClick={() => setShowReview(false)} className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:text-black transition-colors">
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* Overall Star Rating */}
+                        <div className="text-center space-y-3">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Overall Rating</p>
+                            <div className="flex items-center justify-center gap-2">
+                                {[1, 2, 3, 4, 5].map(star => (
+                                    <button
+                                        key={star}
+                                        onMouseEnter={() => setReviewHover(star)}
+                                        onMouseLeave={() => setReviewHover(0)}
+                                        onClick={() => setReviewRating(star)}
+                                        className="transition-transform hover:scale-125 active:scale-95"
+                                    >
+                                        <Star
+                                            size={36}
+                                            className={`transition-colors ${(reviewHover || reviewRating) >= star ? "text-amber-400 fill-amber-400" : "text-slate-200"}`}
+                                        />
+                                    </button>
+                                ))}
+                            </div>
+                            {reviewRating > 0 && (
+                                <p className="text-xs font-black text-amber-600 uppercase tracking-widest">
+                                    {reviewRating === 1 ? "Poor" : reviewRating === 2 ? "Fair" : reviewRating === 3 ? "Good" : reviewRating === 4 ? "Great" : "Excellent"}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Category Ratings */}
+                        <div className="grid grid-cols-3 gap-4">
+                            {[
+                                { label: "Quality", value: qualityRating, set: setQualityRating },
+                                { label: "Punctuality", value: punctualityRating, set: setPunctualityRating },
+                                { label: "Professional", value: professionalismRating, set: setProfessionalismRating }
+                            ].map(cat => (
+                                <div key={cat.label} className="text-center space-y-2">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{cat.label}</p>
+                                    <div className="flex items-center justify-center gap-0.5">
+                                        {[1, 2, 3, 4, 5].map(s => (
+                                            <button key={s} onClick={() => cat.set(s)}>
+                                                <Star size={14} className={`transition-colors ${cat.value >= s ? "text-amber-400 fill-amber-400" : "text-slate-200"}`} />
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Review Text */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Feedback (Optional)</label>
+                            <textarea
+                                value={reviewText}
+                                onChange={e => setReviewText(e.target.value)}
+                                className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-5 font-bold text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 resize-none"
+                                placeholder="Share your experience..."
+                                rows={3}
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <button
+                                onClick={() => setShowReview(false)}
+                                className="py-4 rounded-xl border border-slate-200 font-black text-[10px] uppercase tracking-widest text-slate-400 hover:bg-slate-50"
+                            >
+                                Skip
+                            </button>
+                            <button
+                                onClick={handleSubmitReview}
+                                disabled={submittingReview || reviewRating === 0}
+                                className={`py-4 rounded-xl text-white font-black text-[10px] uppercase tracking-widest shadow-lg transition-all ${submittingReview || reviewRating === 0 ? "bg-slate-300 cursor-not-allowed" : "bg-[#064e3b] shadow-emerald-900/20 active:scale-95"}`}
+                            >
+                                {submittingReview ? "Submitting..." : "Submit Rating"}
                             </button>
                         </div>
                     </div>

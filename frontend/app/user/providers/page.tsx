@@ -40,6 +40,7 @@ function ProvidersContent() {
     const searchParams = useSearchParams();
     const [providers, setProviders] = useState<Provider[]>([]);
     const [loading, setLoading] = useState(true);
+    const [categoryLoading, setCategoryLoading] = useState(false);
     const [fetchError, setFetchError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [activeCategory, setActiveCategory] = useState("All");
@@ -73,6 +74,7 @@ function ProvidersContent() {
 
     const fetchProviders = async () => {
         setLoading(true);
+        setCategoryLoading(true);
         setFetchError(null);
         try {
             const params = new URLSearchParams();
@@ -92,6 +94,7 @@ function ProvidersContent() {
             setProviders([]);
         } finally {
             setLoading(false);
+            setCategoryLoading(false);
         }
     };
 
@@ -241,7 +244,7 @@ function ProvidersContent() {
                         key={cat}
                         onClick={() => setActiveCategory(cat)}
                         className={`px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeCategory === cat
-                            ? "bg-[#064e3b] text-white shadow-lg shadow-emerald-900/10"
+                            ? "bg-[#064e3b] text-white shadow-lg shadow-emerald-900/10 ring-2 ring-[#064e3b]/20 scale-105"
                             : "bg-white border border-slate-200 text-slate-500 hover:border-[#064e3b] hover:text-[#064e3b]"
                             }`}
                     >
@@ -249,6 +252,30 @@ function ProvidersContent() {
                     </button>
                 ))}
             </div>
+
+            {/* Results Count */}
+            {!loading && !fetchError && (
+                <div className="flex items-center justify-between">
+                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                        {categoryLoading ? (
+                            <span className="inline-flex items-center gap-2">
+                                <span className="w-24 h-3 bg-slate-200 rounded animate-pulse inline-block" />
+                                <span className="w-16 h-3 bg-slate-200 rounded animate-pulse inline-block" />
+                            </span>
+                        ) : (
+                            <>Showing <span className="text-[#064e3b]">{providers.length}</span> {activeCategory === "All" ? "provider" : activeCategory}{providers.length !== 1 ? "s" : ""}</>
+                        )}
+                    </p>
+                    {activeCategory !== "All" && (
+                        <button
+                            onClick={() => setActiveCategory("All")}
+                            className="text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-[#064e3b] transition-colors"
+                        >
+                            Clear ×
+                        </button>
+                    )}
+                </div>
+            )}
 
             {/* Results */}
             {loading ? (
@@ -370,7 +397,7 @@ function ProvidersContent() {
                                 {provider.hourly_rate > 0 && (
                                     <div className="flex items-center gap-1.5 text-slate-500">
                                         <DollarSign className="w-3 h-3" />
-                                        <span className="font-bold">${provider.hourly_rate}/hr</span>
+                                        <span className="font-bold">₹{provider.hourly_rate}/hr</span>
                                     </div>
                                 )}
                             </div>

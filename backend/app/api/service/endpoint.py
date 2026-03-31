@@ -1,12 +1,15 @@
 import os
 import uuid
 import json
+import logging
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.internal import deps
-from app.internal.models import User, Society, ServiceProvider, ServiceBooking
+
+logger = logging.getLogger(__name__)
+from app.internal.models import User, Society, ServiceProvider, ServiceBooking, BookingReview, ServiceCertificate, SocietyRequest, society_trusted_providers
 from app.internal.schemas import (
     SocietyCreate, SocietyResponse, SocietyUpdate,
     ProviderCreate, ProviderResponse, ProviderUpdate, AvailabilityUpdate,
@@ -14,7 +17,6 @@ from app.internal.schemas import (
     CertificateCreate, CertificateResponse,
     SocietyRequestCreate, SocietyRequestResponse, SocietyRequestAction
 )
-from app.internal.models import ServiceCertificate, SocietyRequest, society_trusted_providers
 
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads", "profile_photos")
 
@@ -58,7 +60,7 @@ def create_society(
         raise
     except Exception as e:
         db.rollback()
-        print(f"Error creating society: {e}")
+        logger.error("Error creating society: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/societies", response_model=List[SocietyResponse])
@@ -143,8 +145,13 @@ def register_provider(
     if existing:
         raise HTTPException(status_code=400, detail="User already has a provider profile")
 
+    data = provider_in.model_dump()
+    # Serialize categories list to JSON string for the Text column
+    if data.get("categories") and isinstance(data["categories"], list):
+        data["categories"] = json.dumps(data["categories"])
+
     db_provider = ServiceProvider(
-        **provider_in.model_dump(),
+        **data,
         user_id=current_user.id,
         is_verified=False
     )
@@ -158,10 +165,16 @@ def get_providers(
     category: Optional[str] = None,
     search: Optional[str] = None,
     scheduled_at: Optional[datetime] = None,  # Time-based availability check
+    verified_only: bool = False,
+    skip: int = 0,
+    limit: int = 50,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
     query = db.query(ServiceProvider)
+
+    if verified_only:
+        query = query.filter(ServiceProvider.is_verified == True)
 
     # Society filtering:
     # - Providers with society_id=NULL are global — always visible to everyone
@@ -175,14 +188,17 @@ def get_providers(
     # else: no filter → user sees all providers
 
     if category:
-        search_cat = f"%{category}%"
+        # Escape LIKE wildcards in user-supplied input to prevent wildcard injection
+        escaped_cat = category.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        search_cat = f"%{escaped_cat}%"
         query = query.filter(
             (ServiceProvider.category == category) |
             (ServiceProvider.categories.like(search_cat))
         )
 
     if search:
-        search_term = f"%{search}%"
+        escaped_search = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        search_term = f"%{escaped_search}%"
         query = query.filter(
             (ServiceProvider.company_name.ilike(search_term)) |
             (ServiceProvider.owner_name.ilike(search_term)) |
@@ -193,7 +209,7 @@ def get_providers(
             (ServiceProvider.categories.ilike(search_term))
         )
 
-    providers = query.all()
+    providers = query.offset(skip).limit(limit).all()
 
     # Time-based availability: if scheduled_at provided, check for booking conflicts
     if scheduled_at:
@@ -222,6 +238,37 @@ def get_my_provider_profile(
     if not provider:
         raise HTTPException(status_code=404, detail="Provider profile not found. Please complete setup.")
     return provider
+
+@router.get("/providers/me/reviews")
+def get_my_reviews(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
+):
+    provider = db.query(ServiceProvider).filter(ServiceProvider.user_id == current_user.id).first()
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider profile not found")
+    reviews = (
+        db.query(BookingReview, ServiceBooking.service_type, User.first_name, User.last_name)
+        .join(ServiceBooking, ServiceBooking.id == BookingReview.booking_id)
+        .join(User, User.id == ServiceBooking.user_id)
+        .filter(ServiceBooking.provider_id == provider.id)
+        .order_by(BookingReview.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": r.id,
+            "rating": r.rating,
+            "review_text": r.review_text,
+            "quality_rating": r.quality_rating,
+            "punctuality_rating": r.punctuality_rating,
+            "professionalism_rating": r.professionalism_rating,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "service_type": service_type,
+            "user_name": f"{first_name or ''} {last_name or ''}".strip() or "Anonymous"
+        }
+        for r, service_type, first_name, last_name in reviews
+    ]
 
 @router.post("/providers/setup", response_model=ProviderResponse)
 def setup_professional_profile(
@@ -304,7 +351,6 @@ def upload_certificate(
     if not provider:
         raise HTTPException(status_code=404, detail="Provider profile not found")
     
-    from app.internal.models import ServiceCertificate
     db_cert = ServiceCertificate(
         **cert_in.model_dump(),
         provider_id=provider.id
@@ -580,13 +626,17 @@ def create_booking(
 
 @router.get("/bookings", response_model=List[BookingRead])
 def get_user_bookings(
+    skip: int = 0,
+    limit: int = 50,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
-    return db.query(ServiceBooking).filter(ServiceBooking.user_id == current_user.id).all()
+    return db.query(ServiceBooking).filter(ServiceBooking.user_id == current_user.id).order_by(ServiceBooking.id.desc()).offset(skip).limit(limit).all()
 
 @router.get("/bookings/incoming", response_model=List[BookingRead])
 def get_incoming_bookings(
+    skip: int = 0,
+    limit: int = 50,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
@@ -594,8 +644,8 @@ def get_incoming_bookings(
     provider = db.query(ServiceProvider).filter(ServiceProvider.user_id == current_user.id).first()
     if not provider:
         raise HTTPException(status_code=404, detail="Provider profile not found")
-    
-    return db.query(ServiceBooking).filter(ServiceBooking.provider_id == provider.id).all()
+
+    return db.query(ServiceBooking).filter(ServiceBooking.provider_id == provider.id).order_by(ServiceBooking.id.desc()).offset(skip).limit(limit).all()
 
 @router.patch("/bookings/{booking_id}", response_model=BookingRead)
 def update_booking_status(
@@ -634,14 +684,16 @@ def submit_verification(
     provider = db.query(ServiceProvider).filter(ServiceProvider.user_id == current_user.id).first()
     if not provider:
         raise HTTPException(status_code=404, detail="Provider profile not found")
-    
-    # Requirement Rule: Verification based on education/bio
-    mastery_keywords = ["ITI", "ENGINEERING", "DIPLOMA", "GRADUATION", "MASTERY", "CERTIFIED"]
-    has_qualification = any(kw in (provider.education or "").upper() for kw in mastery_keywords)
-    
-    if has_qualification:
+
+    # Certificate-based verification: provider must have at least one uploaded certificate
+    cert_count = db.query(ServiceCertificate).filter(
+        ServiceCertificate.provider_id == provider.id,
+        ServiceCertificate.certificate_url != None
+    ).count()
+
+    if cert_count >= 1:
         provider.is_verified = True
         db.commit()
         return {"message": "Verification successful. You are now a Verified Expert.", "verified": True}
     else:
-        return {"message": "Mastery could not be automatically verified. Please update your bio/education.", "verified": False}
+        return {"message": "Upload at least one certificate to get verified.", "verified": False}

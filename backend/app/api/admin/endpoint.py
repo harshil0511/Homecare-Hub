@@ -4,6 +4,7 @@ from typing import List, Optional
 from app.internal import deps
 from app.internal.models import User, ServiceProvider, ServiceBooking, MaintenanceTask
 from app.internal.schemas import UserResponse
+from app.core.config import settings
 
 router = APIRouter(tags=["Admin API"])
 
@@ -42,13 +43,20 @@ def change_user_role(
     db: Session = Depends(deps.get_db),
     _: User = Depends(admin_only)
 ):
-    """Change a user's role. Allowed: USER, SERVICER, ADMIN, SECRETARY."""
-    if new_role not in ["USER", "SERVICER", "ADMIN", "SECRETARY"]:
-        raise HTTPException(status_code=400, detail="Invalid role.")
+    """Change a user's role. ADMIN role cannot be assigned via this endpoint."""
+    allowed_roles = ["USER", "SERVICER", "SECRETARY"]
+    if new_role not in allowed_roles:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid role. Allowed: {', '.join(allowed_roles)}"
+        )
 
     user = db.query(User).filter(User.user_uuid == user_uuid).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
+
+    if user.email == settings.SUPERADMIN_EMAIL:
+        raise HTTPException(status_code=403, detail="Super admin role cannot be changed.")
 
     user.role = new_role
     db.commit()
@@ -84,6 +92,11 @@ def delete_user(
     user = db.query(User).filter(User.user_uuid == user_uuid).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
+
+    if user.role == "ADMIN":
+        raise HTTPException(status_code=403, detail="Admin accounts cannot be deleted.")
+    if user.email == settings.SUPERADMIN_EMAIL:
+        raise HTTPException(status_code=403, detail="Super admin account cannot be deleted.")
 
     db.delete(user)
     db.commit()
@@ -238,6 +251,134 @@ def get_all_contracts(
     return result
 
 
+@router.get("/health")
+def get_system_health(
+    db: Session = Depends(deps.get_db),
+    _: User = Depends(admin_only)
+):
+    """Real system health check. Returns live status of DB, API, and auth."""
+    from datetime import datetime, timezone
+    import sqlalchemy
+
+    db_ok = False
+    try:
+        db.execute(sqlalchemy.text("SELECT 1"))
+        db_ok = True
+    except Exception:
+        db_ok = False
+
+    return {
+        "database": db_ok,
+        "api": True,
+        "jwt": True,
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@router.get("/bookings/{booking_id}")
+def get_booking_detail(
+    booking_id: int,
+    db: Session = Depends(deps.get_db),
+    _: User = Depends(admin_only)
+):
+    """Curated booking detail for admin view — need-to-know fields only."""
+    booking = db.query(ServiceBooking).filter(ServiceBooking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+
+    user = db.query(User).filter(User.id == booking.user_id).first()
+    provider = db.query(ServiceProvider).filter(ServiceProvider.id == booking.provider_id).first()
+
+    return {
+        "id": booking.id,
+        "status": booking.status,
+        "priority": booking.priority,
+        "service_type": booking.service_type,
+        "scheduled_at": booking.scheduled_at.isoformat() if booking.scheduled_at else None,
+        "estimated_cost": booking.estimated_cost,
+        "issue_description": booking.issue_description,
+        "property_details": booking.property_details,
+        "user": {
+            "username": user.username if user else "Unknown",
+            "email": user.email if user else "—",
+        } if user else None,
+        "provider": {
+            "name": f"{provider.first_name or ''} {provider.last_name or ''}".strip()
+                    or provider.company_name or "Unknown",
+            "category": provider.category,
+            "is_verified": provider.is_verified,
+        } if provider else None,
+    }
+
+
+@router.get("/providers/{provider_id}/detail")
+def get_provider_detail(
+    provider_id: int,
+    db: Session = Depends(deps.get_db),
+    _: User = Depends(admin_only)
+):
+    """Curated provider detail for admin view — need-to-know fields only."""
+    from app.internal.models import ServiceCertificate
+
+    provider = db.query(ServiceProvider).filter(ServiceProvider.id == provider_id).first()
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider not found.")
+
+    cert_count = db.query(ServiceCertificate).filter(
+        ServiceCertificate.provider_id == provider_id
+    ).count()
+    booking_count = db.query(ServiceBooking).filter(ServiceBooking.provider_id == provider_id).count()
+
+    return {
+        "id": provider.id,
+        "name": f"{provider.first_name or ''} {provider.last_name or ''}".strip()
+                or provider.company_name or "Unknown",
+        "category": provider.category,
+        "rating": round(provider.rating or 0, 1),
+        "is_verified": provider.is_verified,
+        "availability_status": provider.availability_status,
+        "location": provider.location,
+        "hourly_rate": provider.hourly_rate,
+        "bio_excerpt": (provider.bio or "")[:180] or None,
+        "certificate_count": cert_count,
+        "total_bookings": booking_count,
+        "email": provider.email,
+        "phone": provider.phone,
+    }
+
+
+@router.get("/users/{user_uuid}/detail")
+def get_user_detail(
+    user_uuid: str,
+    db: Session = Depends(deps.get_db),
+    _: User = Depends(admin_only)
+):
+    """Curated user detail for admin view — need-to-know fields only."""
+    from app.internal.models import ServiceRequest, Society
+
+    user = db.query(User).filter(User.user_uuid == user_uuid).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    booking_count = db.query(ServiceBooking).filter(ServiceBooking.user_id == user.id).count()
+    request_count = db.query(ServiceRequest).filter(ServiceRequest.user_id == user.id).count()
+
+    society_name = None
+    if user.society_id:
+        society = db.query(Society).filter(Society.id == user.society_id).first()
+        society_name = society.name if society else None
+
+    return {
+        "username": user.username,
+        "email": user.email,
+        "role": user.role,
+        "is_active": user.is_active,
+        "society": society_name,
+        "booking_count": booking_count,
+        "request_count": request_count,
+    }
+
+
 @router.get("/logs")
 def get_activity_logs(
     db: Session = Depends(deps.get_db),
@@ -269,3 +410,45 @@ def get_activity_logs(
 
     logs.sort(key=lambda x: x["created_at"] or "", reverse=True)
     return logs[:30]
+
+
+@router.get("/revenue")
+def get_revenue_summary(
+    db: Session = Depends(deps.get_db),
+    _: User = Depends(admin_only),
+):
+    """Revenue summary: total, completed count, top categories, monthly breakdown."""
+    from sqlalchemy import func, extract
+    from datetime import datetime, timezone
+
+    completed = db.query(ServiceBooking).filter(ServiceBooking.status == "Completed").all()
+
+    total_revenue = sum(b.estimated_cost or 0 for b in completed)
+    completed_count = len(completed)
+
+    # Category breakdown
+    cat_map: dict = {}
+    for b in completed:
+        cat = b.service_type or "Other"
+        cat_map[cat] = cat_map.get(cat, 0) + (b.estimated_cost or 0)
+    top_categories = sorted(
+        [{"category": k, "revenue": round(v, 2)} for k, v in cat_map.items()],
+        key=lambda x: x["revenue"],
+        reverse=True
+    )[:5]
+
+    # Monthly breakdown (last 6 months)
+    monthly: dict = {}
+    for b in completed:
+        if b.scheduled_at:
+            key = b.scheduled_at.strftime("%b %Y")
+            monthly[key] = monthly.get(key, 0) + (b.estimated_cost or 0)
+    monthly_list = [{"month": k, "revenue": round(v, 2)} for k, v in monthly.items()]
+
+    return {
+        "total_revenue": round(total_revenue, 2),
+        "completed_bookings": completed_count,
+        "avg_booking_value": round(total_revenue / completed_count, 2) if completed_count else 0,
+        "top_categories": top_categories,
+        "monthly": monthly_list,
+    }

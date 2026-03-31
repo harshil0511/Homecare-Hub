@@ -227,7 +227,7 @@ function RoutineServiceContent() {
             setAssignSuccess(true);
             await fetchPendingTasks();
             setTimeout(() => {
-                router.push("/dashboard/bookings/history");
+                router.push("/user/bookings");
             }, 1500);
         } catch (err: any) {
             setError(err.message || "Failed to send request");
@@ -552,7 +552,7 @@ function RoutineServiceContent() {
                             </div>
                             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
                                 <Link
-                                    href={`/dashboard/providers?category=${encodeURIComponent(createdTask?.category || "")}`}
+                                    href={`/user/providers?category=${encodeURIComponent(createdTask?.category || "")}`}
                                     className="flex items-center gap-2 px-6 py-3 bg-[#064e3b] text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-950 transition-all shadow-lg shadow-emerald-900/10"
                                 >
                                     <SearchIcon className="w-3.5 h-3.5" />
@@ -626,7 +626,7 @@ function RoutineServiceContent() {
                                             {provider.hourly_rate > 0 && (
                                                 <div className="flex items-center gap-1.5 text-slate-500">
                                                     <DollarSign className="w-3 h-3" />
-                                                    <span className="font-bold">${provider.hourly_rate}/hr</span>
+                                                    <span className="font-bold">₹{provider.hourly_rate}/hr</span>
                                                 </div>
                                             )}
                                             {provider.experience_years > 0 && (
@@ -706,7 +706,7 @@ function RoutineServiceContent() {
                                         <Star className="w-3 h-3 text-amber-500" /> {selectedProvider.rating.toFixed(1)}
                                     </span>
                                     {selectedProvider.hourly_rate > 0 && (
-                                        <span className="text-xs font-bold text-slate-500">${selectedProvider.hourly_rate}/hr</span>
+                                        <span className="text-xs font-bold text-slate-500">₹{selectedProvider.hourly_rate}/hr</span>
                                     )}
                                 </div>
                             </div>

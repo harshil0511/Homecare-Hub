@@ -38,7 +38,7 @@ def seed_superadmin():
         ).first()
         if not existing:
             admin = models.User(
-                username="Harshil Chaudhary",
+                username=settings.SUPERADMIN_USERNAME,
                 email=settings.SUPERADMIN_EMAIL,
                 hashed_password=security.get_password_hash(settings.SUPERADMIN_PASSWORD),
                 role="ADMIN",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ClipboardList, Calendar, DollarSign, Search, User } from "lucide-react";
+import { ClipboardList, Calendar, DollarSign, Search, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
 interface Booking {
@@ -31,11 +31,50 @@ const PRIORITY_STYLE: Record<string, string> = {
     LOW:       "text-slate-400 bg-slate-50",
 };
 
+interface BookingDetail {
+    id: number;
+    status: string;
+    priority: string;
+    service_type: string;
+    scheduled_at: string | null;
+    estimated_cost: number | null;
+    issue_description: string | null;
+    property_details: string | null;
+    user: { username: string; email: string } | null;
+    provider: { name: string; category: string; is_verified: boolean } | null;
+}
+
+function BRow({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="flex items-center justify-between py-2 border-b border-slate-50">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
+            <span className="text-xs font-bold text-slate-700 text-right max-w-[60%]">{value}</span>
+        </div>
+    );
+}
+
 export default function AdminBookingsPage() {
     const [bookings, setBookings] = useState<Booking[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("ALL");
+    const [selectedBooking, setSelectedBooking] = useState<number | null>(null);
+    const [bookingDetail, setBookingDetail] = useState<BookingDetail | null>(null);
+    const [detailLoading, setDetailLoading] = useState(false);
+
+    const openBookingDetail = async (id: number) => {
+        setSelectedBooking(id);
+        setBookingDetail(null);
+        setDetailLoading(true);
+        try {
+            const d: BookingDetail = await apiFetch(`/admin/bookings/${id}`);
+            setBookingDetail(d);
+        } catch {
+            setBookingDetail(null);
+        } finally {
+            setDetailLoading(false);
+        }
+    };
 
     useEffect(() => {
         apiFetch("/admin/bookings")
@@ -129,7 +168,7 @@ export default function AdminBookingsPage() {
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {filtered.map((b) => (
-                                    <tr key={b.id} className="hover:bg-slate-50/50 transition-colors">
+                                    <tr key={b.id} onClick={() => openBookingDetail(b.id)} className="hover:bg-slate-50/50 transition-colors cursor-pointer">
                                         <td className="px-8 py-5">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-9 h-9 bg-slate-100 rounded-xl flex items-center justify-center text-xs font-black text-slate-600">
@@ -173,6 +212,56 @@ export default function AdminBookingsPage() {
                     )}
                 </div>
             </div>
+
+            {selectedBooking !== null && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl">
+                        <div className="p-8">
+                            <div className="flex items-center justify-between mb-6">
+                                <h2 className="text-base font-black text-slate-900 uppercase tracking-widest">
+                                    Booking #{selectedBooking}
+                                </h2>
+                                <button
+                                    onClick={() => { setSelectedBooking(null); setBookingDetail(null); }}
+                                    className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
+                                >
+                                    <X className="w-5 h-5 text-slate-400" />
+                                </button>
+                            </div>
+                            {detailLoading ? (
+                                <p className="text-sm text-slate-400 text-center py-6">Loading...</p>
+                            ) : bookingDetail ? (
+                                <div className="space-y-0">
+                                    <BRow label="Service" value={bookingDetail.service_type || "—"} />
+                                    <BRow label="Status" value={bookingDetail.status} />
+                                    <BRow label="Priority" value={bookingDetail.priority || "Normal"} />
+                                    <BRow label="Scheduled" value={bookingDetail.scheduled_at
+                                        ? new Date(bookingDetail.scheduled_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+                                        : "—"} />
+                                    <BRow label="Est. Cost" value={bookingDetail.estimated_cost ? `₹${bookingDetail.estimated_cost.toLocaleString("en-IN")}` : "—"} />
+                                    {bookingDetail.user && <>
+                                        <BRow label="User" value={bookingDetail.user.username} />
+                                        <BRow label="User Email" value={bookingDetail.user.email} />
+                                    </>}
+                                    {bookingDetail.provider && <>
+                                        <BRow label="Provider" value={bookingDetail.provider.name} />
+                                        <BRow label="Category" value={bookingDetail.provider.category || "—"} />
+                                        <BRow label="Verified" value={bookingDetail.provider.is_verified ? "Yes" : "No"} />
+                                    </>}
+                                    {bookingDetail.issue_description && (
+                                        <div className="pt-3 border-t border-slate-100 mt-1">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Issue</p>
+                                            <p className="text-xs text-slate-600">{bookingDetail.issue_description}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-slate-400 text-center py-6">Could not load details.</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

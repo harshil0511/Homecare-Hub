@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Users, Mail, Shield, ShieldCheck, ShieldAlert, Search, CheckCircle, XCircle, Trash2 } from "lucide-react";
+import { Users, Mail, Shield, ShieldCheck, ShieldAlert, Search, CheckCircle, XCircle, Trash2, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
 interface User {
@@ -21,12 +21,34 @@ const ROLE_STYLE: Record<string, { bg: string; icon: typeof Shield }> = {
     USER:      { bg: "bg-blue-50 text-blue-700 border-blue-100",       icon: Shield },
 };
 
+interface UserDetail {
+    username: string;
+    email: string;
+    role: string;
+    is_active: boolean;
+    society: string | null;
+    booking_count: number;
+    request_count: number;
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="flex items-center justify-between py-2 border-b border-slate-50">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
+            <span className="text-xs font-bold text-slate-700">{value}</span>
+        </div>
+    );
+}
+
 export default function AdminUsersPage() {
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
     const [roleFilter, setRoleFilter] = useState("ALL");
     const [actionMsg, setActionMsg] = useState("");
+    const [selectedUser, setSelectedUser] = useState<{ uuid: string; username: string } | null>(null);
+    const [userDetail, setUserDetail] = useState<UserDetail | null>(null);
+    const [detailLoading, setDetailLoading] = useState(false);
 
     const load = () => {
         setLoading(true);
@@ -75,6 +97,20 @@ export default function AdminUsersPage() {
         } catch (err: any) {
             setActionMsg(err.message || "Failed to update role.");
             setTimeout(() => setActionMsg(""), 3000);
+        }
+    };
+
+    const openUserDetail = async (uuid: string, username: string) => {
+        setSelectedUser({ uuid, username });
+        setUserDetail(null);
+        setDetailLoading(true);
+        try {
+            const d: UserDetail = await apiFetch(`/admin/users/${uuid}/detail`);
+            setUserDetail(d);
+        } catch {
+            setUserDetail(null);
+        } finally {
+            setDetailLoading(false);
         }
     };
 
@@ -158,7 +194,7 @@ export default function AdminUsersPage() {
                                     const roleInfo = ROLE_STYLE[user.role] ?? ROLE_STYLE.USER;
                                     const RoleIcon = roleInfo.icon;
                                     return (
-                                        <tr key={user.id} className="group hover:bg-slate-50/50 transition-colors">
+                                        <tr key={user.id} onClick={() => openUserDetail(user.user_uuid, user.username)} className="group hover:bg-slate-50/50 transition-colors cursor-pointer">
                                             <td className="px-10 py-5">
                                                 <div className="flex items-center gap-4">
                                                     <div className="w-11 h-11 bg-[#064e3b] rounded-xl flex items-center justify-center text-white font-black text-xs flex-shrink-0">
@@ -172,18 +208,24 @@ export default function AdminUsersPage() {
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-10 py-5">
+                                            <td className="px-10 py-5" onClick={(e) => e.stopPropagation()}>
                                                 <div className="flex items-center gap-2">
                                                     <RoleIcon className="w-3.5 h-3.5 text-slate-400" />
-                                                    <select
-                                                        value={user.role}
-                                                        onChange={(e) => changeRole(user.user_uuid, e.target.value)}
-                                                        className={`text-[9px] font-black px-2 py-1 rounded-md uppercase tracking-widest border cursor-pointer outline-none ${roleInfo.bg}`}
-                                                    >
-                                                        {["USER", "SERVICER", "SECRETARY", "ADMIN"].map((r) => (
-                                                            <option key={r} value={r}>{r}</option>
-                                                        ))}
-                                                    </select>
+                                                    {user.role === "ADMIN" ? (
+                                                        <span className="text-[9px] font-black px-2 py-1 rounded-md uppercase tracking-widest border bg-purple-50 text-purple-700 border-purple-100">
+                                                            Super Admin
+                                                        </span>
+                                                    ) : (
+                                                        <select
+                                                            value={user.role}
+                                                            onChange={(e) => changeRole(user.user_uuid, e.target.value)}
+                                                            className={`text-[9px] font-black px-2 py-1 rounded-md uppercase tracking-widest border cursor-pointer outline-none ${roleInfo.bg}`}
+                                                        >
+                                                            {["USER", "SERVICER", "SECRETARY"].map((r) => (
+                                                                <option key={r} value={r}>{r}</option>
+                                                            ))}
+                                                        </select>
+                                                    )}
                                                 </div>
                                             </td>
                                             <td className="px-10 py-5">
@@ -194,7 +236,7 @@ export default function AdminUsersPage() {
                                                     {user.is_active ? "Active" : "Inactive"}
                                                 </span>
                                             </td>
-                                            <td className="px-10 py-5">
+                                            <td className="px-10 py-5" onClick={(e) => e.stopPropagation()}>
                                                 <div className="flex items-center gap-2">
                                                     <button
                                                         onClick={() => toggleActive(user.user_uuid, user.is_active)}
@@ -225,6 +267,39 @@ export default function AdminUsersPage() {
                     )}
                 </div>
             </div>
+
+            {selectedUser && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-sm shadow-2xl">
+                        <div className="p-8">
+                            <div className="flex items-center justify-between mb-6">
+                                <h2 className="text-base font-black text-slate-900 uppercase tracking-widest">User Info</h2>
+                                <button
+                                    onClick={() => { setSelectedUser(null); setUserDetail(null); }}
+                                    className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
+                                >
+                                    <X className="w-5 h-5 text-slate-400" />
+                                </button>
+                            </div>
+                            {detailLoading ? (
+                                <p className="text-sm text-slate-400 text-center py-6">Loading...</p>
+                            ) : userDetail ? (
+                                <div className="space-y-0">
+                                    <Row label="Username" value={userDetail.username} />
+                                    <Row label="Email" value={userDetail.email} />
+                                    <Row label="Role" value={userDetail.role} />
+                                    <Row label="Status" value={userDetail.is_active ? "Active" : "Inactive"} />
+                                    <Row label="Society" value={userDetail.society || "—"} />
+                                    <Row label="Bookings" value={String(userDetail.booking_count)} />
+                                    <Row label="Requests" value={String(userDetail.request_count)} />
+                                </div>
+                            ) : (
+                                <p className="text-sm text-slate-400 text-center py-6">Could not load details.</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

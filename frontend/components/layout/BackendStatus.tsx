@@ -3,21 +3,29 @@
 import { useState, useEffect } from "react";
 import { WifiOff, RefreshCw } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL;
+const API = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 
 export default function BackendStatus() {
     const [offline, setOffline] = useState(false);
     const [checking, setChecking] = useState(false);
 
     const checkHealth = async () => {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
         try {
-            const res = await fetch(`${API}/api/v1/health`, { method: "GET" });
+            const res = await fetch(`${API}/api/v1/health`, {
+                method: "GET",
+                signal: controller.signal,
+            });
+            clearTimeout(timeout);
             if (res.ok) {
                 setOffline(false);
             } else {
                 setOffline(true);
             }
-        } catch {
+        } catch (err) {
+            clearTimeout(timeout);
+            console.warn("[BackendStatus] Health check failed:", err);
             setOffline(true);
         }
     };
