@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Briefcase, Clock, Star, TrendingUp, CheckCircle2, ChevronRight, MapPin, DollarSign, Calendar, GraduationCap, ShieldCheck, Upload, CircleDot, Pencil, Camera, Building2 } from "lucide-react";
+import { Briefcase, Clock, Star, TrendingUp, CheckCircle2, ChevronRight, MapPin, DollarSign, Calendar, GraduationCap, ShieldCheck, Upload, Pencil, Camera, Building2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import Image from "next/image";
 
@@ -30,56 +30,16 @@ export default function ServicerDashboard() {
     const [editPhotoPreview, setEditPhotoPreview] = useState<string>("");
     const editFileInputRef = useRef<HTMLInputElement>(null);
 
-    // Profile completeness check - mandatory fields
-    const isProfileComplete = (p: any) => {
-        return p && p.first_name && p.last_name && p.phone && p.phone !== "Not Provided" && p.email && p.location && p.categories?.length > 0;
-    };
-
-    // Setup completion helper
-    const getSetupSteps = () => {
-        return [
-            { label: "Add your name and details", done: !!profile?.first_name },
-            { label: "Add contact info", done: !!profile?.phone && profile?.phone !== "Not Provided" && !!profile?.email },
-            { label: "Set your location", done: !!profile?.location },
-            { label: "Choose your services", done: profile?.categories?.length > 0 },
-            { label: "Write a short bio", done: !!profile?.bio },
-            { label: "Get verified", done: !!profile?.is_verified },
-        ];
-    };
-
-    const setupSteps = profile ? getSetupSteps() : [];
-    const setupComplete = setupSteps.length > 0 && setupSteps.every(s => s.done);
-    const completedCount = setupSteps.filter(s => s.done).length;
-
     const [filterStatus, setFilterStatus] = useState("ACTIVE"); // ACTIVE, COMPLETED, CANCELLED, ALL
 
     const fetchData = async () => {
         try {
-            // First check if servicer has a profile at all
-            let myProfile = null;
-            try {
-                myProfile = await apiFetch("/services/providers/me");
-                if (typeof myProfile.categories === 'string') {
-                    try {
-                        myProfile.categories = JSON.parse(myProfile.categories);
-                    } catch (e) {
-                        myProfile.categories = [];
-                    }
-                }
-            } catch {
-                // No profile exists - redirect to mandatory setup
-                router.push("/dashboard/servicer/setup");
-                return;
+            let myProfile = await apiFetch("/services/providers/me");
+            if (typeof myProfile.categories === 'string') {
+                try { myProfile.categories = JSON.parse(myProfile.categories); }
+                catch { myProfile.categories = []; }
             }
-
-            // If profile exists but critical fields are missing, redirect to setup
-            if (!isProfileComplete(myProfile)) {
-                router.push("/dashboard/servicer/setup");
-                return;
-            }
-
             const jobsData = await apiFetch("/bookings/list");
-            // Corrected recruitment endpoint
             const invitesData = await apiFetch("/services/societies/requests/me");
             setJobs(jobsData);
             setProfile(myProfile);
@@ -232,47 +192,6 @@ export default function ServicerDashboard() {
                 </select>
             </div>
 
-            {/* Onboarding Banner - shows when profile is incomplete */}
-            {profile && !setupComplete && (
-                <div className="bg-white border-l-4 border-l-[#064e3b] border border-slate-200 rounded-2xl p-5 shadow-sm">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div className="flex-1">
-                            <h2 className="text-lg font-black text-[#000000] tracking-tight">
-                                Let&apos;s finish setting up your profile
-                            </h2>
-                            <p className="text-slate-500 text-xs font-bold mt-1">
-                                Complete these steps so customers can find and book you.
-                            </p>
-                            <div className="mt-4 space-y-2">
-                                {setupSteps.map((step, i) => (
-                                    <div key={i} className="flex items-center gap-3">
-                                        {step.done ? (
-                                            <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
-                                        ) : (
-                                            <CircleDot className="w-5 h-5 text-slate-300 flex-shrink-0" />
-                                        )}
-                                        <span className={`text-sm font-bold ${step.done ? "text-slate-400 line-through" : "text-slate-700"}`}>
-                                            {step.label}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-4">
-                                {completedCount} of {setupSteps.length} steps done
-                            </p>
-                        </div>
-                        <div className="flex-shrink-0">
-                            <Link
-                                href="/dashboard/servicer/setup"
-                                className="inline-flex items-center gap-3 bg-[#064e3b] text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-[0.15em] hover:bg-emerald-950 transition-all shadow-lg shadow-emerald-900/10 active:scale-95"
-                            >
-                                Continue Setup
-                                <ChevronRight className="w-4 h-4" />
-                            </Link>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Society Invitations */}
             {invitations.length > 0 && (
@@ -596,7 +515,7 @@ export default function ServicerDashboard() {
 
                                 {/* CTA */}
                                 <Link
-                                    href="/dashboard/servicer/setup"
+                                    href="/service/settings/profile"
                                     className="text-blue-600 text-xs font-black uppercase tracking-widest hover:underline mt-2 inline-block"
                                 >
                                     Set up your profile →
