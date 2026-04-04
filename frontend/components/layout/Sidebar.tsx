@@ -5,9 +5,10 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   LayoutDashboard, Wrench, Bell, Settings,
-  LogOut, Briefcase, Star, Users, ShieldCheck,
+  LogOut, Briefcase, Star, Users, ShieldCheck, ShieldAlert,
   BarChart3, ClipboardList, UserCheck, ChevronRight,
   User, Lock, BellRing, Search, Home,
+  PanelLeftClose, PanelLeftOpen,
 } from "lucide-react";
 import { logout, getRole, getUsername } from "@/lib/auth";
 
@@ -60,6 +61,7 @@ const ADMIN_NAV = [
   { name: "All Users", icon: Users, path: "/admin/users" },
   { name: "Providers", icon: UserCheck, path: "/admin/providers" },
   { name: "Bookings", icon: ClipboardList, path: "/admin/bookings" },
+  { name: "Emergency SOS", icon: ShieldAlert, path: "/admin/emergency" },
   { name: "System Logs", icon: ShieldCheck, path: "/admin/logs" },
   { name: "Settings", icon: Settings, path: "/admin/settings" },
 ];
@@ -122,10 +124,30 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const badge = role ? ROLE_BADGE[role] : null;
 
   return (
-    <div className={`fixed top-16 left-0 h-[calc(100vh-4rem)] w-64 bg-white border-r border-slate-200 flex flex-col z-[999] shadow-[4px_0_24px_rgba(0,0,0,0.08)] transition-transform duration-300 ${isOpen ? "translate-x-0" : "-translate-x-full"}`}>
+    <div className={`fixed top-0 left-0 h-screen bg-white border-r border-slate-200 flex flex-col z-[1000] shadow-[4px_0_24px_rgba(0,0,0,0.08)] transition-all duration-300 ${isOpen ? "w-64 translate-x-0" : "w-16 -translate-x-full md:translate-x-0"}`}>
 
       {isOpen ? (
         <>
+          {/* Branding Header */}
+          <div className="flex items-center justify-between px-4 h-16 border-b border-slate-100 flex-shrink-0">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 bg-[#064e3b] rounded-lg flex items-center justify-center flex-shrink-0">
+                <Wrench className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <p className="font-black text-[#064e3b] text-sm leading-tight tracking-tight">Homecare Hub</p>
+                <p className="text-[9px] text-emerald-600 font-black uppercase tracking-[0.2em]">Control Center</p>
+              </div>
+            </div>
+            <button
+              onClick={onToggle}
+              className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-all"
+              aria-label="Collapse sidebar"
+            >
+              <PanelLeftClose className="w-4 h-4" />
+            </button>
+          </div>
+
           {/* Profile Summary Card */}
           <div className="px-5 mt-5 mb-8">
             <div className="flex items-center gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100 shadow-sm">
@@ -232,7 +254,19 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
         </>
       ) : (
         /* Collapsed: icon-only nav */
-        <nav className="flex-1 flex flex-col items-center px-2 pt-4 gap-1">
+        <nav className="flex-1 flex flex-col items-center px-2 pt-3 gap-1">
+          {/* Branding icon + open toggle */}
+          <div className="w-9 h-9 bg-[#064e3b] rounded-xl flex items-center justify-center mb-1 flex-shrink-0">
+            <Wrench className="w-4 h-4 text-white" />
+          </div>
+          <button
+            onClick={onToggle}
+            title="Open sidebar"
+            className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl transition-all mb-3"
+            aria-label="Open sidebar"
+          >
+            <PanelLeftOpen className="w-4 h-4" />
+          </button>
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isSettings = item.name === "Settings";
