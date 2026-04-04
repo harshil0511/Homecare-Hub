@@ -1,8 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 from app.internal import deps
 from app.internal.models import User, Society, MaintenanceTask
 from app.internal.schemas import SocietyResponse, SocietyUpdate, UserResponse
+
+
+class HomeAssign(BaseModel):
+    home_number: str
+    resident_name: str
+
 
 router = APIRouter(tags=["Secretary API"])
 
@@ -54,7 +61,17 @@ def get_society_members(
         User.society_id == society.id,
         User.role == "USER"
     ).all()
-    return [{"id": m.id, "username": m.username, "email": m.email, "is_active": m.is_active} for m in members]
+    return [
+        {
+            "id": m.id,
+            "username": m.username,
+            "email": m.email,
+            "is_active": m.is_active,
+            "home_number": m.home_number,
+            "resident_name": m.resident_name,
+        }
+        for m in members
+    ]
 
 
 @router.get("/alerts")
@@ -101,3 +118,33 @@ def get_society_providers(
         }
         for p in society.trusted_providers
     ]
+
+
+@router.patch("/members/{member_id}/home")
+def assign_home_to_member(
+    member_id: int,
+    data: HomeAssign,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(secretary_only)
+):
+    """Assign a home number and resident name to a society member."""
+    society = get_secretary_society(current_user, db)
+    member = db.query(User).filter(
+        User.id == member_id,
+        User.society_id == society.id,
+        User.role == "USER"
+    ).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found in your society.")
+    member.home_number = data.home_number
+    member.resident_name = data.resident_name
+    db.commit()
+    db.refresh(member)
+    return {
+        "id": member.id,
+        "username": member.username,
+        "email": member.email,
+        "is_active": member.is_active,
+        "home_number": member.home_number,
+        "resident_name": member.resident_name,
+    }
