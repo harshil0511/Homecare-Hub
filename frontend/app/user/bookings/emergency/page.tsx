@@ -1,243 +1,533 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { apiFetch } from "@/lib/api";
+import { useEffect, useRef, useState } from "react";
+
 import {
-    AlertTriangle, ShieldAlert, Zap,
-    ArrowRight, Search,
-    ShieldCheck, Loader2, Check, XCircle
+    ArrowRight, Check, ChevronLeft,
+    Clock, Loader2, ShieldAlert, Star, Users, X, Zap
 } from "lucide-react";
 import Link from "next/link";
+import {
+    emergencyApi,
+    createUserEmergencySocket,
+    EmergencyConfig,
+    EmergencyRequestRead,
+    EmergencyResponseRead,
+    ProviderBasic,
+} from "@/lib/api";
+import { useToast } from "@/lib/toast-context";
 
-export default function EmergencyBookingPage() {
-    const router = useRouter();
-    const [step, setStep] = useState(1);
+const CATEGORIES = [
+    "Electrical", "Plumbing", "Gas Leak", "Lock/Door",
+    "Appliance Failure", "Structural", "Pest", "Other",
+];
+
+// ── Step type ─────────────────────────────────────────────────────────────────
+type Step = "category" | "details" | "providers" | "waiting" | "done";
+
+interface FormData {
+    category: string;
+    society_name: string;
+    building_name: string;
+    flat_no: string;
+    landmark: string;
+    full_address: string;
+    description: string;
+    device_name: string;
+    contact_name: string;
+    contact_phone: string;
+}
+
+// ── Countdown hook ─────────────────────────────────────────────────────────────
+function useCountdown(expiresAt: string | null) {
+    const [remaining, setRemaining] = useState(0);
+    useEffect(() => {
+        if (!expiresAt) return;
+        const tick = () => {
+            const diff = Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000));
+            setRemaining(diff);
+        };
+        tick();
+        const id = setInterval(tick, 1000);
+        return () => clearInterval(id);
+    }, [expiresAt]);
+    return remaining;
+}
+
+export default function EmergencySOSPage() {
+    const { success, error: showError } = useToast();
+
+    const [step, setStep] = useState<Step>("category");
     const [loading, setLoading] = useState(false);
-    const [category, setCategory] = useState("Plumbing");
-    const [description, setDescription] = useState("");
-    const [unit, setUnit] = useState("");
-    const [error, setError] = useState("");
-    const [bookingId, setBookingId] = useState<number | null>(null);
-    const [providerName, setProviderName] = useState("");
+    const [configs, setConfigs] = useState<EmergencyConfig[]>([]);
 
-    const handleEmergencyRequest = async () => {
+    const [form, setForm] = useState<FormData>({
+        category: "",
+        society_name: "", building_name: "", flat_no: "",
+        landmark: "", full_address: "", description: "",
+        device_name: "", contact_name: "", contact_phone: "",
+    });
+
+    const [providers, setProviders] = useState<ProviderBasic[]>([]);
+    const [selectedProviderIds, setSelectedProviderIds] = useState<number[]>([]);
+
+    const [emergencyRequest, setEmergencyRequest] = useState<EmergencyRequestRead | null>(null);
+    const [responses, setResponses] = useState<EmergencyResponseRead[]>([]);
+    const [resultingBookingId, setResultingBookingId] = useState<number | null>(null);
+
+    const wsRef = useRef<WebSocket | null>(null);
+    const countdown = useCountdown(emergencyRequest?.expires_at ?? null);
+
+    // Load configs on mount
+    useEffect(() => {
+        emergencyApi.getConfigs().then(setConfigs).catch(() => {});
+    }, []);
+
+    // WebSocket setup when waiting
+    useEffect(() => {
+        if (step !== "waiting" || !emergencyRequest) return;
+
+        const ws = createUserEmergencySocket(emergencyRequest.id);
+        wsRef.current = ws;
+
+        ws.onmessage = (evt) => {
+            try {
+                const msg = JSON.parse(evt.data);
+                if (msg.event === "new_response") {
+                    setResponses(prev => {
+                        if (prev.find(r => r.id === msg.response_id)) return prev;
+                        return [...prev, {
+                            id: msg.response_id,
+                            request_id: emergencyRequest.id,
+                            provider_id: msg.provider_id,
+                            arrival_time: msg.arrival_time,
+                            status: "PENDING",
+                            penalty_count: 0,
+                            created_at: msg.created_at ?? null,
+                            provider: {
+                                id: msg.provider_id,
+                                first_name: msg.provider_name,
+                                rating: msg.rating,
+                            },
+                        }];
+                    });
+                } else if (msg.event === "request_accepted") {
+                    setResultingBookingId(msg.booking_id);
+                    setStep("done");
+                } else if (msg.event === "request_cancelled") {
+                    setStep("category");
+                }
+            } catch { /* ignore malformed frames */ }
+        };
+
+        return () => {
+            ws.close();
+            wsRef.current = null;
+        };
+    }, [step, emergencyRequest]);
+
+    // Also poll for responses every 10s as fallback
+    useEffect(() => {
+        if (step !== "waiting" || !emergencyRequest) return;
+        const id = setInterval(async () => {
+            try {
+                const data = await emergencyApi.getRequest(emergencyRequest.id);
+                if (data.responses) setResponses(data.responses.filter(r => r.status === "PENDING"));
+                if (data.status === "BOOKED" && data.resulting_booking_id) {
+                    setResultingBookingId(data.resulting_booking_id);
+                    setStep("done");
+                }
+            } catch { /* silent */ }
+        }, 10000);
+        return () => clearInterval(id);
+    }, [step, emergencyRequest]);
+
+    const configFor = (cat: string) => configs.find(c => c.category === cat);
+
+    const handleCategorySelect = async (cat: string) => {
+        setForm(f => ({ ...f, category: cat }));
         setLoading(true);
-        setError("");
         try {
-            const res = await apiFetch("/bookings/emergency", {
-                method: "POST",
-                body: JSON.stringify({
-                    category,
-                    description,
-                    location: unit
-                })
-            });
+            const prov = await emergencyApi.getProviders(cat);
+            setProviders(prov);
+        } catch {
+            showError("Failed to load providers. Try again.");
+        } finally {
+            setLoading(false);
+        }
+        setStep("details");
+    };
 
-            if (res.provider_found) {
-                setBookingId(res.booking_id);
-                setProviderName(res.provider_name || "Expert");
-                setStep(3); // Request sent successfully
-            } else {
-                setStep(4); // No expert available
-            }
+    const handleDetailsNext = () => {
+        const { society_name, building_name, flat_no, landmark, full_address, description, contact_name, contact_phone } = form;
+        if (!society_name || !building_name || !flat_no || !landmark || !full_address || !description || !contact_name || !contact_phone) {
+            showError("Please fill all required fields.");
+            return;
+        }
+        setStep("providers");
+    };
+
+    const toggleProvider = (id: number) => {
+        setSelectedProviderIds(prev =>
+            prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
+        );
+    };
+
+    const handleSubmit = async () => {
+        if (selectedProviderIds.length === 0) {
+            showError("Select at least one provider to broadcast to.");
+            return;
+        }
+        setLoading(true);
+        try {
+            const em = await emergencyApi.create({
+                ...form,
+                provider_ids: selectedProviderIds,
+            });
+            setEmergencyRequest(em);
+            setResponses([]);
+            setStep("waiting");
+            success("SOS broadcast sent to selected providers.");
         } catch (err: any) {
-            setError(err.message || "Failed to send emergency request. Please try again.");
+            showError(err.message || "Failed to create emergency request.");
         } finally {
             setLoading(false);
         }
     };
 
+    const handleAccept = async (responseId: number) => {
+        if (!emergencyRequest) return;
+        setLoading(true);
+        try {
+            const booking: any = await emergencyApi.accept(emergencyRequest.id, responseId);
+            setResultingBookingId(booking?.id ?? null);
+            setStep("done");
+            success("Provider accepted. Booking created.");
+        } catch (err: any) {
+            showError(err.message || "Failed to accept response.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleCancel = async () => {
+        if (!emergencyRequest) { setStep("category"); return; }
+        setLoading(true);
+        try {
+            await emergencyApi.cancel(emergencyRequest.id);
+            setStep("category");
+            success("Emergency request cancelled.");
+        } catch (err: any) {
+            showError(err.message || "Failed to cancel.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const field = (key: keyof FormData, label: string, placeholder: string, type: "input" | "textarea" = "input") => (
+        <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</label>
+            {type === "textarea" ? (
+                <textarea
+                    value={form[key]}
+                    onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+                    placeholder={placeholder}
+                    rows={3}
+                    className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 font-semibold text-slate-900 text-sm outline-none focus:border-rose-300 transition-colors resize-none"
+                />
+            ) : (
+                <input
+                    value={form[key]}
+                    onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+                    placeholder={placeholder}
+                    className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 font-semibold text-slate-900 text-sm outline-none focus:border-rose-300 transition-colors"
+                />
+            )}
+        </div>
+    );
+
+    const providerName = (p: ProviderBasic) =>
+        p.first_name || p.company_name || p.owner_name || `Provider #${p.id}`;
+
+    // ── Render ─────────────────────────────────────────────────────────────────
+
     return (
-        <div className="max-w-3xl mx-auto pb-20 px-4">
-            {/* Step 1: Category Selection */}
-            {step === 1 && (
-                <div className="space-y-10 animate-in fade-in slide-in-from-bottom-5 duration-700 text-center py-12">
-                    <div className="flex justify-center relative">
-                        <div className="absolute inset-0 bg-rose-500/10 rounded-full scale-125 blur-xl animate-pulse" />
-                        <div className="relative w-20 h-20 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 border-[3px] border-white shadow-lg">
-                            <ShieldAlert size={40} className="animate-bounce-subtle" />
+        <div className="max-w-2xl mx-auto pb-24 px-4 pt-6">
+
+            {/* ── Step: Category ─────────────────────────────────────────── */}
+            {step === "category" && (
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="text-center space-y-4 py-6">
+                        <div className="flex justify-center">
+                            <div className="w-16 h-16 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 border-2 border-rose-100">
+                                <ShieldAlert size={32} />
+                            </div>
                         </div>
+                        <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight">Emergency SOS</h1>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Select emergency category</p>
                     </div>
 
-                    <div className="space-y-3">
-                        <h1 className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight uppercase leading-none">Emergency Support</h1>
-                        <p className="text-slate-400 font-bold uppercase tracking-[0.25em] text-[10px]">Priority dispatch within 30 minutes</p>
-                    </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-5">
-                        {[
-                            { id: "Plumbing", icon: <Zap size={32} /> },
-                            { id: "Electrical", icon: <Zap size={32} /> },
-                            { id: "AC Service", icon: <Zap size={32} /> },
-                            { id: "Appliance Repair", icon: <Zap size={32} /> },
-                            { id: "Home Cleaning", icon: <Zap size={32} /> },
-                            { id: "Pest Control", icon: <Zap size={32} /> },
-                            { id: "Painting", icon: <Zap size={32} /> },
-                            { id: "Carpentry", icon: <Zap size={32} /> },
-                            { id: "General Maintenance", icon: <Zap size={32} /> }
-                        ].map((cat) => (
-                            <button
-                                key={cat.id}
-                                onClick={() => setCategory(cat.id)}
-                                className={`group p-8 rounded-[2rem] border-2 transition-all duration-400 relative overflow-hidden ${
-                                    category === cat.id
-                                        ? "bg-[#ff1e56] border-[#ff1e56] text-white shadow-[0_15px_40px_rgba(255,30,86,0.25)] scale-[1.03]"
-                                        : "bg-white border-slate-50 text-slate-300 hover:border-rose-100 hover:text-rose-400"
-                                }`}
-                            >
-                                <div className="transition-transform duration-400 group-hover:scale-110 mb-3 flex justify-center">
-                                    {cat.icon}
-                                </div>
-                                <span className="font-black uppercase tracking-[0.1em] text-[10px] leading-none block">{cat.id}</span>
-
-                                {category === cat.id && (
-                                    <div className="absolute top-0 right-0 w-12 h-12 bg-white/10 rounded-bl-[1.5rem] flex items-center justify-center">
-                                        <Check size={16} className="text-white" />
+                    <div className="grid grid-cols-2 gap-3">
+                        {CATEGORIES.map(cat => {
+                            const cfg = configFor(cat);
+                            return (
+                                <button
+                                    key={cat}
+                                    onClick={() => handleCategorySelect(cat)}
+                                    disabled={loading}
+                                    className="group p-5 rounded-3xl border-2 border-slate-100 bg-white text-left hover:border-rose-200 hover:bg-rose-50 transition-all duration-200 disabled:opacity-50"
+                                >
+                                    <div className="flex items-start gap-3">
+                                        <div className="w-9 h-9 rounded-xl bg-rose-50 flex items-center justify-center text-rose-500 shrink-0 group-hover:bg-rose-100">
+                                            <Zap size={18} />
+                                        </div>
+                                        <div>
+                                            <p className="font-black text-slate-800 text-xs uppercase tracking-wide leading-tight">{cat}</p>
+                                            {cfg && (
+                                                <p className="text-[10px] text-slate-400 font-semibold mt-1">
+                                                    Callout ₹{cfg.callout_fee}
+                                                </p>
+                                            )}
+                                        </div>
                                     </div>
-                                )}
-                            </button>
-                        ))}
+                                </button>
+                            );
+                        })}
                     </div>
 
-                    <div>
-                        <button
-                            onClick={() => setStep(2)}
-                            className="w-full bg-[#ff1e56] text-white py-6 rounded-[2rem] font-black text-base uppercase tracking-[0.2em] shadow-[0_15px_50px_rgba(255,30,86,0.35)] hover:bg-rose-700 transition-all active:scale-[0.98] flex items-center justify-center gap-4 group"
-                        >
-                            Activate Priority Signal
-                            <ArrowRight size={22} className="group-hover:translate-x-1 transition-transform" />
-                        </button>
-                    </div>
+                    {loading && (
+                        <div className="flex justify-center">
+                            <Loader2 className="animate-spin text-rose-500" size={24} />
+                        </div>
+                    )}
                 </div>
             )}
 
-            {/* Step 2: Fill Details & Submit */}
-            {step === 2 && (
-                <div className="bg-white border border-slate-200 rounded-[3rem] p-10 md:p-16 shadow-xl shadow-slate-200/50 space-y-10 animate-scale-in">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-10">
-                        <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-500">
-                                <AlertTriangle size={24} />
-                            </div>
-                            <div>
-                                <h2 className="text-2xl font-black text-slate-900 uppercase">Emergency Protocol</h2>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Provide critical incident data</p>
-                            </div>
+            {/* ── Step: Details ──────────────────────────────────────────── */}
+            {step === "details" && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="flex items-center gap-3">
+                        <button onClick={() => setStep("category")} className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50">
+                            <ChevronLeft size={18} />
+                        </button>
+                        <div>
+                            <h2 className="text-lg font-black text-slate-900 uppercase">{form.category} — Location & Contact</h2>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Required before broadcasting</p>
                         </div>
-                        <span className="text-xs font-black text-rose-500 bg-rose-50 px-4 py-2 rounded-xl uppercase tracking-widest animate-pulse">Live Tracking Enabled</span>
                     </div>
 
-                    {/* Error Banner */}
-                    {error && (
-                        <div className="flex items-center gap-3 bg-rose-50 border border-rose-200 text-rose-700 px-5 py-4 rounded-2xl">
-                            <AlertTriangle className="w-5 h-5 flex-shrink-0" />
-                            <p className="text-xs font-bold flex-1">{error}</p>
-                            <button onClick={() => setError("")} className="text-rose-400 hover:text-rose-600 text-xs font-black">Dismiss</button>
+                    <div className="bg-white border border-slate-100 rounded-3xl p-6 space-y-4">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50 pb-3">Location</p>
+                        {field("society_name", "Society Name *", "e.g. Green Valley Residency")}
+                        <div className="grid grid-cols-2 gap-3">
+                            {field("building_name", "Building *", "Building A")}
+                            {field("flat_no", "Flat No *", "402")}
+                        </div>
+                        {field("landmark", "Landmark *", "Near main gate")}
+                        {field("full_address", "Full Address *", "123 Park Street, Mumbai 400001")}
+                    </div>
+
+                    <div className="bg-white border border-slate-100 rounded-3xl p-6 space-y-4">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50 pb-3">Issue</p>
+                        {field("description", "Description * (max 500 chars)", "Describe the emergency clearly…", "textarea")}
+                        {field("device_name", "Device / Appliance (optional)", "e.g. Washing Machine, Geyser")}
+                    </div>
+
+                    <div className="bg-white border border-slate-100 rounded-3xl p-6 space-y-4">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50 pb-3">Contact On-Site</p>
+                        <div className="grid grid-cols-2 gap-3">
+                            {field("contact_name", "Name *", "Ramesh Sharma")}
+                            {field("contact_phone", "Phone *", "9876543210")}
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={handleDetailsNext}
+                        className="w-full bg-rose-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-rose-600/20 hover:bg-rose-700 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+                    >
+                        Next: Select Providers <ArrowRight size={18} />
+                    </button>
+                </div>
+            )}
+
+            {/* ── Step: Provider Selection ───────────────────────────────── */}
+            {step === "providers" && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="flex items-center gap-3">
+                        <button onClick={() => setStep("details")} className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50">
+                            <ChevronLeft size={18} />
+                        </button>
+                        <div>
+                            <h2 className="text-lg font-black text-slate-900 uppercase">Select Providers</h2>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">SOS will be broadcast to selected providers</p>
+                        </div>
+                    </div>
+
+                    {providers.length === 0 ? (
+                        <div className="bg-amber-50 border border-amber-200 rounded-3xl p-8 text-center space-y-3">
+                            <Users size={32} className="text-amber-500 mx-auto" />
+                            <p className="font-black text-amber-800 text-sm uppercase">No providers available</p>
+                            <p className="text-xs text-amber-600">No verified providers are available for {form.category} right now.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {providers.map(p => {
+                                const selected = selectedProviderIds.includes(p.id);
+                                return (
+                                    <button
+                                        key={p.id}
+                                        onClick={() => toggleProvider(p.id)}
+                                        className={`w-full p-4 rounded-2xl border-2 text-left transition-all duration-200 ${
+                                            selected
+                                                ? "border-rose-500 bg-rose-50"
+                                                : "border-slate-100 bg-white hover:border-rose-200"
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="font-black text-slate-900 text-sm">{providerName(p)}</p>
+                                                <p className="text-[10px] text-slate-400 font-semibold uppercase mt-0.5">{p.category}</p>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                {p.rating != null && (
+                                                    <span className="flex items-center gap-1 text-xs font-bold text-amber-600">
+                                                        <Star size={12} fill="currentColor" /> {p.rating.toFixed(1)}
+                                                    </span>
+                                                )}
+                                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selected ? "border-rose-500 bg-rose-500" : "border-slate-300"}`}>
+                                                    {selected && <Check size={12} className="text-white" />}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </button>
+                                );
+                            })}
                         </div>
                     )}
 
-                    <div className="space-y-8">
-                        <div className="space-y-3">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2">Property Unit</label>
-                            <input
-                                value={unit}
-                                onChange={e => setUnit(e.target.value)}
-                                placeholder="e.g. Unit 402, Building A"
-                                className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-slate-900 outline-none"
-                            />
-                        </div>
-                        <div className="space-y-3">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2">Hazard Description</label>
-                            <textarea
-                                value={description}
-                                onChange={e => setDescription(e.target.value)}
-                                placeholder="Leakage, short circuit, etc..."
-                                className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-slate-900 outline-none"
-                                rows={3}
-                            />
-                        </div>
-                    </div>
+                    <p className="text-center text-[10px] font-bold text-slate-400 uppercase">
+                        {selectedProviderIds.length} provider{selectedProviderIds.length !== 1 ? "s" : ""} selected
+                    </p>
 
-                    <div className="bg-amber-50 border border-amber-100 p-6 rounded-2xl flex items-start gap-4 text-amber-700">
-                        <ShieldCheck size={24} className="shrink-0" />
-                        <p className="text-xs font-bold leading-relaxed">System will find the nearest verified specialist and send your emergency request. Emergency rates (+50%) apply for immediate mobilization.</p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <button onClick={() => setStep(1)} className="py-6 rounded-2xl border border-slate-200 font-black text-[10px] uppercase tracking-widest text-slate-400 hover:bg-slate-50 transition-all">Cancel Request</button>
-                        <button
-                            onClick={handleEmergencyRequest}
-                            disabled={loading || !unit || !description}
-                            className="py-6 rounded-2xl bg-rose-600 text-white font-black text-[10px] uppercase tracking-widest shadow-xl shadow-rose-600/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                        >
-                            {loading ? <Loader2 className="animate-spin" size={20} /> : "Dispatch Specialist Now"}
-                        </button>
-                    </div>
+                    <button
+                        onClick={handleSubmit}
+                        disabled={loading || selectedProviderIds.length === 0}
+                        className="w-full bg-rose-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-rose-600/20 hover:bg-rose-700 active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {loading ? <Loader2 className="animate-spin" size={20} /> : (
+                            <><ShieldAlert size={18} /> Broadcast SOS Now</>
+                        )}
+                    </button>
                 </div>
             )}
 
-            {/* Step 3: Request Sent Successfully */}
-            {step === 3 && (
-                <div className="space-y-10 animate-scale-in text-center py-16">
-                    <div className="flex justify-center">
-                        <div className="w-28 h-28 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-2xl shadow-emerald-500/40">
-                            <Check size={56} />
+            {/* ── Step: Waiting ──────────────────────────────────────────── */}
+            {step === "waiting" && emergencyRequest && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    {/* Header */}
+                    <div className="bg-rose-600 rounded-3xl p-6 text-white space-y-3">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                                <span className="text-xs font-black uppercase tracking-widest">SOS Active</span>
+                            </div>
+                            <span className="text-xs font-bold bg-white/20 px-3 py-1 rounded-full">{form.category}</span>
                         </div>
-                    </div>
-                    <div className="space-y-3">
-                        <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase">Emergency Request Sent</h1>
-                        <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">
-                            Request sent to {providerName}. Awaiting their response.
+                        <div className="flex items-center gap-2 text-2xl font-black">
+                            <Clock size={20} />
+                            {countdown > 0
+                                ? `${Math.floor(countdown / 60)}:${String(countdown % 60).padStart(2, "0")} remaining`
+                                : "Window closed"
+                            }
+                        </div>
+                        <p className="text-xs text-rose-100">
+                            Broadcast sent to {selectedProviderIds.length} provider(s). Waiting for responses…
                         </p>
                     </div>
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-                        {bookingId && (
+
+                    {/* Responses */}
+                    <div className="space-y-3">
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            Incoming Responses ({responses.length})
+                        </h3>
+
+                        {responses.length === 0 && (
+                            <div className="bg-slate-50 rounded-2xl p-8 text-center space-y-2">
+                                <Loader2 className="animate-spin text-slate-400 mx-auto" size={24} />
+                                <p className="text-xs font-bold text-slate-400 uppercase">Waiting for providers…</p>
+                            </div>
+                        )}
+
+                        {responses.map(r => {
+                            const cfg = configFor(form.category);
+                            const arrivalLabel = new Date(r.arrival_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                            return (
+                                <div key={r.id} className="bg-white border border-slate-100 rounded-2xl p-5 space-y-3">
+                                    <div className="flex items-start justify-between">
+                                        <div>
+                                            <p className="font-black text-slate-900 text-sm">
+                                                {r.provider?.first_name || r.provider?.company_name || `Provider #${r.provider_id}`}
+                                            </p>
+                                            {r.provider?.rating != null && (
+                                                <span className="flex items-center gap-1 text-xs font-bold text-amber-500 mt-0.5">
+                                                    <Star size={11} fill="currentColor" /> {r.provider.rating.toFixed(1)}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="text-right text-xs font-bold text-slate-500">
+                                            <div className="flex items-center gap-1"><Clock size={12} /> ETA {arrivalLabel}</div>
+                                            {cfg && <div className="text-[10px] text-slate-400 mt-1">Callout ₹{cfg.callout_fee} + ₹{cfg.hourly_rate}/hr</div>}
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => handleAccept(r.id)}
+                                        disabled={loading}
+                                        className="w-full bg-emerald-600 text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-emerald-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
+                                        {loading ? <Loader2 className="animate-spin" size={16} /> : <><Check size={14} /> Accept This Provider</>}
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    <button
+                        onClick={handleCancel}
+                        disabled={loading}
+                        className="w-full py-4 rounded-2xl border-2 border-slate-200 text-slate-500 font-black text-xs uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                        {loading ? <Loader2 className="animate-spin" size={16} /> : <><X size={14} /> Cancel SOS</>}
+                    </button>
+                </div>
+            )}
+
+            {/* ── Step: Done ─────────────────────────────────────────────── */}
+            {step === "done" && (
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 text-center py-12">
+                    <div className="flex justify-center">
+                        <div className="w-24 h-24 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-2xl shadow-emerald-500/30">
+                            <Check size={48} />
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <h1 className="text-3xl font-black text-slate-900 uppercase">Booking Confirmed</h1>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Your emergency provider is on the way</p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
+                        {resultingBookingId && (
                             <Link
-                                href={`/user/bookings/${bookingId}`}
-                                className="px-8 py-4 bg-[#064e3b] text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-950 transition-all shadow-lg shadow-emerald-900/10"
+                                href={`/user/bookings/${resultingBookingId}`}
+                                className="px-8 py-4 bg-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-800 transition-all shadow-lg"
                             >
-                                View Request
+                                View Booking
                             </Link>
                         )}
                         <Link
                             href="/user/dashboard"
-                            className="px-8 py-4 bg-white border border-slate-200 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all"
+                            className="px-8 py-4 bg-white border border-slate-200 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 transition-all"
                         >
                             Back to Dashboard
                         </Link>
-                    </div>
-                </div>
-            )}
-
-            {/* Step 4: No Expert Available */}
-            {step === 4 && (
-                <div className="space-y-10 animate-scale-in text-center py-16">
-                    <div className="flex justify-center">
-                        <div className="w-28 h-28 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 shadow-xl">
-                            <XCircle size={56} />
-                        </div>
-                    </div>
-                    <div className="space-y-3">
-                        <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase">No Expert Available</h1>
-                        <p className="text-slate-500 font-bold uppercase tracking-widest text-xs max-w-md mx-auto">
-                            No verified specialist found for {category} right now. Please select one manually from our expert network.
-                        </p>
-                    </div>
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-                        <Link
-                            href={`/user/providers?category=${encodeURIComponent(category)}&emergency=true`}
-                            className="px-8 py-4 bg-[#064e3b] text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-950 transition-all shadow-lg shadow-emerald-900/10 flex items-center gap-2"
-                        >
-                            <Search size={16} />
-                            Find Expert
-                        </Link>
-                        <button
-                            onClick={() => { setStep(1); setError(""); }}
-                            className="px-8 py-4 bg-white border border-slate-200 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all"
-                        >
-                            Try Different Category
-                        </button>
                     </div>
                 </div>
             )}
