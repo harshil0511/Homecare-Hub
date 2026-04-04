@@ -20,7 +20,7 @@ const ALLOWED_CATEGORIES = [
     "General Maintenance",
 ];
 
-const GENDER_OPTIONS = ["Male", "Female", "Other", "Prefer not to say"];
+const GENDER_OPTIONS = ["Male", "Female", "Other"];
 
 const labelCls = "block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1.5";
 const inputCls = "w-full bg-slate-50 border border-slate-100 rounded-xl py-3 px-4 text-slate-900 outline-none focus:ring-2 focus:ring-[#064e3b] focus:bg-white transition-all font-semibold text-sm";
