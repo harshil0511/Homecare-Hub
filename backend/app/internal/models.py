@@ -25,6 +25,8 @@ class User(Base):
     role = Column(String, default="USER") # USER, SERVICER, ADMIN
     
     society_id = Column(Integer, ForeignKey("societies.id"), nullable=True)
+    home_number = Column(String, nullable=True)
+    resident_name = Column(String, nullable=True)
 
     society = relationship("Society", back_populates="users", foreign_keys=[society_id])
     tasks = relationship("MaintenanceTask", back_populates="owner")
@@ -140,6 +142,9 @@ class ServiceBooking(Base):
     photos = Column(Text, nullable=True) # JSON string of image URLs
     estimated_cost = Column(Float, default=0.0)
     final_cost = Column(Float, default=0.0)
+    actual_hours = Column(Float, nullable=True)
+    completion_notes = Column(Text, nullable=True)
+    completion_photos = Column(Text, nullable=True)  # JSON string of URLs
     property_details = Column(Text, nullable=True) # Quick property info
     
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
