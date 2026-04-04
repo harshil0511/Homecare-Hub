@@ -147,9 +147,11 @@ async def create_emergency_request(
                 notification_type="URGENT",
                 link="/service/jobs?tab=emergency",
             )
-        background_tasks.add_task(
-            emergency_manager.send_to_servicer, provider.id, alert_payload
-        )
+    background_tasks.add_task(
+        emergency_manager.broadcast_alert_to_servicers,
+        [p.id for p in providers],
+        alert_payload,
+    )
 
     db.commit()
     db.refresh(emergency)
@@ -272,7 +274,7 @@ async def accept_emergency_response(
     ))
 
     em.resulting_booking_id = booking.id
-    em.status = "ACTIVE"
+    em.status = "BOOKED"
     resp.status = "ACCEPTED"
 
     db.query(models.EmergencyResponse).filter(
@@ -366,6 +368,9 @@ async def respond_to_emergency(
         db.commit()
         raise HTTPException(status_code=410, detail="Emergency request has expired")
 
+    if response_in.arrival_time.replace(tzinfo=None) <= now:
+        raise HTTPException(status_code=400, detail="arrival_time must be in the future")
+
     existing = db.query(models.EmergencyResponse).filter(
         models.EmergencyResponse.request_id == request_id,
         models.EmergencyResponse.provider_id == provider.id,
@@ -406,10 +411,23 @@ def ignore_emergency(
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(servicer_only),
 ):
-    """Servicer explicitly ignores an emergency — no penalty."""
+    """Servicer explicitly ignores an emergency — no penalty, records dismissal."""
     provider = db.query(models.ServiceProvider).filter(
         models.ServiceProvider.user_id == current_user.id
     ).first()
     if not provider:
         raise HTTPException(status_code=404, detail="Provider profile not found")
+
+    existing = db.query(models.EmergencyResponse).filter(
+        models.EmergencyResponse.request_id == request_id,
+        models.EmergencyResponse.provider_id == provider.id,
+    ).first()
+    if not existing:
+        db.add(models.EmergencyResponse(
+            request_id=request_id,
+            provider_id=provider.id,
+            arrival_time=datetime.utcnow(),
+            status="IGNORED",
+        ))
+        db.commit()
     return {"detail": "Emergency request ignored"}
