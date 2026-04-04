@@ -382,7 +382,10 @@ async def upload_certificate_file(
     if len(contents) > 5 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="File size must not exceed 5MB.")
 
-    filename = f"{uuid.uuid4()}_{file.filename}"
+    ext = ""
+    if file.filename and "." in file.filename:
+        ext = "." + file.filename.rsplit(".", 1)[-1].lower()
+    filename = f"{uuid.uuid4()}{ext}"
     file_path = os.path.join(CERT_UPLOAD_DIR, filename)
     with open(file_path, "wb") as f:
         f.write(contents)
@@ -415,6 +418,15 @@ def delete_certificate(
         raise HTTPException(status_code=404, detail="Certificate not found.")
     if cert.provider_id != provider.id:
         raise HTTPException(status_code=403, detail="You do not have permission to delete this certificate.")
+
+    # Remove physical file if it exists
+    if cert.certificate_url:
+        relative_path = cert.certificate_url.lstrip("/")
+        abs_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), relative_path)
+        try:
+            os.remove(abs_path)
+        except FileNotFoundError:
+            pass  # File already gone, proceed with DB cleanup
 
     db.delete(cert)
     db.commit()
