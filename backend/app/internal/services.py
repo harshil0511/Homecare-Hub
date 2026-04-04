@@ -111,3 +111,27 @@ def find_verified_provider(
             return provider
 
     return None
+
+
+# ── Emergency SOS ──
+
+EMERGENCY_CATEGORIES = [
+    "Electrical", "Plumbing", "Gas Leak", "Lock/Door",
+    "Appliance Failure", "Structural", "Pest", "Other",
+]
+
+
+def calculate_emergency_bill(callout_fee: float, hourly_rate: float, actual_hours: float) -> float:
+    """
+    Billing formula:
+      - callout_fee covers the first hour (minimum charge)
+      - each hour beyond the first is billed at hourly_rate
+      - actual_hours below 1.0 still result in callout_fee only
+    """
+    extra_hours = max(0.0, actual_hours - 1.0)
+    return callout_fee + (extra_hours * hourly_rate)
+
+
+def apply_star_delta(provider: "ServiceProvider", delta: float) -> None:
+    """Mutates provider.rating, clamped to [0.0, 5.0]. Caller must commit."""
+    provider.rating = max(0.0, min(5.0, provider.rating + delta))
