@@ -159,8 +159,8 @@ export default function EmergencySOSPage() {
     };
 
     const handleDetailsNext = () => {
-        const { society_name, building_name, flat_no, landmark, full_address, description, contact_name, contact_phone } = form;
-        if (!society_name || !building_name || !flat_no || !landmark || !full_address || !description || !contact_name || !contact_phone) {
+        const { society_name, landmark, full_address, description, contact_name, contact_phone } = form;
+        if (!society_name || !landmark || !full_address || !description || !contact_name || !contact_phone) {
             showError("Please fill all required fields.");
             return;
         }
@@ -318,10 +318,10 @@ export default function EmergencySOSPage() {
 
                     <div className="bg-white border border-slate-100 rounded-3xl p-6 space-y-4">
                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50 pb-3">Location</p>
-                        {field("society_name", "Society Name *", "e.g. Green Valley Residency")}
+                        {field("society_name", "Society / Home *", "e.g. Green Valley Residency or My Home")}
                         <div className="grid grid-cols-2 gap-3">
-                            {field("building_name", "Building *", "Building A")}
-                            {field("flat_no", "Flat No *", "402")}
+                            {field("building_name", "Building (optional)", "Building A")}
+                            {field("flat_no", "Flat No (optional)", "402")}
                         </div>
                         {field("landmark", "Landmark *", "Near main gate")}
                         {field("full_address", "Full Address *", "123 Park Street, Mumbai 400001")}
