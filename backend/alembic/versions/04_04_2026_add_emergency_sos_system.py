@@ -78,7 +78,7 @@ def upgrade() -> None:
         sa.Column('provider_id', sa.Integer(), sa.ForeignKey('service_providers.id'), nullable=False),
         sa.Column('arrival_time', sa.DateTime(), nullable=False),
         sa.Column('status', sa.String(), nullable=False, server_default='PENDING'),
-        sa.Column('penalty_count', sa.Integer(), nullable=True, server_default='0'),
+        sa.Column('penalty_count', sa.Integer(), nullable=False, server_default='0'),
         sa.Column('created_at', sa.DateTime(), nullable=True),
         sa.Column('updated_at', sa.DateTime(), nullable=True),
         sa.PrimaryKeyConstraint('id'),

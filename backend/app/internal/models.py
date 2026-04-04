@@ -375,7 +375,7 @@ class EmergencyResponse(Base):
     arrival_time = Column(DateTime, nullable=False)
     # status: PENDING | ACCEPTED | REJECTED | CANCELLED
     status = Column(String, default="PENDING", nullable=False, index=True)
-    penalty_count = Column(Integer, default=0)
+    penalty_count = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
