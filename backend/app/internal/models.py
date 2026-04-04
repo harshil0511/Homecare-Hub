@@ -34,6 +34,7 @@ class User(Base):
     provider_profile = relationship("ServiceProvider", back_populates="user", uselist=False)
     notifications = relationship("Notification", back_populates="user")
     service_requests = relationship("ServiceRequest", back_populates="user")
+    emergency_requests = relationship("EmergencyRequest", back_populates="user")
 
 class Society(Base):
     __tablename__ = "societies"
@@ -305,3 +306,93 @@ class ServiceRequestResponse(Base):
 
     request = relationship("ServiceRequest", back_populates="responses")
     provider = relationship("ServiceProvider", back_populates="submitted_responses")
+
+
+class EmergencyConfig(Base):
+    __tablename__ = "emergency_config"
+
+    id = Column(Integer, primary_key=True, index=True)
+    category = Column(String, unique=True, nullable=False)   # e.g. "Electrical"
+    callout_fee = Column(Float, default=0.0)                 # Flat fee for first hour
+    hourly_rate = Column(Float, default=0.0)                 # Rate billed per hour after hour 1
+    updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+    requests = relationship("EmergencyRequest", back_populates="config")
+
+
+class EmergencyPenaltyConfig(Base):
+    __tablename__ = "emergency_penalty_config"
+
+    id = Column(Integer, primary_key=True, index=True)
+    # event_type: LATE_ARRIVAL | CANCELLATION | NO_SHOW
+    event_type = Column(String, unique=True, nullable=False)
+    star_deduction = Column(Float, default=0.5)
+    updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+
+class EmergencyRequest(Base):
+    __tablename__ = "emergency_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    society_name = Column(String, nullable=False)
+    building_name = Column(String, nullable=False)
+    flat_no = Column(String, nullable=False)
+    landmark = Column(String, nullable=False)
+    full_address = Column(Text, nullable=False)
+    category = Column(String, nullable=False)
+    description = Column(Text, nullable=False)
+    device_name = Column(String, nullable=True)
+    photos = Column(Text, nullable=True)           # JSON list of URLs, max 3
+    contact_name = Column(String, nullable=False)
+    contact_phone = Column(String, nullable=False)
+    # status: PENDING | ACTIVE | COMPLETED | CANCELLED | EXPIRED
+    status = Column(String, default="PENDING", nullable=False)
+    config_id = Column(Integer, ForeignKey("emergency_config.id"), nullable=True)
+    expires_at = Column(DateTime, nullable=False)
+    resulting_booking_id = Column(Integer, ForeignKey("service_bookings.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+    user = relationship("User", back_populates="emergency_requests")
+    config = relationship("EmergencyConfig", back_populates="requests")
+    responses = relationship("EmergencyResponse", back_populates="request", cascade="all, delete-orphan")
+    resulting_booking = relationship("ServiceBooking", foreign_keys=[resulting_booking_id])
+
+
+class EmergencyResponse(Base):
+    __tablename__ = "emergency_responses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    request_id = Column(Integer, ForeignKey("emergency_requests.id"), nullable=False)
+    provider_id = Column(Integer, ForeignKey("service_providers.id"), nullable=False)
+    arrival_time = Column(DateTime, nullable=False)
+    # status: PENDING | ACCEPTED | REJECTED | CANCELLED
+    status = Column(String, default="PENDING", nullable=False)
+    penalty_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+    request = relationship("EmergencyRequest", back_populates="responses")
+    provider = relationship("ServiceProvider")
+
+
+class EmergencyStarAdjustment(Base):
+    __tablename__ = "emergency_star_adjustments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    provider_id = Column(Integer, ForeignKey("service_providers.id"), nullable=False)
+    adjusted_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    delta = Column(Float, nullable=False)         # positive = increase, negative = decrease
+    reason = Column(Text, nullable=False)
+    # event_type: AUTO_PENALTY | MANUAL_ADJUST | EMERGENCY_BONUS | REVIEW
+    event_type = Column(String, nullable=False)
+    emergency_request_id = Column(Integer, ForeignKey("emergency_requests.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    provider = relationship("ServiceProvider")
+    admin_user = relationship("User", foreign_keys=[adjusted_by])
