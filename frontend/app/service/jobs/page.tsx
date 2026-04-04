@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Briefcase, Clock, MapPin, CheckCircle, XCircle, ChevronRight, User, IndianRupee, Calendar, Send, X, FileText } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { useEffect, useRef, useState } from "react";
+import { Briefcase, Clock, MapPin, CheckCircle, XCircle, ChevronRight, User, IndianRupee, Calendar, Send, X, FileText, ShieldAlert } from "lucide-react";
+import { apiFetch, emergencyApi, createServicerAlertSocket, IncomingEmergencyRead } from "@/lib/api";
 import { useToast } from "@/lib/toast-context";
 import Link from "next/link";
 
@@ -37,7 +37,7 @@ interface IncomingRequest {
     status: string;
 }
 
-type JobTab = "jobs" | "requests";
+type JobTab = "jobs" | "requests" | "emergency";
 
 export default function ServicerJobsPage() {
     const [bookings, setBookings] = useState<Booking[]>([]);
@@ -54,6 +54,15 @@ export default function ServicerJobsPage() {
     const [resDuration, setResDuration] = useState(2);
     const [resMessage, setResMessage] = useState("");
     const [submittingResponse, setSubmittingResponse] = useState(false);
+    const [emergencies, setEmergencies] = useState<IncomingEmergencyRead[]>([]);
+    const [emergencyLoading, setEmergencyLoading] = useState(false);
+    const [emergencyCountdown, setEmergencyCountdown] = useState<Record<number, string>>({});
+    const [respondingToEmergency, setRespondingToEmergency] = useState<IncomingEmergencyRead | null>(null);
+    const [emergencyArrivalTime, setEmergencyArrivalTime] = useState("");
+    const [submittingEmergencyResponse, setSubmittingEmergencyResponse] = useState(false);
+    const [providerId, setProviderId] = useState<number | null>(null);
+    const emergencyWsRef = useRef<WebSocket | null>(null);
+
     const [countdown, setCountdown] = useState<Record<number, string>>({});
     const [completionTarget, setCompletionTarget] = useState<Booking | null>(null);
     const [compHours, setCompHours] = useState<number | "">("");
@@ -95,6 +104,61 @@ export default function ServicerJobsPage() {
                 .finally(() => setRequestsLoading(false));
         }
     }, [activeTab]);
+
+    // Fetch provider id once (needed for WebSocket)
+    useEffect(() => {
+        apiFetch("/services/providers/me")
+            .then((p: any) => setProviderId(p?.id ?? null))
+            .catch(() => {});
+    }, []);
+
+    // Load + WebSocket for emergency tab
+    useEffect(() => {
+        if (activeTab !== "emergency") return;
+        setEmergencyLoading(true);
+        emergencyApi.getIncoming()
+            .then(d => setEmergencies(d || []))
+            .catch(() => setEmergencies([]))
+            .finally(() => setEmergencyLoading(false));
+
+        if (providerId) {
+            const ws = createServicerAlertSocket(providerId);
+            emergencyWsRef.current = ws;
+            ws.onmessage = (evt) => {
+                try {
+                    const msg = JSON.parse(evt.data);
+                    if (msg.event === "emergency_alert") {
+                        emergencyApi.getIncoming().then(d => setEmergencies(d || [])).catch(() => {});
+                    } else if (msg.event === "request_cancelled") {
+                        setEmergencies(prev => prev.filter(e => e.id !== msg.request_id));
+                    }
+                } catch { /* ignore malformed frames */ }
+            };
+            return () => {
+                ws.close();
+                emergencyWsRef.current = null;
+            };
+        }
+    }, [activeTab, providerId]);
+
+    useEffect(() => {
+        if (emergencies.length === 0) return;
+        const tick = () => {
+            const now = Date.now();
+            const map: Record<number, string> = {};
+            emergencies.forEach(em => {
+                const diff = new Date(em.expires_at).getTime() - now;
+                if (diff <= 0) { map[em.id] = "Expired"; return; }
+                const m = Math.floor(diff / 60000);
+                const s = Math.floor((diff % 60000) / 1000);
+                map[em.id] = `${m}:${String(s).padStart(2, "0")}`;
+            });
+            setEmergencyCountdown(map);
+        };
+        tick();
+        const t = setInterval(tick, 1000);
+        return () => clearInterval(t);
+    }, [emergencies]);
 
     useEffect(() => {
         if (activeTab !== "requests" || incomingRequests.length === 0) return;
@@ -175,6 +239,33 @@ export default function ServicerJobsPage() {
         }
     };
 
+    const handleEmergencyRespond = async () => {
+        if (!respondingToEmergency || !emergencyArrivalTime) return;
+        setSubmittingEmergencyResponse(true);
+        try {
+            await emergencyApi.respond(respondingToEmergency.id, emergencyArrivalTime);
+            setEmergencies(prev => prev.map(e =>
+                e.id === respondingToEmergency.id ? { ...e, has_responded: true } : e
+            ));
+            setRespondingToEmergency(null);
+            setEmergencyArrivalTime("");
+            toast.success("Response submitted — waiting for user to accept.");
+        } catch (err: any) {
+            toast.error(err.message || "Failed to respond.");
+        } finally {
+            setSubmittingEmergencyResponse(false);
+        }
+    };
+
+    const handleEmergencyIgnore = async (id: number) => {
+        try {
+            await emergencyApi.ignore(id);
+            setEmergencies(prev => prev.filter(e => e.id !== id));
+        } catch (err: any) {
+            toast.error(err.message || "Failed to ignore.");
+        }
+    };
+
     return (
         <div className="space-y-8 animate-fade-in pb-12">
             {fetchError && (
@@ -198,6 +289,7 @@ export default function ServicerJobsPage() {
                 {([
                     { key: "jobs", label: "Active Jobs" },
                     { key: "requests", label: "Incoming Requests" },
+                    { key: "emergency", label: "Emergency SOS" },
                 ] as { key: JobTab; label: string }[]).map(tab => (
                     <button
                         key={tab.key}
@@ -210,6 +302,9 @@ export default function ServicerJobsPage() {
                     >
                         {tab.label}
                         {tab.key === "requests" && incomingRequests.length > 0 && (
+                            <span className="ml-2 inline-block w-2 h-2 bg-rose-500 rounded-full animate-pulse" />
+                        )}
+                        {tab.key === "emergency" && emergencies.filter(e => !e.has_responded).length > 0 && (
                             <span className="ml-2 inline-block w-2 h-2 bg-rose-500 rounded-full animate-pulse" />
                         )}
                     </button>
@@ -414,6 +509,140 @@ export default function ServicerJobsPage() {
                             })}
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* Emergency SOS tab */}
+            {activeTab === "emergency" && (
+                <div className="space-y-4">
+                    {emergencyLoading ? (
+                        <div className="text-center py-16 text-slate-400 text-sm">Loading emergencies...</div>
+                    ) : emergencies.length === 0 ? (
+                        <div className="text-center py-20 bg-white rounded-[3rem] border border-dashed border-slate-200">
+                            <ShieldAlert className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                            <p className="text-slate-500 font-black uppercase tracking-widest text-sm">No active emergencies</p>
+                            <p className="text-slate-300 text-xs mt-1">Open SOS requests will appear here in real time.</p>
+                        </div>
+                    ) : (
+                        emergencies.map(em => {
+                            const timeLeft = emergencyCountdown[em.id];
+                            const expired = timeLeft === "Expired";
+                            return (
+                                <div key={em.id} className={`bg-white border-2 rounded-2xl p-6 space-y-4 ${expired ? "border-slate-200 opacity-60" : em.has_responded ? "border-emerald-200" : "border-rose-300"}`}>
+                                    <div className="flex items-start justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${expired ? "bg-slate-100 text-slate-400" : "bg-rose-100 text-rose-600"}`}>
+                                                <ShieldAlert size={20} />
+                                            </div>
+                                            <div>
+                                                <p className="font-black text-slate-900 text-sm uppercase">{em.category}</p>
+                                                <p className="text-xs text-slate-500">{em.building_name}, {em.flat_no}</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            {timeLeft && (
+                                                <span className={`text-xs font-black px-3 py-1 rounded-full ${expired ? "bg-slate-100 text-slate-400" : "bg-rose-100 text-rose-600"}`}>
+                                                    {expired ? "Expired" : timeLeft}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3 text-xs text-slate-600">
+                                        <div><span className="font-black text-slate-400 uppercase text-[10px] block">Society</span>{em.society_name}</div>
+                                        <div><span className="font-black text-slate-400 uppercase text-[10px] block">Contact</span>{em.contact_name} · {em.contact_phone}</div>
+                                        <div className="col-span-2"><span className="font-black text-slate-400 uppercase text-[10px] block">Issue</span>{em.description}</div>
+                                        {em.device_name && <div className="col-span-2"><span className="font-black text-slate-400 uppercase text-[10px] block">Device</span>{em.device_name}</div>}
+                                    </div>
+
+                                    {(em.callout_fee != null || em.hourly_rate != null) && (
+                                        <div className="flex items-center gap-4 bg-slate-50 rounded-xl px-4 py-3 text-xs font-bold text-slate-600">
+                                            <IndianRupee size={14} className="text-slate-400" />
+                                            {em.callout_fee != null && <span>Callout ₹{em.callout_fee}</span>}
+                                            {em.hourly_rate != null && <span>+ ₹{em.hourly_rate}/hr after 1st hr</span>}
+                                        </div>
+                                    )}
+
+                                    {!expired && !em.has_responded && (
+                                        <div className="flex gap-3 pt-1">
+                                            <button
+                                                onClick={() => { setRespondingToEmergency(em); setEmergencyArrivalTime(""); }}
+                                                className="flex-1 py-3 bg-rose-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-rose-700 transition-all flex items-center justify-center gap-2"
+                                            >
+                                                <Send size={14} /> Respond
+                                            </button>
+                                            <button
+                                                onClick={() => handleEmergencyIgnore(em.id)}
+                                                className="px-5 py-3 border border-slate-200 text-slate-500 rounded-xl text-xs font-black uppercase hover:bg-slate-50 transition-all"
+                                            >
+                                                Ignore
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {em.has_responded && (
+                                        <p className="text-xs text-emerald-600 font-black flex items-center gap-1">
+                                            <CheckCircle size={14} /> Response submitted — awaiting user selection
+                                        </p>
+                                    )}
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+            )}
+
+            {/* Emergency Respond Modal */}
+            {respondingToEmergency && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl">
+                        <div className="p-8 space-y-5">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-lg font-black text-slate-900 uppercase">Respond to SOS</h2>
+                                    <p className="text-xs text-slate-500 mt-1">{respondingToEmergency.category} — {respondingToEmergency.building_name}</p>
+                                </div>
+                                <button onClick={() => setRespondingToEmergency(null)} className="p-2 hover:bg-slate-100 rounded-xl">
+                                    <X className="w-5 h-5 text-slate-500" />
+                                </button>
+                            </div>
+
+                            <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 text-xs text-rose-700 font-semibold space-y-1">
+                                <p>{respondingToEmergency.society_name}, {respondingToEmergency.flat_no}</p>
+                                <p>{respondingToEmergency.contact_name} · {respondingToEmergency.contact_phone}</p>
+                                {respondingToEmergency.callout_fee != null && (
+                                    <p className="font-black">Callout ₹{respondingToEmergency.callout_fee} + ₹{respondingToEmergency.hourly_rate}/hr</p>
+                                )}
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">
+                                    Committed Arrival Time *
+                                </label>
+                                <input
+                                    type="datetime-local"
+                                    value={emergencyArrivalTime}
+                                    onChange={e => setEmergencyArrivalTime(e.target.value)}
+                                    min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+                                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-rose-400"
+                                />
+                                <p className="text-[10px] text-slate-400">Must be in the future. User will see this when deciding.</p>
+                            </div>
+
+                            <div className="flex gap-3 pt-2">
+                                <button onClick={() => setRespondingToEmergency(null)} className="flex-1 py-3 border border-slate-200 rounded-2xl text-sm font-black uppercase text-slate-500 hover:bg-slate-50 transition-colors">
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleEmergencyRespond}
+                                    disabled={submittingEmergencyResponse || !emergencyArrivalTime}
+                                    className="flex-1 py-3 bg-rose-600 text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-rose-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                >
+                                    {submittingEmergencyResponse ? "Submitting..." : <><Send size={16} /> Submit</>}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
 
