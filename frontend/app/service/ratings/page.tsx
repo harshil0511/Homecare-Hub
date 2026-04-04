@@ -51,7 +51,7 @@ export default function ServicerRatingsPage() {
                     totalCompleted: completed.length
                 });
             } catch (err: any) {
-                if (err instanceof TypeError || err?.message?.toLowerCase().includes("failed to fetch") || err?.message?.toLowerCase().includes("timed out")) {
+                if ((err instanceof TypeError && err.message.toLowerCase().includes("failed to fetch")) || err?.message?.toLowerCase().includes("timed out") || err?.message?.toLowerCase().includes("request timed out")) {
                     setFetchError("Could not connect to the server. Please ensure the backend is running.");
                 } else {
                     console.error("Failed to fetch ratings data", err);

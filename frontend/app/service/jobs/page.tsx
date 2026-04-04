@@ -63,6 +63,7 @@ export default function ServicerJobsPage() {
     const toast = useToast();
 
     const fetchJobs = async () => {
+        setFetchError(null);
         try {
             const data = await apiFetch("/bookings/incoming");
             setBookings(data || []);
@@ -71,7 +72,7 @@ export default function ServicerJobsPage() {
             if (err?.message?.toLowerCase().includes("provider profile not found") ||
                 err?.message?.toLowerCase().includes("not found")) {
                 setBookings([]);
-            } else if (err instanceof TypeError || err?.message?.toLowerCase().includes("failed to fetch") || err?.message?.toLowerCase().includes("timed out")) {
+            } else if ((err instanceof TypeError && err.message.toLowerCase().includes("failed to fetch")) || err?.message?.toLowerCase().includes("timed out") || err?.message?.toLowerCase().includes("request timed out")) {
                 setFetchError("Could not connect to the server. Please ensure the backend is running.");
             } else {
                 console.error("Failed to fetch jobs", err);

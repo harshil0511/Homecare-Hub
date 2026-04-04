@@ -91,8 +91,13 @@ export default function ServicerProfilePage() {
                 setLastName(prov.last_name || "");
                 setPhone(prov.phone || "");
                 setBio(prov.bio || "");
-                const cats = Array.isArray(prov.categories) ? prov.categories :
-                    (typeof prov.categories === "string" ? JSON.parse(prov.categories || "[]") : []);
+                let cats: string[] = [];
+                try {
+                    cats = Array.isArray(prov.categories) ? prov.categories :
+                        JSON.parse(prov.categories || "[]");
+                } catch {
+                    cats = [];
+                }
                 setSelectedCategories(cats);
                 setHourlyRate(prov.hourly_rate || "");
                 setExperienceYears(prov.experience_years || "");
@@ -123,8 +128,10 @@ export default function ServicerProfilePage() {
             setProfileError("Profile photo must be under 5MB.");
             return;
         }
+        if (photoPreview) URL.revokeObjectURL(photoPreview);
         setPhotoFile(file);
         setPhotoPreview(URL.createObjectURL(file));
+        setProfileError("");
     };
 
     const isProfileValid = firstName.trim() && lastName.trim() && phone.trim() && bio.trim() && selectedCategories.length > 0 && hourlyRate !== "" && Number(hourlyRate) > 0;
@@ -435,7 +442,16 @@ export default function ServicerProfilePage() {
                         </div>
                     </div>
                     <button
-                        onClick={() => { setShowCertForm(v => !v); setCertError(""); }}
+                        onClick={() => {
+                            if (showCertForm) {
+                                setCertFile(null);
+                                setCertTitle("");
+                                setCertCategory("");
+                                if (certFileInputRef.current) certFileInputRef.current.value = "";
+                            }
+                            setShowCertForm(v => !v);
+                            setCertError("");
+                        }}
                         className="flex items-center gap-1.5 bg-[#064e3b] text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl hover:bg-emerald-950 transition-all"
                     >
                         {showCertForm ? <X className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
