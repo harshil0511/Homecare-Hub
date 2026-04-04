@@ -630,6 +630,8 @@ class EmergencyRequestCreate(BaseModel):
     @field_validator("description")
     @classmethod
     def validate_description(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("description cannot be empty")
         if len(v) > 500:
             raise ValueError("description cannot exceed 500 characters")
         return v
@@ -693,9 +695,8 @@ class EmergencyRequestRead(BaseModel):
     def parse_photos(cls, v):
         if isinstance(v, str):
             try:
-                import json
                 return json.loads(v)
-            except Exception:
+            except (json.JSONDecodeError, ValueError):
                 return []
         return v or []
 
@@ -708,12 +709,26 @@ class EmergencyRequestRead(BaseModel):
 class EmergencyResponseCreate(BaseModel):
     arrival_time: datetime
 
+    @field_validator("arrival_time")
+    @classmethod
+    def arrival_must_be_future(cls, v: datetime) -> datetime:
+        if v <= datetime.utcnow():
+            raise ValueError("arrival_time must be in the future")
+        return v
+
 
 # --- Star Adjustments ---
 
 class EmergencyStarAdjustCreate(BaseModel):
     delta: float
     reason: str
+
+    @field_validator("delta")
+    @classmethod
+    def validate_delta_bounds(cls, v: float) -> float:
+        if abs(v) > 5.0:
+            raise ValueError("delta cannot exceed ±5.0 stars")
+        return v
 
     @field_validator("reason")
     @classmethod
@@ -770,9 +785,8 @@ class IncomingEmergencyRead(BaseModel):
     def parse_photos(cls, v):
         if isinstance(v, str):
             try:
-                import json
                 return json.loads(v)
-            except Exception:
+            except (json.JSONDecodeError, ValueError):
                 return []
         return v or []
 
