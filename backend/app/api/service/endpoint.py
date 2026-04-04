@@ -3,7 +3,7 @@ import uuid
 import json
 import logging
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.internal import deps
@@ -19,6 +19,8 @@ from app.internal.schemas import (
 )
 
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads", "profile_photos")
+CERT_UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads", "certificates")
+os.makedirs(CERT_UPLOAD_DIR, exist_ok=True)
 
 router = APIRouter(tags=["Service & Community CRUD API"])
 
@@ -359,6 +361,64 @@ def upload_certificate(
     db.commit()
     db.refresh(db_cert)
     return db_cert
+
+@router.post("/providers/certificates/upload", response_model=CertificateResponse)
+async def upload_certificate_file(
+    file: UploadFile = File(...),
+    category: str = Form(...),
+    title: str = Form(...),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
+):
+    provider = db.query(ServiceProvider).filter(ServiceProvider.user_id == current_user.id).first()
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider profile not found. Complete your profile setup first.")
+
+    allowed_types = {"application/pdf", "image/jpeg", "image/png"}
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Only PDF, JPEG, and PNG files are allowed.")
+
+    contents = await file.read()
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File size must not exceed 5MB.")
+
+    filename = f"{uuid.uuid4()}_{file.filename}"
+    file_path = os.path.join(CERT_UPLOAD_DIR, filename)
+    with open(file_path, "wb") as f:
+        f.write(contents)
+
+    cert_url = f"/uploads/certificates/{filename}"
+    db_cert = ServiceCertificate(
+        provider_id=provider.id,
+        category=category,
+        title=title,
+        certificate_url=cert_url,
+        is_verified=False,
+    )
+    db.add(db_cert)
+    db.commit()
+    db.refresh(db_cert)
+    return db_cert
+
+@router.delete("/providers/certificates/{cert_id}")
+def delete_certificate(
+    cert_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
+):
+    provider = db.query(ServiceProvider).filter(ServiceProvider.user_id == current_user.id).first()
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider profile not found.")
+
+    cert = db.query(ServiceCertificate).filter(ServiceCertificate.id == cert_id).first()
+    if not cert:
+        raise HTTPException(status_code=404, detail="Certificate not found.")
+    if cert.provider_id != provider.id:
+        raise HTTPException(status_code=403, detail="You do not have permission to delete this certificate.")
+
+    db.delete(cert)
+    db.commit()
+    return {"message": "Certificate deleted successfully."}
 
 @router.patch("/providers/me", response_model=ProviderResponse)
 def update_provider_profile(
