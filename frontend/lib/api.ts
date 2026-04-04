@@ -47,15 +47,16 @@ export async function apiFetch(endpoint: string, options: ApiOptions = {}) {
     const isDev = process.env.NODE_ENV === "development";
     if (isDev) console.log(`🚀 [apiFetch] Requesting: ${url}`);
 
+    const timerKey = `fetch:${endpoint}:${Date.now()}`;
     try {
-        if (isDev) console.time(`fetch:${endpoint}`);
+        if (isDev) console.time(timerKey);
         const res = await fetch(url, {
             ...fetchOptions,
             headers,
             signal: controller.signal,
         });
 
-        if (isDev) console.timeEnd(`fetch:${endpoint}`);
+        if (isDev) console.timeEnd(timerKey);
         clearTimeout(id);
 
         if (!res.ok) {
@@ -107,3 +108,209 @@ export async function apiFetch(endpoint: string, options: ApiOptions = {}) {
     }
 }
 
+
+// ── Emergency SOS API Helpers ──────────────────────────────────────────────────
+
+export interface EmergencyConfig {
+    id: number;
+    category: string;
+    callout_fee: number;
+    hourly_rate: number;
+    updated_by?: number | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+}
+
+export interface EmergencyPenaltyConfig {
+    id: number;
+    event_type: string;
+    star_deduction: number;
+    updated_by?: number | null;
+    updated_at?: string | null;
+}
+
+export interface ProviderBasic {
+    id: number;
+    first_name?: string | null;
+    company_name?: string | null;
+    owner_name?: string | null;
+    category?: string | null;
+    rating?: number | null;
+    availability_status?: string | null;
+    is_verified?: boolean;
+}
+
+export interface EmergencyResponseRead {
+    id: number;
+    request_id: number;
+    provider_id: number;
+    arrival_time: string;
+    status: string;
+    penalty_count: number;
+    created_at?: string | null;
+    updated_at?: string | null;
+    provider?: ProviderBasic | null;
+}
+
+export interface EmergencyRequestRead {
+    id: number;
+    user_id: number;
+    society_name: string;
+    building_name: string;
+    flat_no: string;
+    landmark: string;
+    full_address: string;
+    category: string;
+    description: string;
+    device_name?: string | null;
+    photos?: string[] | null;
+    contact_name: string;
+    contact_phone: string;
+    status: string;
+    config_id?: number | null;
+    expires_at: string;
+    resulting_booking_id?: number | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+    responses?: EmergencyResponseRead[];
+    config?: EmergencyConfig | null;
+}
+
+export interface IncomingEmergencyRead {
+    id: number;
+    society_name: string;
+    building_name: string;
+    flat_no: string;
+    landmark: string;
+    full_address: string;
+    category: string;
+    description: string;
+    device_name?: string | null;
+    photos?: string[] | null;
+    contact_name: string;
+    contact_phone: string;
+    expires_at: string;
+    created_at?: string | null;
+    callout_fee?: number | null;
+    hourly_rate?: number | null;
+    has_responded: boolean;
+}
+
+export interface EmergencyRequestCreate {
+    society_name: string;
+    building_name: string;
+    flat_no: string;
+    landmark: string;
+    full_address: string;
+    category: string;
+    description: string;
+    device_name?: string;
+    photos?: string[];
+    contact_name: string;
+    contact_phone: string;
+    provider_ids: number[];
+}
+
+export interface EmergencyStarAdjustCreate {
+    delta: number;
+    reason: string;
+}
+
+export interface EmergencyStarAdjustRead {
+    id: number;
+    provider_id: number;
+    adjusted_by: number;
+    delta: number;
+    reason: string;
+    event_type: string;
+    emergency_request_id?: number | null;
+    created_at?: string | null;
+}
+
+// User + Servicer facing
+export const emergencyApi = {
+    getConfigs: (): Promise<EmergencyConfig[]> =>
+        apiFetch("/emergency/config"),
+
+    getProviders: (category?: string): Promise<ProviderBasic[]> =>
+        apiFetch(`/emergency/providers${category ? `?category=${encodeURIComponent(category)}` : ""}`),
+
+    create: (body: EmergencyRequestCreate): Promise<EmergencyRequestRead> =>
+        apiFetch("/emergency/", { method: "POST", body: JSON.stringify(body) }),
+
+    getRequest: (id: number): Promise<EmergencyRequestRead> =>
+        apiFetch(`/emergency/${id}`),
+
+    accept: (requestId: number, responseId: number): Promise<unknown> =>
+        apiFetch(`/emergency/${requestId}/accept/${responseId}`, { method: "POST" }),
+
+    cancel: (requestId: number): Promise<{ detail: string }> =>
+        apiFetch(`/emergency/${requestId}/cancel`, { method: "POST" }),
+
+    getIncoming: (): Promise<IncomingEmergencyRead[]> =>
+        apiFetch("/emergency/incoming-servicer"),
+
+    respond: (requestId: number, arrival_time: string): Promise<EmergencyResponseRead> =>
+        apiFetch(`/emergency/${requestId}/respond`, {
+            method: "POST",
+            body: JSON.stringify({ arrival_time }),
+        }),
+
+    ignore: (requestId: number): Promise<{ detail: string }> =>
+        apiFetch(`/emergency/${requestId}/ignore`, { method: "POST" }),
+};
+
+// Admin-facing
+export const adminEmergencyApi = {
+    getConfigs: (): Promise<EmergencyConfig[]> =>
+        apiFetch("/admin/emergency/config"),
+
+    createConfig: (body: { category: string; callout_fee: number; hourly_rate: number }): Promise<EmergencyConfig> =>
+        apiFetch("/admin/emergency/config", { method: "POST", body: JSON.stringify(body) }),
+
+    updateConfig: (id: number, body: { callout_fee?: number; hourly_rate?: number }): Promise<EmergencyConfig> =>
+        apiFetch(`/admin/emergency/config/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+
+    getPenalties: (): Promise<EmergencyPenaltyConfig[]> =>
+        apiFetch("/admin/emergency/penalty"),
+
+    updatePenalty: (eventType: string, star_deduction: number): Promise<EmergencyPenaltyConfig> =>
+        apiFetch(`/admin/emergency/penalty/${encodeURIComponent(eventType)}`, {
+            method: "PATCH",
+            body: JSON.stringify({ star_deduction }),
+        }),
+
+    getRequests: (status?: string): Promise<EmergencyRequestRead[]> =>
+        apiFetch(`/admin/emergency/requests${status ? `?status=${encodeURIComponent(status)}` : ""}`),
+
+    getRequest: (id: number): Promise<EmergencyRequestRead> =>
+        apiFetch(`/admin/emergency/requests/${id}`),
+
+    starAdjust: (providerId: number, body: EmergencyStarAdjustCreate): Promise<EmergencyStarAdjustRead> =>
+        apiFetch(`/admin/emergency/star-adjust/${providerId}`, {
+            method: "POST",
+            body: JSON.stringify(body),
+        }),
+
+    getStarAdjustments: (providerId: number): Promise<EmergencyStarAdjustRead[]> =>
+        apiFetch(`/admin/emergency/star-adjust/${providerId}`),
+
+    updateProviderStatus: (providerId: number, is_active: boolean, reason?: string): Promise<{ detail: string }> =>
+        apiFetch(`/admin/emergency/provider/${providerId}/status`, {
+            method: "PATCH",
+            body: JSON.stringify({ is_active, reason }),
+        }),
+};
+
+// WebSocket helpers
+const WS_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000")
+    .replace(/\/$/, "")
+    .replace(/^http/, "ws");
+
+export function createUserEmergencySocket(requestId: number): WebSocket {
+    return new WebSocket(`${WS_BASE}/ws/emergency/${requestId}`);
+}
+
+export function createServicerAlertSocket(providerId: number): WebSocket {
+    return new WebSocket(`${WS_BASE}/ws/servicer/alerts?provider_id=${providerId}`);
+}
