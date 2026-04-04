@@ -6,12 +6,12 @@ import {
     Building2, Users, Bell, Wrench, ChevronRight,
     MapPin, Hash, ShieldCheck, Edit2, Save, X,
     AlertTriangle, CheckCircle2, Clock, Circle,
-    Star, Send, Zap
+    Star, Send, Zap, Home, Plus
 } from "lucide-react";
 import Link from "next/link";
 
 interface Society { id: number; name: string; address: string; registration_number?: string; secretary_name?: string; }
-interface Member { id: number; username: string; email: string; is_active: boolean; }
+interface Member { id: number; username: string; email: string; is_active: boolean; home_number?: string | null; resident_name?: string | null; }
 interface Alert { id: number; title: string; status: string; priority: string; created_at: string; user_id: number; }
 interface Provider { id: number; company_name: string; category: string; rating: number; availability_status: string; phone: string; }
 
@@ -55,6 +55,11 @@ export default function SecretaryDashboard() {
     const [editAddress, setEditAddress] = useState("");
     const [saving, setSaving] = useState(false);
 
+    // Add Home modal state
+    const [showAddHome, setShowAddHome] = useState(false);
+    const [homeForm, setHomeForm] = useState({ member_id: "", home_number: "", resident_name: "" });
+    const [addingHome, setAddingHome] = useState(false);
+
     useEffect(() => {
         Promise.all([
             apiFetch("/secretary/society").catch(() => null),
@@ -83,6 +88,23 @@ export default function SecretaryDashboard() {
         } catch {
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleAddHome = async () => {
+        if (!homeForm.member_id || !homeForm.home_number || !homeForm.resident_name) return;
+        setAddingHome(true);
+        try {
+            const updated = await apiFetch(`/secretary/members/${homeForm.member_id}/home`, {
+                method: "PATCH",
+                body: JSON.stringify({ home_number: homeForm.home_number, resident_name: homeForm.resident_name }),
+            });
+            setMembers(prev => prev.map(m => m.id === updated.id ? { ...m, home_number: updated.home_number, resident_name: updated.resident_name } : m));
+            setShowAddHome(false);
+            setHomeForm({ member_id: "", home_number: "", resident_name: "" });
+        } catch {
+        } finally {
+            setAddingHome(false);
         }
     };
 
@@ -364,6 +386,124 @@ export default function SecretaryDashboard() {
                     </div>
                 )}
             </div>
+
+            {/* Society Homes */}
+            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                        <Home className="w-4 h-4 text-emerald-600" />
+                        <span className="text-sm font-black text-slate-900 uppercase tracking-wide">Society Homes</span>
+                        <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
+                            {members.filter(m => m.home_number).length} registered
+                        </span>
+                    </div>
+                    <button
+                        onClick={() => setShowAddHome(true)}
+                        className="flex items-center gap-1.5 text-[10px] font-black text-white bg-[#064e3b] px-3 py-2 rounded-xl hover:bg-emerald-950 transition-colors uppercase tracking-widest"
+                    >
+                        <Plus className="w-3.5 h-3.5" /> Add Home
+                    </button>
+                </div>
+
+                {members.filter(m => m.home_number).length === 0 ? (
+                    <div className="text-center py-10 text-slate-400">
+                        <Home className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                        <p className="text-xs font-bold uppercase tracking-widest">No homes registered yet</p>
+                        <p className="text-[10px] text-slate-400 mt-1">Click &quot;Add Home&quot; to assign flat numbers to members</p>
+                    </div>
+                ) : (
+                    <div className="p-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                        {members
+                            .filter(m => m.home_number)
+                            .sort((a, b) => (a.home_number ?? "").localeCompare(b.home_number ?? ""))
+                            .map(m => (
+                                <div key={m.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col items-center text-center gap-1">
+                                    <div className="w-10 h-10 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center justify-center mb-1">
+                                        <Home className="w-5 h-5 text-emerald-700" />
+                                    </div>
+                                    <p className="text-base font-black text-slate-900">{m.home_number}</p>
+                                    <p className="text-[10px] font-bold text-slate-500 truncate w-full">{m.resident_name ?? m.username}</p>
+                                </div>
+                            ))
+                        }
+                    </div>
+                )}
+            </div>
+
+            {/* Add Home Modal */}
+            {showAddHome && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 w-full max-w-sm mx-4">
+                        <div className="flex items-center justify-between mb-5">
+                            <div className="flex items-center gap-2">
+                                <Home className="w-4 h-4 text-emerald-700" />
+                                <span className="text-sm font-black text-slate-900 uppercase tracking-wide">Add Home</span>
+                            </div>
+                            <button onClick={() => { setShowAddHome(false); setHomeForm({ member_id: "", home_number: "", resident_name: "" }); }}
+                                className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 transition-colors">
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-3">
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Member</label>
+                                <select
+                                    value={homeForm.member_id}
+                                    onChange={e => {
+                                        const m = members.find(m => m.id === Number(e.target.value));
+                                        setHomeForm(f => ({ ...f, member_id: e.target.value, resident_name: m?.username ?? "" }));
+                                    }}
+                                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600"
+                                >
+                                    <option value="">Select a member...</option>
+                                    {members.map(m => (
+                                        <option key={m.id} value={m.id}>
+                                            {m.username}{m.home_number ? ` (${m.home_number})` : ""}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Flat / Home Number</label>
+                                <input
+                                    value={homeForm.home_number}
+                                    onChange={e => setHomeForm(f => ({ ...f, home_number: e.target.value }))}
+                                    placeholder="e.g. A-101"
+                                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 placeholder:text-slate-400"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Resident Name</label>
+                                <input
+                                    value={homeForm.resident_name}
+                                    onChange={e => setHomeForm(f => ({ ...f, resident_name: e.target.value }))}
+                                    placeholder="Full name of resident"
+                                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 placeholder:text-slate-400"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex gap-2 mt-5">
+                            <button
+                                onClick={() => { setShowAddHome(false); setHomeForm({ member_id: "", home_number: "", resident_name: "" }); }}
+                                className="flex-1 px-4 py-2.5 rounded-xl text-[10px] font-black text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors uppercase tracking-widest"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleAddHome}
+                                disabled={addingHome || !homeForm.member_id || !homeForm.home_number || !homeForm.resident_name}
+                                className="flex-1 px-4 py-2.5 rounded-xl text-[10px] font-black text-white bg-[#064e3b] hover:bg-emerald-950 transition-colors disabled:opacity-50 uppercase tracking-widest"
+                            >
+                                {addingHome ? "Saving..." : "Save Home"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
