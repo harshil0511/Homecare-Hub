@@ -120,6 +120,7 @@ class ServiceCertificate(Base):
     id = Column(Integer, primary_key=True, index=True)
     provider_id = Column(Integer, ForeignKey("service_providers.id"))
     category = Column(String)
+    title = Column(String, nullable=True)
     certificate_url = Column(String)
     is_verified = Column(Boolean, default=False)
     uploaded_at = Column(DateTime, default=datetime.datetime.utcnow)

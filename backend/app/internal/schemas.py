@@ -18,7 +18,9 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
-    society_id: Optional[int] = None   # required when role == SECRETARY
+    society_id: Optional[int] = None       # legacy — kept for compatibility
+    society_name: Optional[str] = None     # secretary provides this to create a new society
+    society_address: Optional[str] = None  # secretary provides this to create a new society
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -142,6 +144,7 @@ class ProviderResponse(ProviderBase):
 
 class CertificateBase(BaseModel):
     category: str
+    title: Optional[str] = None
     certificate_url: str
     is_verified: bool = False
 
@@ -189,6 +192,12 @@ class BookingCreate(BookingBase):
 class BookingUpdate(BaseModel):
     status: Optional[str] = None
     scheduled_at: Optional[datetime] = None
+
+class BookingStatusUpdate(BaseModel):
+    status: str
+    final_cost: Optional[float] = None
+    actual_hours: Optional[float] = None
+    completion_notes: Optional[str] = None
 
 class BookingReschedule(BaseModel):
     new_date: datetime
@@ -251,6 +260,10 @@ class BookingRead(BookingBase):
     id: int
     user_id: int
     status: str
+    final_cost: Optional[float] = None
+    actual_hours: Optional[float] = None
+    completion_notes: Optional[str] = None
+    completion_photos: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -262,6 +275,24 @@ class BookingDetailRead(BookingRead):
     chats: List[ChatRead] = []
     review: Optional[ReviewRead] = None
     provider: ProviderResponse
+
+    class Config:
+        from_attributes = True
+
+class ReceiptRead(BaseModel):
+    booking_id: int
+    service_type: str
+    status: str
+    scheduled_at: datetime
+    estimated_cost: float
+    final_cost: Optional[float] = None
+    actual_hours: Optional[float] = None
+    completion_notes: Optional[str] = None
+    provider_name: str
+    provider_id: int
+    user_id: int
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True
