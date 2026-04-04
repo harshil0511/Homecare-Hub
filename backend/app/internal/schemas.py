@@ -205,17 +205,6 @@ class BookingReschedule(BaseModel):
 class BookingCancel(BaseModel):
     reason: str
 
-class EmergencyCreate(BaseModel):
-    category: str
-    description: str
-    location: Optional[str] = None
-
-class EmergencyResponse(BaseModel):
-    provider_found: bool
-    booking_id: Optional[int] = None
-    provider_name: Optional[str] = None
-    provider_id: Optional[int] = None
-    redirect_url: Optional[str] = None
 
 class BookingStatusHistoryRead(BaseModel):
     id: int
@@ -526,6 +515,262 @@ class IncomingServiceRequestRead(BaseModel):
     def parse_json_list(cls, v):
         if isinstance(v, str):
             try:
+                return json.loads(v)
+            except Exception:
+                return []
+        return v or []
+
+    class Config:
+        from_attributes = True
+
+
+# ────────────────────────────────────────────────────────────
+# Emergency SOS Schemas
+# ────────────────────────────────────────────────────────────
+
+EMERGENCY_CATEGORY_OPTIONS = [
+    "Electrical", "Plumbing", "Gas Leak", "Lock/Door",
+    "Appliance Failure", "Structural", "Pest", "Other",
+]
+
+# --- Config (Admin manages) ---
+
+class EmergencyConfigCreate(BaseModel):
+    category: str
+    callout_fee: float
+    hourly_rate: float
+
+    @field_validator("category")
+    @classmethod
+    def validate_category(cls, v: str) -> str:
+        if v not in EMERGENCY_CATEGORY_OPTIONS:
+            raise ValueError(f"category must be one of: {EMERGENCY_CATEGORY_OPTIONS}")
+        return v
+
+    @field_validator("callout_fee", "hourly_rate")
+    @classmethod
+    def validate_positive(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError("Fee/rate cannot be negative")
+        return v
+
+
+class EmergencyConfigUpdate(BaseModel):
+    callout_fee: Optional[float] = None
+    hourly_rate: Optional[float] = None
+
+    @field_validator("callout_fee", "hourly_rate")
+    @classmethod
+    def validate_positive(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and v < 0:
+            raise ValueError("Fee/rate cannot be negative")
+        return v
+
+
+class EmergencyConfigRead(BaseModel):
+    id: int
+    category: str
+    callout_fee: float
+    hourly_rate: float
+    updated_by: Optional[int] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# --- Penalty Config ---
+
+class EmergencyPenaltyConfigUpdate(BaseModel):
+    star_deduction: float
+
+    @field_validator("star_deduction")
+    @classmethod
+    def validate_positive(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError("star_deduction cannot be negative")
+        return v
+
+
+class EmergencyPenaltyConfigRead(BaseModel):
+    id: int
+    event_type: str
+    star_deduction: float
+    updated_by: Optional[int] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# --- Emergency Request ---
+
+class EmergencyRequestCreate(BaseModel):
+    society_name: str
+    building_name: str
+    flat_no: str
+    landmark: str
+    full_address: str
+    category: str
+    description: str
+    device_name: Optional[str] = None
+    photos: Optional[List[str]] = []
+    contact_name: str
+    contact_phone: str
+    provider_ids: List[int]
+
+    @field_validator("category")
+    @classmethod
+    def validate_category(cls, v: str) -> str:
+        if v not in EMERGENCY_CATEGORY_OPTIONS:
+            raise ValueError(f"category must be one of: {EMERGENCY_CATEGORY_OPTIONS}")
+        return v
+
+    @field_validator("description")
+    @classmethod
+    def validate_description(cls, v: str) -> str:
+        if len(v) > 500:
+            raise ValueError("description cannot exceed 500 characters")
+        return v
+
+    @field_validator("photos")
+    @classmethod
+    def validate_photos(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        if v and len(v) > 3:
+            raise ValueError("Maximum 3 photos allowed")
+        return v
+
+    @field_validator("provider_ids")
+    @classmethod
+    def validate_providers(cls, v: List[int]) -> List[int]:
+        if not v:
+            raise ValueError("At least one provider must be selected")
+        if len(v) != len(set(v)):
+            raise ValueError("Duplicate provider IDs are not allowed")
+        return v
+
+
+class EmergencyResponseRead(BaseModel):
+    id: int
+    request_id: int
+    provider_id: int
+    arrival_time: datetime
+    status: str
+    penalty_count: int
+    created_at: Optional[datetime] = None
+    provider: Optional[ProviderResponse] = None
+
+    class Config:
+        from_attributes = True
+
+
+class EmergencyRequestRead(BaseModel):
+    id: int
+    user_id: int
+    society_name: str
+    building_name: str
+    flat_no: str
+    landmark: str
+    full_address: str
+    category: str
+    description: str
+    device_name: Optional[str] = None
+    photos: Optional[List[str]] = []
+    contact_name: str
+    contact_phone: str
+    status: str
+    config_id: Optional[int] = None
+    expires_at: datetime
+    resulting_booking_id: Optional[int] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    responses: List[EmergencyResponseRead] = []
+    config: Optional[EmergencyConfigRead] = None
+
+    @field_validator("photos", mode="before")
+    @classmethod
+    def parse_photos(cls, v):
+        if isinstance(v, str):
+            try:
+                import json
+                return json.loads(v)
+            except Exception:
+                return []
+        return v or []
+
+    class Config:
+        from_attributes = True
+
+
+# --- Servicer Response ---
+
+class EmergencyResponseCreate(BaseModel):
+    arrival_time: datetime
+
+
+# --- Star Adjustments ---
+
+class EmergencyStarAdjustCreate(BaseModel):
+    delta: float
+    reason: str
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("reason cannot be empty")
+        return v
+
+
+class EmergencyStarAdjustRead(BaseModel):
+    id: int
+    provider_id: int
+    adjusted_by: int
+    delta: float
+    reason: str
+    event_type: str
+    emergency_request_id: Optional[int] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# --- Admin Provider Status ---
+
+class AdminProviderStatusUpdate(BaseModel):
+    is_active: bool
+    reason: Optional[str] = None
+
+
+# --- Incoming Emergency (Servicer side) ---
+
+class IncomingEmergencyRead(BaseModel):
+    id: int
+    society_name: str
+    building_name: str
+    flat_no: str
+    landmark: str
+    full_address: str
+    category: str
+    description: str
+    device_name: Optional[str] = None
+    photos: Optional[List[str]] = []
+    contact_name: str
+    contact_phone: str
+    expires_at: datetime
+    created_at: Optional[datetime] = None
+    callout_fee: Optional[float] = None
+    hourly_rate: Optional[float] = None
+    has_responded: bool = False
+
+    @field_validator("photos", mode="before")
+    @classmethod
+    def parse_photos(cls, v):
+        if isinstance(v, str):
+            try:
+                import json
                 return json.loads(v)
             except Exception:
                 return []
