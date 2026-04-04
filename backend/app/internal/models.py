@@ -114,6 +114,8 @@ class ServiceProvider(Base):
     certificates = relationship("ServiceCertificate", back_populates="provider")
     received_requests = relationship("ServiceRequestRecipient", back_populates="provider")
     submitted_responses = relationship("ServiceRequestResponse", back_populates="provider")
+    emergency_responses = relationship("EmergencyResponse", back_populates="provider")
+    star_adjustments = relationship("EmergencyStarAdjustment", back_populates="provider")
 
 class ServiceCertificate(Base):
     __tablename__ = "service_certificates"
@@ -313,8 +315,8 @@ class EmergencyConfig(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     category = Column(String, unique=True, nullable=False)   # e.g. "Electrical"
-    callout_fee = Column(Float, default=0.0)                 # Flat fee for first hour
-    hourly_rate = Column(Float, default=0.0)                 # Rate billed per hour after hour 1
+    callout_fee = Column(Float, nullable=False, default=0.0)  # Flat fee for first hour
+    hourly_rate = Column(Float, nullable=False, default=0.0)  # Rate billed per hour after hour 1
     updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
@@ -328,7 +330,7 @@ class EmergencyPenaltyConfig(Base):
     id = Column(Integer, primary_key=True, index=True)
     # event_type: LATE_ARRIVAL | CANCELLATION | NO_SHOW
     event_type = Column(String, unique=True, nullable=False)
-    star_deduction = Column(Float, default=0.5)
+    star_deduction = Column(Float, nullable=False, default=0.5)
     updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
@@ -351,7 +353,7 @@ class EmergencyRequest(Base):
     contact_name = Column(String, nullable=False)
     contact_phone = Column(String, nullable=False)
     # status: PENDING | ACTIVE | COMPLETED | CANCELLED | EXPIRED
-    status = Column(String, default="PENDING", nullable=False)
+    status = Column(String, default="PENDING", nullable=False, index=True)
     config_id = Column(Integer, ForeignKey("emergency_config.id"), nullable=True)
     expires_at = Column(DateTime, nullable=False)
     resulting_booking_id = Column(Integer, ForeignKey("service_bookings.id"), nullable=True)
@@ -372,13 +374,13 @@ class EmergencyResponse(Base):
     provider_id = Column(Integer, ForeignKey("service_providers.id"), nullable=False)
     arrival_time = Column(DateTime, nullable=False)
     # status: PENDING | ACCEPTED | REJECTED | CANCELLED
-    status = Column(String, default="PENDING", nullable=False)
+    status = Column(String, default="PENDING", nullable=False, index=True)
     penalty_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
     request = relationship("EmergencyRequest", back_populates="responses")
-    provider = relationship("ServiceProvider")
+    provider = relationship("ServiceProvider", back_populates="emergency_responses")
 
 
 class EmergencyStarAdjustment(Base):
@@ -394,5 +396,5 @@ class EmergencyStarAdjustment(Base):
     emergency_request_id = Column(Integer, ForeignKey("emergency_requests.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
-    provider = relationship("ServiceProvider")
+    provider = relationship("ServiceProvider", back_populates="star_adjustments")
     admin_user = relationship("User", foreign_keys=[adjusted_by])
