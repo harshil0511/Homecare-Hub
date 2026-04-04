@@ -7,8 +7,8 @@ from typing import List, Optional
 
 from app.internal import models, schemas, deps
 from app.internal.services import (
-    find_verified_provider, get_provider_display_name,
-    ALLOWED_CATEGORIES, BOOKING_CONFLICT_WINDOW_HOURS, EMERGENCY_RATE_MULTIPLIER,
+    get_provider_display_name,
+    ALLOWED_CATEGORIES, BOOKING_CONFLICT_WINDOW_HOURS,
 )
 
 logger = logging.getLogger(__name__)
@@ -136,7 +136,7 @@ def get_incoming_bookings(
 @router.patch("/{booking_id}/status", response_model=schemas.BookingRead)
 def update_booking_status(
     booking_id: int,
-    booking_update: schemas.BookingUpdate,
+    booking_update: schemas.BookingStatusUpdate,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user)
 ):
@@ -151,50 +151,48 @@ def update_booking_status(
     if not is_provider and not is_owner:
         raise HTTPException(status_code=403, detail="Not authorized to update this booking")
 
-    # Added: Notify relevant party of status change if it actually changed
-    old_status = getattr(booking, "status", None)
-    
-    update_data = booking_update.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(booking, field, value)
+    old_status = booking.status
+    new_status = booking_update.status
 
-    if "status" in update_data and update_data["status"] != old_status:
-        notif_title = f"Booking {update_data['status']}"
-        notif_msg = f"Your project for {booking.service_type} is now {update_data['status']}."
+    if new_status != old_status:
+        booking.status = new_status
+
+        # Capture completion data when provider marks job complete
+        if new_status == "Completed" and is_provider:
+            if booking_update.final_cost is not None:
+                booking.final_cost = booking_update.final_cost
+            if booking_update.actual_hours is not None:
+                booking.actual_hours = booking_update.actual_hours
+            if booking_update.completion_notes is not None:
+                booking.completion_notes = booking_update.completion_notes
 
         # Record status change in history
         db.add(models.BookingStatusHistory(
             booking_id=booking.id,
-            status=update_data["status"],
-            notes=f"Status changed from {old_status} to {update_data['status']} by {'provider' if is_provider else 'client'}"
+            status=new_status,
+            notes=f"Status changed from {old_status} to {new_status} by {'provider' if is_provider else 'client'}"
         ))
 
         # Emergency acceptance bonus: boost provider rating by 0.2 (capped at 5.0)
-        if update_data["status"] == "Accepted" and booking.priority == "Emergency" and is_provider and provider:
-            bonus = 0.2
-            provider.rating = min(5.0, (provider.rating or 0) + bonus)
+        if new_status == "Accepted" and booking.priority == "Emergency" and is_provider and provider:
+            provider.rating = min(5.0, (provider.rating or 0) + 0.2)
 
         # Reset provider availability when booking is completed
-        if update_data["status"] == "Completed":
-            provider = db.query(models.ServiceProvider).filter(
-                models.ServiceProvider.id == booking.provider_id
-            ).first()
-            if provider:
-                provider.availability_status = "AVAILABLE"
+        if new_status == "Completed" and provider:
+            provider.availability_status = "AVAILABLE"
 
-        # Determine target: notify the party that DID NOT make the change
-        # If provider updated it, notify user. If user updated it, notify provider.
-        target_user_id = booking.user_id if is_provider else provider.user_id
+        # Notify the party that DID NOT make the change
+        notif_link = f"/user/bookings/{booking.id}" if is_provider else f"/service/jobs"
+        target_user_id = booking.user_id if is_provider else (provider.user_id if provider else None)
 
         if target_user_id:
-            new_notif = models.Notification(
+            db.add(models.Notification(
                 user_id=target_user_id,
-                title=notif_title,
-                message=notif_msg,
+                title=f"Booking {new_status}",
+                message=f"Your booking for {booking.service_type} is now {new_status}.",
                 notification_type="INFO",
-                link=f"/dashboard/bookings/{booking.id}"
-            )
-            db.add(new_notif)
+                link=notif_link,
+            ))
 
     db.commit()
     db.refresh(booking)
@@ -346,6 +344,51 @@ def create_review(
     db.refresh(db_review)
     return db_review
 
+@router.get("/{booking_id}/receipt", response_model=schemas.ReceiptRead)
+def get_booking_receipt(
+    booking_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_user)
+):
+    booking = db.query(models.ServiceBooking).filter(models.ServiceBooking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    is_client = booking.user_id == current_user.id
+    profile = db.query(models.ServiceProvider).filter(models.ServiceProvider.user_id == current_user.id).first()
+    is_provider = profile and booking.provider_id == profile.id
+
+    if not is_client and not is_provider and current_user.role != "ADMIN":
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if booking.status != "Completed":
+        raise HTTPException(status_code=400, detail="Receipt is only available for completed bookings")
+
+    provider = db.query(models.ServiceProvider).filter(
+        models.ServiceProvider.id == booking.provider_id
+    ).first()
+    provider_name = (
+        (provider.company_name or provider.first_name or provider.owner_name or "Unknown")
+        if provider else "Unknown"
+    )
+
+    return schemas.ReceiptRead(
+        booking_id=booking.id,
+        service_type=booking.service_type or "",
+        status=booking.status,
+        scheduled_at=booking.scheduled_at,
+        estimated_cost=booking.estimated_cost or 0.0,
+        final_cost=booking.final_cost if booking.final_cost else None,
+        actual_hours=booking.actual_hours,
+        completion_notes=booking.completion_notes,
+        provider_name=provider_name,
+        provider_id=booking.provider_id,
+        user_id=booking.user_id,
+        created_at=booking.created_at,
+        updated_at=booking.updated_at,
+    )
+
+
 @router.get("/{booking_id}/chat", response_model=List[schemas.ChatRead])
 def get_chat(
     booking_id: int,
@@ -372,101 +415,3 @@ def send_message(
     db.refresh(db_message)
     return db_message
 
-
-@router.post("/emergency", response_model=schemas.EmergencyResponse)
-def create_emergency_request(
-    emergency_in: schemas.EmergencyCreate,
-    db: Session = Depends(deps.get_db),
-    current_user: models.User = Depends(deps.get_current_user)
-):
-    """
-    Emergency SOS: Check if a verified expert is available for the category.
-    Returns provider info for manual request, or redirect URL to Find Expert page.
-    """
-    # Validate category against allowed list
-    if emergency_in.category not in ALLOWED_CATEGORIES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid category '{emergency_in.category}'. Must be one of: {', '.join(ALLOWED_CATEGORIES)}"
-        )
-
-    # Find verified provider matching the emergency category
-    provider = find_verified_provider(
-        db,
-        category=emergency_in.category,
-        location=emergency_in.location,
-        society_id=current_user.society_id
-    )
-
-    if provider:
-        # Create an emergency booking as Pending (awaiting provider acceptance)
-        now = datetime.now(timezone.utc)
-        booking = models.ServiceBooking(
-            user_id=current_user.id,
-            provider_id=provider.id,
-            service_type=emergency_in.category,
-            issue_description=f"[EMERGENCY] {emergency_in.description}",
-            scheduled_at=now,
-            priority="Emergency",
-            property_details=emergency_in.location,
-            estimated_cost=(provider.hourly_rate or 0.0) * EMERGENCY_RATE_MULTIPLIER
-        )
-        db.add(booking)
-        db.flush()
-
-        history = models.BookingStatusHistory(
-            booking_id=booking.id,
-            status="Pending",
-            notes="Emergency request — awaiting provider acceptance"
-        )
-        db.add(history)
-
-        provider_name = get_provider_display_name(provider)
-
-        # Notify user
-        db.add(models.Notification(
-            user_id=current_user.id,
-            title="Emergency Request Sent",
-            message=f"Emergency request for '{emergency_in.category}' sent to '{provider_name}'. Awaiting acceptance.",
-            notification_type="URGENT",
-            link=f"/dashboard/bookings/{booking.id}"
-        ))
-
-        # Notify provider
-        if provider.user_id:
-            db.add(models.Notification(
-                user_id=provider.user_id,
-                title="EMERGENCY: Immediate Action Required",
-                message=f"Emergency {emergency_in.category} request from {current_user.username}. Please respond immediately.",
-                notification_type="URGENT",
-                link=f"/dashboard/bookings/{booking.id}"
-            ))
-
-        db.commit()
-        db.refresh(booking)
-
-        return schemas.EmergencyResponse(
-            provider_found=True,
-            booking_id=booking.id,
-            provider_name=provider_name,
-            provider_id=provider.id,
-            redirect_url=None,
-        )
-    else:
-        # No verified expert available — redirect to Find Expert
-        db.add(models.Notification(
-            user_id=current_user.id,
-            title="Emergency: No Expert Available",
-            message=f"No verified expert found for '{emergency_in.category}'. Please select one manually from Find Expert.",
-            notification_type="URGENT",
-            link=f"/dashboard/providers?category={emergency_in.category}&emergency=true"
-        ))
-        db.commit()
-
-        return schemas.EmergencyResponse(
-            provider_found=False,
-            booking_id=None,
-            provider_name=None,
-            provider_id=None,
-            redirect_url=f"/dashboard/providers?category={emergency_in.category}&emergency=true",
-        )
