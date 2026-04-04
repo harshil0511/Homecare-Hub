@@ -9,7 +9,6 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.internal import models, schemas, deps
-from app.internal.services import EMERGENCY_CATEGORIES, apply_star_delta
 from app.websockets.emergency import emergency_manager
 
 logger = logging.getLogger(__name__)
@@ -24,6 +23,7 @@ EMERGENCY_WINDOW_MINUTES = 5
 
 def _notify(db: Session, user_id: int, title: str, message: str,
             notification_type: str = "INFO", link: Optional[str] = None) -> None:
+    """Stage a Notification row. Caller is responsible for committing."""
     db.add(models.Notification(
         user_id=user_id, title=title, message=message,
         notification_type=notification_type, link=link,
@@ -98,7 +98,7 @@ async def create_emergency_request(
         models.EmergencyConfig.category == request_in.category
     ).first()
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     emergency = models.EmergencyRequest(
         user_id=current_user.id,
         society_name=request_in.society_name,
@@ -142,11 +142,12 @@ async def create_emergency_request(
         if provider.user_id:
             _notify(
                 db, provider.user_id,
-                title="🚨 Emergency SOS Alert",
+                title="Emergency SOS Alert",
                 message=f"Emergency {request_in.category} at {request_in.building_name}, {request_in.flat_no}. Respond within 5 minutes.",
                 notification_type="URGENT",
                 link="/service/jobs?tab=emergency",
             )
+
     background_tasks.add_task(
         emergency_manager.broadcast_alert_to_servicers,
         [p.id for p in providers],
@@ -163,14 +164,18 @@ def list_incoming_emergencies(
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(servicer_only),
 ):
-    """List active emergency requests that this servicer was selected for."""
+    """List open emergency requests visible to this servicer (all PENDING, not expired).
+
+    Note: the model does not persist a recipient join table, so all open emergencies
+    are shown. The has_responded flag tells the servicer if they have already acted.
+    """
     provider = db.query(models.ServiceProvider).filter(
         models.ServiceProvider.user_id == current_user.id
     ).first()
     if not provider:
         raise HTTPException(status_code=404, detail="Provider profile not found")
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     emergencies = db.query(models.EmergencyRequest).filter(
         models.EmergencyRequest.status == "PENDING",
         models.EmergencyRequest.expires_at > now,
@@ -220,7 +225,7 @@ def get_emergency_request(
     ).first()
     if not em:
         raise HTTPException(status_code=404, detail="Emergency request not found")
-    if current_user.role not in ("ADMIN",) and em.user_id != current_user.id:
+    if current_user.role not in ("ADMIN", "SECRETARY") and em.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
     return em
 
@@ -283,9 +288,7 @@ async def accept_emergency_response(
         models.EmergencyResponse.status == "PENDING",
     ).update({"status": "REJECTED"})
 
-    db.commit()
-    db.refresh(booking)
-
+    # Notify user and accepted provider, then commit once
     _notify(db, current_user.id, "Booking Confirmed",
             f"Emergency {em.category} booking confirmed with your servicer.",
             notification_type="INFO", link=f"/user/bookings/{booking.id}")
@@ -298,7 +301,12 @@ async def accept_emergency_response(
                 f"You have been selected for emergency {em.category}. Proceed to the location.",
                 notification_type="URGENT", link="/service/jobs")
 
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        logger.exception("Failed to commit notifications after emergency accept (booking %s)", booking.id)
+
+    db.refresh(booking)
 
     await emergency_manager.send_to_user(request_id, {
         "event": "request_accepted",
@@ -312,6 +320,7 @@ async def accept_emergency_response(
 @router.post("/{request_id}/cancel")
 async def cancel_emergency_request(
     request_id: int,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(user_or_secretary),
 ):
@@ -326,12 +335,36 @@ async def cancel_emergency_request(
         raise HTTPException(status_code=400, detail="Only PENDING or ACTIVE requests can be cancelled")
 
     em.status = "CANCELLED"
+
+    cancelled_responses = db.query(models.EmergencyResponse).filter(
+        models.EmergencyResponse.request_id == request_id,
+        models.EmergencyResponse.status == "PENDING",
+    ).all()
+
+    cancelled_provider_ids = [r.provider_id for r in cancelled_responses]
+
     db.query(models.EmergencyResponse).filter(
         models.EmergencyResponse.request_id == request_id,
         models.EmergencyResponse.status == "PENDING",
     ).update({"status": "CANCELLED"})
+
+    # Notify providers who had responded
+    for r in cancelled_responses:
+        provider = db.query(models.ServiceProvider).filter(
+            models.ServiceProvider.id == r.provider_id
+        ).first()
+        if provider and provider.user_id:
+            _notify(db, provider.user_id, "Emergency Cancelled",
+                    "The emergency request you responded to has been cancelled by the user.",
+                    notification_type="INFO", link="/service/jobs?tab=emergency")
+
     db.commit()
 
+    background_tasks.add_task(
+        emergency_manager.broadcast_alert_to_servicers,
+        cancelled_provider_ids,
+        {"event": "request_cancelled", "request_id": request_id},
+    )
     await emergency_manager.send_to_user(request_id, {"event": "request_cancelled"})
     return {"detail": "Emergency request cancelled"}
 
@@ -362,14 +395,11 @@ async def respond_to_emergency(
     if not em:
         raise HTTPException(status_code=404, detail="Emergency request not found or no longer accepting responses")
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     if now > em.expires_at:
         em.status = "EXPIRED"
         db.commit()
         raise HTTPException(status_code=410, detail="Emergency request has expired")
-
-    if response_in.arrival_time.replace(tzinfo=None) <= now:
-        raise HTTPException(status_code=400, detail="arrival_time must be in the future")
 
     existing = db.query(models.EmergencyResponse).filter(
         models.EmergencyResponse.request_id == request_id,
@@ -423,10 +453,12 @@ def ignore_emergency(
         models.EmergencyResponse.provider_id == provider.id,
     ).first()
     if not existing:
+        # Use a far-future sentinel — arrival_time is not meaningful for IGNORED records
+        far_future = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=3650)
         db.add(models.EmergencyResponse(
             request_id=request_id,
             provider_id=provider.id,
-            arrival_time=datetime.utcnow(),
+            arrival_time=far_future,
             status="IGNORED",
         ))
         db.commit()
