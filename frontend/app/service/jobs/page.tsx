@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Briefcase, Clock, MapPin, CheckCircle, XCircle, ChevronRight, User, DollarSign, Calendar, Send, X } from "lucide-react";
+import { Briefcase, Clock, MapPin, CheckCircle, XCircle, ChevronRight, User, IndianRupee, Calendar, Send, X, FileText } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { useToast } from "@/lib/toast-context";
 import Link from "next/link";
 
 interface Booking {
@@ -41,6 +42,7 @@ type JobTab = "jobs" | "requests";
 export default function ServicerJobsPage() {
     const [bookings, setBookings] = useState<Booking[]>([]);
     const [loading, setLoading] = useState(true);
+    const [fetchError, setFetchError] = useState<string | null>(null);
 
     const [activeTab, setActiveTab] = useState<JobTab>("jobs");
     const [incomingRequests, setIncomingRequests] = useState<IncomingRequest[]>([]);
@@ -53,13 +55,27 @@ export default function ServicerJobsPage() {
     const [resMessage, setResMessage] = useState("");
     const [submittingResponse, setSubmittingResponse] = useState(false);
     const [countdown, setCountdown] = useState<Record<number, string>>({});
+    const [completionTarget, setCompletionTarget] = useState<Booking | null>(null);
+    const [compHours, setCompHours] = useState<number | "">("");
+    const [compFinalCost, setCompFinalCost] = useState<number | "">("");
+    const [compNotes, setCompNotes] = useState("");
+    const [submittingCompletion, setSubmittingCompletion] = useState(false);
+    const toast = useToast();
 
     const fetchJobs = async () => {
         try {
             const data = await apiFetch("/bookings/incoming");
-            setBookings(data);
-        } catch (err) {
-            console.error("Failed to fetch jobs", err);
+            setBookings(data || []);
+        } catch (err: any) {
+            // Provider profile not yet created — silently show empty state
+            if (err?.message?.toLowerCase().includes("provider profile not found") ||
+                err?.message?.toLowerCase().includes("not found")) {
+                setBookings([]);
+            } else if (err instanceof TypeError || err?.message?.toLowerCase().includes("failed to fetch") || err?.message?.toLowerCase().includes("timed out")) {
+                setFetchError("Could not connect to the server. Please ensure the backend is running.");
+            } else {
+                console.error("Failed to fetch jobs", err);
+            }
         } finally {
             setLoading(false);
         }
@@ -134,8 +150,37 @@ export default function ServicerJobsPage() {
         }
     };
 
+    const handleSubmitCompletion = async () => {
+        if (!completionTarget || compHours === "" || compFinalCost === "") return;
+        setSubmittingCompletion(true);
+        try {
+            await apiFetch(`/bookings/${completionTarget.id}/status`, {
+                method: "PATCH",
+                body: JSON.stringify({
+                    status: "Completed",
+                    final_cost: Number(compFinalCost),
+                    actual_hours: Number(compHours),
+                    completion_notes: compNotes || undefined,
+                }),
+            });
+            setCompletionTarget(null);
+            setCompHours(""); setCompFinalCost(""); setCompNotes("");
+            toast.success("Job marked as completed — client notified");
+            fetchJobs();
+        } catch (err: any) {
+            toast.error(err.message || "Failed to submit completion");
+        } finally {
+            setSubmittingCompletion(false);
+        }
+    };
+
     return (
         <div className="space-y-8 animate-fade-in pb-12">
+            {fetchError && (
+                <div className="mb-6 bg-amber-50 border border-amber-200 text-amber-800 px-5 py-4 rounded-2xl flex items-center gap-3">
+                    <span className="text-xs font-black uppercase tracking-widest">{fetchError}</span>
+                </div>
+            )}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
                     <h1 className="text-3xl font-black text-[#000000] tracking-tight uppercase">My Service Jobs</h1>
@@ -228,8 +273,8 @@ export default function ServicerJobsPage() {
                                                         {new Date(booking.scheduled_at).toLocaleDateString()} at {new Date(booking.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                     </div>
                                                     <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-widest">
-                                                        <DollarSign className="w-3.5 h-3.5" />
-                                                        ${booking.estimated_cost.toFixed(2)}
+                                                        <IndianRupee className="w-3.5 h-3.5" />
+                                                        ₹{booking.estimated_cost.toLocaleString("en-IN")}
                                                     </div>
                                                 </div>
                                                 {booking.issue_description && (
@@ -261,7 +306,12 @@ export default function ServicerJobsPage() {
                                             )}
                                             {booking.status === "Accepted" && (
                                                 <button
-                                                    onClick={() => updateStatus(booking.id, "Completed")}
+                                                    onClick={() => {
+                                                        setCompletionTarget(booking);
+                                                        setCompFinalCost(booking.estimated_cost);
+                                                        setCompHours("");
+                                                        setCompNotes("");
+                                                    }}
                                                     className="w-full sm:w-auto px-10 py-3.5 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-900/10 hover:-translate-y-0.5 active:scale-95 transition-all flex items-center justify-center gap-2"
                                                 >
                                                     <CheckCircle className="w-4 h-4" />
@@ -363,6 +413,78 @@ export default function ServicerJobsPage() {
                             })}
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* Completion Form Modal */}
+            {completionTarget && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-lg shadow-2xl">
+                        <div className="p-8">
+                            <div className="flex items-center justify-between mb-6">
+                                <div>
+                                    <h2 className="text-lg font-black text-slate-900 uppercase tracking-widest">Complete Job</h2>
+                                    <p className="text-xs text-slate-500 mt-1">{completionTarget.service_type} — BK-{completionTarget.id}</p>
+                                </div>
+                                <button onClick={() => setCompletionTarget(null)} className="p-2 hover:bg-slate-100 rounded-xl">
+                                    <X className="w-5 h-5 text-slate-500" />
+                                </button>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Hours Worked *</label>
+                                        <input
+                                            type="number" min="0.5" max="24" step="0.5"
+                                            value={compHours}
+                                            onChange={e => setCompHours(e.target.value ? Number(e.target.value) : "")}
+                                            placeholder="e.g. 2.5"
+                                            className="w-full border border-slate-200 rounded-xl px-3 py-3 text-sm outline-none focus:border-[#064e3b]"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Final Bill (₹) *</label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">₹</span>
+                                            <input
+                                                type="number" min="0"
+                                                value={compFinalCost}
+                                                onChange={e => setCompFinalCost(e.target.value ? Number(e.target.value) : "")}
+                                                placeholder="0"
+                                                className="w-full border border-slate-200 rounded-xl pl-7 pr-4 py-3 text-sm outline-none focus:border-[#064e3b]"
+                                            />
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 mt-1">Estimated: ₹{completionTarget.estimated_cost.toLocaleString("en-IN")}</p>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Completion Notes (optional)</label>
+                                    <textarea
+                                        value={compNotes}
+                                        onChange={e => setCompNotes(e.target.value)}
+                                        placeholder="Describe the work done, parts replaced, any follow-up needed..."
+                                        rows={3}
+                                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b] resize-none"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 mt-6">
+                                <button onClick={() => setCompletionTarget(null)} className="flex-1 py-3 border border-slate-200 rounded-2xl text-sm font-black uppercase text-slate-500 hover:bg-slate-50 transition-colors">
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleSubmitCompletion}
+                                    disabled={submittingCompletion || compHours === "" || compFinalCost === ""}
+                                    className="flex-1 py-3 bg-emerald-600 text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                >
+                                    {submittingCompletion ? "Submitting..." : <><FileText className="w-4 h-4" /> Submit Completion</>}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
 

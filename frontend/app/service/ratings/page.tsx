@@ -18,6 +18,7 @@ interface Review {
 
 export default function ServicerRatingsPage() {
     const [loading, setLoading] = useState(true);
+    const [fetchError, setFetchError] = useState<string | null>(null);
     const [stats, setStats] = useState({
         avgRating: 0,
         totalReviews: 0,
@@ -49,8 +50,12 @@ export default function ServicerRatingsPage() {
                     completionRate: `${rate}%`,
                     totalCompleted: completed.length
                 });
-            } catch (err) {
-                console.error("Failed to fetch ratings data", err);
+            } catch (err: any) {
+                if (err instanceof TypeError || err?.message?.toLowerCase().includes("failed to fetch") || err?.message?.toLowerCase().includes("timed out")) {
+                    setFetchError("Could not connect to the server. Please ensure the backend is running.");
+                } else {
+                    console.error("Failed to fetch ratings data", err);
+                }
             } finally {
                 setLoading(false);
             }
@@ -80,6 +85,11 @@ export default function ServicerRatingsPage() {
 
     return (
         <div className="space-y-10 animate-fade-in pb-16">
+            {fetchError && (
+                <div className="mb-6 bg-amber-50 border border-amber-200 text-amber-800 px-5 py-4 rounded-2xl flex items-center gap-3">
+                    <span className="text-xs font-black uppercase tracking-widest">{fetchError}</span>
+                </div>
+            )}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
                     <h1 className="text-3xl font-black text-[#000000] tracking-tight uppercase">Performance Metrics</h1>
