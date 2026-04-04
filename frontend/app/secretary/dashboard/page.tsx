@@ -102,7 +102,8 @@ export default function SecretaryDashboard() {
             setMembers(prev => prev.map(m => m.id === updated.id ? { ...m, home_number: updated.home_number, resident_name: updated.resident_name } : m));
             setShowAddHome(false);
             setHomeForm({ member_id: "", home_number: "", resident_name: "" });
-        } catch {
+        } catch (err) {
+            console.error("Failed to assign home:", err);
         } finally {
             setAddingHome(false);
         }
