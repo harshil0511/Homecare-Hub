@@ -1,3 +1,4 @@
+import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -51,7 +52,7 @@ def change_user_role(
             detail=f"Invalid role. Allowed: {', '.join(allowed_roles)}"
         )
 
-    user = db.query(User).filter(User.user_uuid == user_uuid).first()
+    user = db.query(User).filter(User.id == uuid.UUID(user_uuid)).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
 
@@ -70,7 +71,7 @@ def toggle_user_active(
     _: User = Depends(admin_only)
 ):
     """Toggle a user's is_active status."""
-    user = db.query(User).filter(User.user_uuid == user_uuid).first()
+    user = db.query(User).filter(User.id == uuid.UUID(user_uuid)).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
 
@@ -86,10 +87,10 @@ def delete_user(
     current_admin: User = Depends(admin_only)
 ):
     """Permanently delete a user account."""
-    if current_admin.user_uuid == user_uuid:
+    if str(current_admin.id) == user_uuid:
         raise HTTPException(status_code=400, detail="Cannot delete your own admin account.")
 
-    user = db.query(User).filter(User.user_uuid == user_uuid).first()
+    user = db.query(User).filter(User.id == uuid.UUID(user_uuid)).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
 
@@ -362,7 +363,7 @@ def get_user_detail(
     """Curated user detail for admin view — need-to-know fields only."""
     from app.internal.models import ServiceRequest, Society
 
-    user = db.query(User).filter(User.user_uuid == user_uuid).first()
+    user = db.query(User).filter(User.id == uuid.UUID(user_uuid)).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
 

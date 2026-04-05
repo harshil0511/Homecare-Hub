@@ -78,7 +78,7 @@ def login(user_in: UserLogin, db: Session = Depends(deps.get_db)):
 
     # 4. Create JWT with role embedded (so frontend knows role without extra /me call)
     access_token = security.create_access_token(data={
-        "sub": user.user_uuid,
+        "sub": str(user.id),
         "role": user.role,
         "email": user.email
     })
@@ -87,7 +87,7 @@ def login(user_in: UserLogin, db: Session = Depends(deps.get_db)):
         "access_token": access_token,
         "token_type": "bearer",
         "role": user.role,
-        "user_uuid": user.user_uuid,
+        "user_uuid": str(user.id),
         "username": user.username
     }
 

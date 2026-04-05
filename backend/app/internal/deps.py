@@ -1,3 +1,4 @@
+import uuid
 from typing import Generator, List
 from fastapi import Depends, HTTPException, status
 from jose import JWTError, jwt
@@ -44,14 +45,19 @@ def get_current_user(
     )
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        user_uuid: str = payload.get("sub")
-        if user_uuid is None:
+        user_id_str: str = payload.get("sub")
+        if user_id_str is None:
             raise credentials_exception
-        token_data = TokenData(user_uuid=user_uuid, role=payload.get("role"))
+        token_data = TokenData(user_uuid=user_id_str, role=payload.get("role"))
     except JWTError:
         raise credentials_exception
 
-    user = db.query(User).filter(User.user_uuid == token_data.user_uuid).first()
+    try:
+        user_id = uuid.UUID(token_data.user_uuid)
+    except (ValueError, AttributeError):
+        raise credentials_exception
+
+    user = db.query(User).filter(User.id == user_id).first()
     if user is None:
         raise credentials_exception
     return user
