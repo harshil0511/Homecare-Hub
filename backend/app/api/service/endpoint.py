@@ -3,6 +3,7 @@ import uuid
 import json
 import logging
 from datetime import datetime, timedelta
+from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -71,7 +72,7 @@ def get_societies(db: Session = Depends(deps.get_db)):
 
 @router.post("/societies/join/{society_id}")
 def join_society(
-    society_id: int, 
+    society_id: UUID, 
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
@@ -94,7 +95,7 @@ def get_my_created_societies(
 
 @router.patch("/societies/{society_id}", response_model=SocietyResponse)
 def update_society(
-    society_id: int,
+    society_id: UUID,
     society_in: SocietyUpdate,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user)
@@ -117,7 +118,7 @@ def update_society(
 
 @router.delete("/societies/{society_id}")
 def delete_society(
-    society_id: int,
+    society_id: UUID,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
@@ -405,7 +406,7 @@ async def upload_certificate_file(
 
 @router.delete("/providers/certificates/{cert_id}")
 def delete_certificate(
-    cert_id: int,
+    cert_id: UUID,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
@@ -482,7 +483,7 @@ def toggle_availability(
 
 @router.get("/societies/{society_id}/find-nearest", response_model=List[ProviderResponse])
 def find_nearest_providers(
-    society_id: int,
+    society_id: UUID,
     category: Optional[str] = None,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user)
@@ -505,8 +506,8 @@ def find_nearest_providers(
 
 @router.post("/societies/{society_id}/recruit/{provider_id}", response_model=SocietyRequestResponse)
 def recruit_provider(
-    society_id: int,
-    provider_id: int,
+    society_id: UUID,
+    provider_id: UUID,
     message: Optional[str] = None,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user)
@@ -552,7 +553,7 @@ def get_provider_invitations(
 
 @router.get("/societies/{society_id}/requests", response_model=List[SocietyRequestResponse])
 def get_society_sent_requests(
-    society_id: int,
+    society_id: UUID,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
@@ -612,7 +613,7 @@ def get_my_society_requests(
 
 @router.post("/societies/requests/{request_id}/action", response_model=SocietyRequestResponse)
 def handle_society_request(
-    request_id: int,
+    request_id: UUID,
     action: SocietyRequestAction,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user)
@@ -642,8 +643,8 @@ def handle_society_request(
 # Trusted Provider Logic
 @router.post("/societies/{society_id}/trust/{provider_id}")
 def add_trusted_provider(
-    society_id: int,
-    provider_id: int,
+    society_id: UUID,
+    provider_id: UUID,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
@@ -667,7 +668,7 @@ def add_trusted_provider(
 
 @router.get("/societies/{society_id}/trusted", response_model=List[ProviderResponse])
 def get_trusted_providers(
-    society_id: int,
+    society_id: UUID,
     db: Session = Depends(deps.get_db)
 ):
     society = db.query(Society).filter(Society.id == society_id).first()
@@ -721,7 +722,7 @@ def get_incoming_bookings(
 
 @router.patch("/bookings/{booking_id}", response_model=BookingRead)
 def update_booking_status(
-    booking_id: int,
+    booking_id: UUID,
     booking_update: BookingUpdate,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user)
