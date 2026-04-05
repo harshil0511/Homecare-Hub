@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from uuid import UUID
 from app.internal import deps
 from app.internal.models import User, Society, MaintenanceTask
 from app.internal.schemas import SocietyResponse, SocietyUpdate, UserResponse
@@ -122,7 +123,7 @@ def get_society_providers(
 
 @router.patch("/members/{member_id}/home")
 def assign_home_to_member(
-    member_id: int,
+    member_id: UUID,
     data: HomeAssign,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(secretary_only)

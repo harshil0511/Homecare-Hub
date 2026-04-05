@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
+from uuid import UUID
 from app.internal import deps, models, schemas
 
 router = APIRouter(tags=["Notifications API"])
@@ -16,7 +17,7 @@ def get_notifications(
 
 @router.patch("/{notification_id}", response_model=schemas.NotificationResponse)
 def update_notification(
-    notification_id: int,
+    notification_id: UUID,
     notification_in: schemas.NotificationUpdate,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user)
@@ -35,7 +36,7 @@ def update_notification(
 
 @router.delete("/{notification_id}")
 def delete_notification(
-    notification_id: int,
+    notification_id: UUID,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user)
 ):

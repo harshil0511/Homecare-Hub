@@ -4,6 +4,7 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
@@ -215,7 +216,7 @@ def list_incoming_emergencies(
 
 @router.get("/{request_id}", response_model=schemas.EmergencyRequestRead)
 def get_emergency_request(
-    request_id: int,
+    request_id: UUID,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user),
 ):
@@ -232,8 +233,8 @@ def get_emergency_request(
 
 @router.post("/{request_id}/accept/{response_id}", response_model=schemas.BookingRead)
 async def accept_emergency_response(
-    request_id: int,
-    response_id: int,
+    request_id: UUID,
+    response_id: UUID,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(user_or_secretary),
 ):
@@ -319,7 +320,7 @@ async def accept_emergency_response(
 
 @router.post("/{request_id}/cancel")
 async def cancel_emergency_request(
-    request_id: int,
+    request_id: UUID,
     background_tasks: BackgroundTasks,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(user_or_secretary),
@@ -376,7 +377,7 @@ servicer_router = APIRouter(tags=["Emergency SOS — Servicer"])
 
 @servicer_router.post("/{request_id}/respond", response_model=schemas.EmergencyResponseRead)
 async def respond_to_emergency(
-    request_id: int,
+    request_id: UUID,
     response_in: schemas.EmergencyResponseCreate,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(servicer_only),
@@ -437,7 +438,7 @@ async def respond_to_emergency(
 
 @servicer_router.post("/{request_id}/ignore")
 def ignore_emergency(
-    request_id: int,
+    request_id: UUID,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(servicer_only),
 ):

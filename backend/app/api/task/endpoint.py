@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from typing import List, Optional
 from datetime import datetime, timedelta, timezone
+from uuid import UUID
 from app.internal import deps
 from app.internal.models import (
     MaintenanceTask, User, Notification,
@@ -57,7 +58,7 @@ def create_task(
 
 @router.patch("/{task_id}", response_model=TaskResponse)
 def update_task(
-    task_id: int,
+    task_id: UUID,
     update_in: MaintenanceTaskUpdate,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user)
@@ -148,7 +149,7 @@ def get_routine_tasks(
 
 @router.get("/routine/{task_id}/providers", response_model=List[ProviderResponse])
 def get_matching_providers(
-    task_id: int,
+    task_id: UUID,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
@@ -187,7 +188,7 @@ def get_matching_providers(
 
 @router.post("/routine/{task_id}/assign", response_model=RoutineTaskResponse)
 def assign_routine_provider(
-    task_id: int,
+    task_id: UUID,
     assign_in: RoutineTaskAssign,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user)
