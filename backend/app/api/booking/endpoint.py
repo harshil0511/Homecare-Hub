@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timedelta, timezone
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -135,7 +136,7 @@ def get_incoming_bookings(
 
 @router.patch("/{booking_id}/status", response_model=schemas.BookingRead)
 def update_booking_status(
-    booking_id: int,
+    booking_id: UUID,
     booking_update: schemas.BookingStatusUpdate,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user)
@@ -201,7 +202,7 @@ def update_booking_status(
 
 @router.get("/{booking_id}", response_model=schemas.BookingDetailRead)
 def get_booking(
-    booking_id: int,
+    booking_id: UUID,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user)
 ):
@@ -225,7 +226,7 @@ def get_booking(
 
 @router.patch("/{booking_id}/reschedule", response_model=schemas.BookingRead)
 def reschedule_booking(
-    booking_id: int,
+    booking_id: UUID,
     reschedule_in: schemas.BookingReschedule,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user)
@@ -268,7 +269,7 @@ def reschedule_booking(
 
 @router.patch("/{booking_id}/cancel", response_model=schemas.BookingRead)
 def cancel_booking(
-    booking_id: int,
+    booking_id: UUID,
     cancel_in: schemas.BookingCancel,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user)
@@ -311,7 +312,7 @@ def cancel_booking(
 
 @router.post("/{booking_id}/review", response_model=schemas.ReviewRead)
 def create_review(
-    booking_id: int,
+    booking_id: UUID,
     review_in: schemas.ReviewCreate,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user)
@@ -346,7 +347,7 @@ def create_review(
 
 @router.get("/{booking_id}/receipt", response_model=schemas.ReceiptRead)
 def get_booking_receipt(
-    booking_id: int,
+    booking_id: UUID,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user)
 ):
@@ -391,7 +392,7 @@ def get_booking_receipt(
 
 @router.get("/{booking_id}/chat", response_model=List[schemas.ChatRead])
 def get_chat(
-    booking_id: int,
+    booking_id: UUID,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user)
 ):
@@ -400,7 +401,7 @@ def get_chat(
 
 @router.post("/{booking_id}/chat/message", response_model=schemas.ChatRead)
 def send_message(
-    booking_id: int,
+    booking_id: UUID,
     message_in: schemas.ChatCreate,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user)
