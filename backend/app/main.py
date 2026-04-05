@@ -3,8 +3,9 @@ import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.auth.endpoint import router as auth_router
@@ -21,6 +22,7 @@ from app.api.request.endpoint import router as request_router
 from app.api.emergency.endpoint import router as emergency_router, servicer_router as emergency_servicer_router
 from app.core.database import init_db, SessionLocal
 from app.core.config import settings
+from app.core.scheduler import start_scheduler, stop_scheduler
 from app.websockets.emergency import emergency_manager
 
 logger = logging.getLogger(__name__)
@@ -64,11 +66,13 @@ def _seed_penalty_configs() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: init DB (with auto-retry if not ready). Shutdown: nothing extra needed."""
+    """Startup: init DB, seed configs, start alert scheduler. Shutdown: stop scheduler."""
     logger.info("Starting HomeCare Hub API ...")
-    init_db()  # connects immediately or starts background retry thread
+    init_db()
     _seed_penalty_configs()
+    start_scheduler()
     yield
+    stop_scheduler()
     logger.info("Shutting down HomeCare Hub API.")
 
 
@@ -80,6 +84,22 @@ app = FastAPI(
     openapi_url="/api/v1/openapi.json",
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """
+    Catch-all for unhandled exceptions.
+    Without this, Starlette's ServerErrorMiddleware returns the 500 response
+    *before* CORSMiddleware can attach 'Access-Control-Allow-Origin', causing
+    the browser to report a CORS error instead of the real server error.
+    """
+    logger.exception("Unhandled server error: %s %s → %s", request.method, request.url.path, exc)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error."},
+    )
+
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 cors_origins = [

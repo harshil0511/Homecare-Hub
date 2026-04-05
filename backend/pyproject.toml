@@ -1,13 +1,12 @@
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "homecare-hub-backend"
 version = "1.0.0"
 description = "HomeCare Hub FastAPI Backend"
 requires-python = ">=3.11"
-
 dependencies = [
     "fastapi>=0.111.0",
     "uvicorn[standard]>=0.29.0",
@@ -21,6 +20,9 @@ dependencies = [
     "passlib[pbkdf2]>=1.7.4",
     "python-multipart>=0.0.9",
     "anthropic>=0.25.0",
+    "python-dotenv>=1.0.0",
+    "email-validator>=2.0.0",
+    "apscheduler>=3.10.0",
 ]
 
 [project.optional-dependencies]
