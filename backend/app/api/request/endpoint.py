@@ -2,6 +2,7 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -179,7 +180,7 @@ def list_my_requests(
 
 @router.get("/{request_id}", response_model=schemas.ServiceRequestDetailRead)
 def get_request_detail(
-    request_id: int,
+    request_id: UUID,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user),
 ):
@@ -198,7 +199,7 @@ def get_request_detail(
 
 @router.get("/{request_id}/responses", response_model=List[schemas.ServiceRequestResponseRead])
 def get_request_responses(
-    request_id: int,
+    request_id: UUID,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(user_or_secretary),
 ):
@@ -220,7 +221,7 @@ def get_request_responses(
 
 @router.post("/{request_id}/respond", response_model=schemas.ServiceRequestResponseRead, status_code=201)
 def respond_to_request(
-    request_id: int,
+    request_id: UUID,
     response_in: schemas.ServiceRequestResponseCreate,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(servicer_only),
@@ -283,8 +284,8 @@ def respond_to_request(
 
 @router.post("/{request_id}/responses/{response_id}/accept", response_model=schemas.BookingDetailRead)
 def accept_response(
-    request_id: int,
-    response_id: int,
+    request_id: UUID,
+    response_id: UUID,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(user_or_secretary),
 ):
@@ -411,8 +412,8 @@ def accept_response(
 
 @router.post("/{request_id}/responses/{response_id}/reject", status_code=200)
 def reject_response(
-    request_id: int,
-    response_id: int,
+    request_id: UUID,
+    response_id: UUID,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(user_or_secretary),
 ):
@@ -457,7 +458,7 @@ def reject_response(
 
 @router.delete("/{request_id}", status_code=200)
 def cancel_request(
-    request_id: int,
+    request_id: UUID,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(user_or_secretary),
 ):
