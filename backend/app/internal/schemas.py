@@ -1,4 +1,5 @@
 import json
+from uuid import UUID
 from enum import Enum
 from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional, List, Literal
@@ -18,7 +19,6 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
-    society_id: Optional[int] = None       # legacy — kept for compatibility
     society_name: Optional[str] = None     # secretary provides this to create a new society
     society_address: Optional[str] = None  # secretary provides this to create a new society
 
@@ -27,10 +27,9 @@ class UserLogin(BaseModel):
     password: str
 
 class UserResponse(UserBase):
-    id: int
-    user_uuid: str
+    id: UUID
     is_active: bool
-    society_id: Optional[int] = None
+    society_id: Optional[UUID] = None
 
     class Config:
         from_attributes = True
@@ -74,7 +73,7 @@ class SocietyUpdate(BaseModel):
     is_legal: Optional[bool] = None
 
 class SocietyResponse(BaseModel): # Changed to inherit from BaseModel
-    id: int
+    id: UUID
     name: str
     address: str
     registration_number: Optional[str] = None
@@ -113,7 +112,7 @@ class ProviderBase(BaseModel):
     certification_url: Optional[str] = None
     location: Optional[str] = None
     profile_photo_url: Optional[str] = None
-    society_id: Optional[int] = None
+    society_id: Optional[UUID] = None
 
 class ProviderCreate(ProviderBase):
     company_name: str = "Unknown"
@@ -123,8 +122,8 @@ class ProviderCreate(ProviderBase):
     email: str = ""
 
 class ProviderResponse(ProviderBase):
-    id: int
-    user_id: Optional[int] = None
+    id: UUID
+    user_id: Optional[UUID] = None
     is_verified: Optional[bool] = False
     rating: Optional[float] = 5.0
     certificates: List["CertificateResponse"] = []
@@ -152,7 +151,7 @@ class CertificateCreate(CertificateBase):
     pass
 
 class CertificateResponse(CertificateBase):
-    id: int
+    id: UUID
     uploaded_at: datetime
 
     class Config:
@@ -178,7 +177,7 @@ class AvailabilityUpdate(BaseModel):
 
 # Booking Schemas
 class BookingBase(BaseModel):
-    provider_id: int
+    provider_id: UUID
     service_type: str
     scheduled_at: datetime
     priority: str = "Normal"
@@ -187,7 +186,7 @@ class BookingBase(BaseModel):
     estimated_cost: float = 0.0
 
 class BookingCreate(BookingBase):
-    task_id: Optional[int] = None  # Link booking to a specific pending task
+    task_id: Optional[UUID] = None  # Link booking to a specific pending task
 
 class BookingUpdate(BaseModel):
     status: Optional[str] = None
@@ -207,7 +206,7 @@ class BookingCancel(BaseModel):
 
 
 class BookingStatusHistoryRead(BaseModel):
-    id: int
+    id: UUID
     status: str
     notes: Optional[str] = None
     timestamp: datetime
@@ -221,9 +220,9 @@ class ChatCreate(ChatBase):
     pass
 
 class ChatRead(ChatBase):
-    id: int
-    booking_id: int
-    sender_id: int
+    id: UUID
+    booking_id: UUID
+    sender_id: UUID
     timestamp: datetime
     class Config:
         from_attributes = True
@@ -239,15 +238,15 @@ class ReviewCreate(ReviewBase):
     pass
 
 class ReviewRead(ReviewBase):
-    id: int
-    booking_id: int
+    id: UUID
+    booking_id: UUID
     created_at: datetime
     class Config:
         from_attributes = True
 
 class BookingRead(BookingBase):
-    id: int
-    user_id: int
+    id: UUID
+    user_id: UUID
     status: str
     final_cost: Optional[float] = None
     actual_hours: Optional[float] = None
@@ -269,7 +268,7 @@ class BookingDetailRead(BookingRead):
         from_attributes = True
 
 class ReceiptRead(BaseModel):
-    booking_id: int
+    booking_id: UUID
     service_type: str
     status: str
     scheduled_at: datetime
@@ -278,8 +277,8 @@ class ReceiptRead(BaseModel):
     actual_hours: Optional[float] = None
     completion_notes: Optional[str] = None
     provider_name: str
-    provider_id: int
-    user_id: int
+    provider_id: UUID
+    user_id: UUID
     created_at: datetime
     updated_at: datetime
 
@@ -294,10 +293,10 @@ class TaskCreate(BaseModel):
     status: str = "Pending"
     priority: str = "Routine"             # Routine, Mandatory, Urgent
     category: Optional[str] = None        # Service category for Find Servicer
-    service_provider_id: Optional[int] = None
+    service_provider_id: Optional[UUID] = None
 
 class TaskResponse(BaseModel):
-    id: int
+    id: UUID
     title: str
     description: Optional[str] = None
     due_date: Optional[date] = None
@@ -306,7 +305,7 @@ class TaskResponse(BaseModel):
     category: Optional[str] = None
     location: Optional[str] = None
     task_type: Optional[str] = "standard"
-    booking_id: Optional[int] = None
+    booking_id: Optional[UUID] = None
     warning_sent: bool = False
     final_sent: bool = False
     overdue_sent: bool = False
@@ -332,7 +331,7 @@ class RoutineTaskCreate(BaseModel):
     priority: str = "Routine"           # Routine / Mandatory / Urgent
 
 class RoutineTaskResponse(BaseModel):
-    id: int
+    id: UUID
     title: str
     description: Optional[str] = None
     category: Optional[str] = None
@@ -340,16 +339,16 @@ class RoutineTaskResponse(BaseModel):
     priority: str
     status: str
     task_type: str
-    user_id: int
-    booking_id: Optional[int] = None
-    service_provider_id: Optional[int] = None
+    user_id: UUID
+    booking_id: Optional[UUID] = None
+    service_provider_id: Optional[UUID] = None
     created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
 
 class RoutineTaskAssign(BaseModel):
-    provider_id: int
+    provider_id: UUID
     scheduled_at: datetime
 
 # Notification Schemas
@@ -360,11 +359,11 @@ class NotificationBase(BaseModel):
     link: Optional[str] = None
 
 class NotificationCreate(NotificationBase):
-    user_id: int
+    user_id: UUID
 
 class NotificationResponse(NotificationBase):
-    id: int
-    user_id: int
+    id: UUID
+    user_id: UUID
     is_read: bool
     created_at: datetime
 
@@ -376,16 +375,16 @@ class NotificationUpdate(BaseModel):
 
 # Society Request Schemas
 class SocietyRequestBase(BaseModel):
-    society_id: int
-    provider_id: int
+    society_id: UUID
+    provider_id: UUID
     message: Optional[str] = None
 
 class SocietyRequestCreate(SocietyRequestBase):
     pass
 
 class SocietyRequestResponse(SocietyRequestBase):
-    id: int
-    sender_id: int
+    id: UUID
+    sender_id: UUID
     status: str
     created_at: datetime
     updated_at: datetime
@@ -402,7 +401,7 @@ class SocietyRequestAction(BaseModel):
 # ────────────────────────────────────────────────────────────
 
 class ServiceRequestCreate(BaseModel):
-    provider_ids: List[int]
+    provider_ids: List[UUID]
     contact_name: str
     contact_mobile: str
     location: str
@@ -445,8 +444,8 @@ class ServiceRequestResponseCreate(BaseModel):
 
 
 class ServiceRequestRecipientRead(BaseModel):
-    id: int
-    provider_id: int
+    id: UUID
+    provider_id: UUID
     is_read: bool
     notified_at: Optional[datetime] = None
 
@@ -455,9 +454,9 @@ class ServiceRequestRecipientRead(BaseModel):
 
 
 class ServiceRequestResponseRead(BaseModel):
-    id: int
-    request_id: int
-    provider_id: int
+    id: UUID
+    request_id: UUID
+    provider_id: UUID
     proposed_date: datetime
     proposed_price: float
     estimated_hours: Optional[float] = None
@@ -471,8 +470,8 @@ class ServiceRequestResponseRead(BaseModel):
 
 
 class ServiceRequestRead(BaseModel):
-    id: int
-    user_id: int
+    id: UUID
+    user_id: UUID
     contact_name: str
     contact_mobile: str
     location: str
@@ -485,7 +484,7 @@ class ServiceRequestRead(BaseModel):
     expires_at: datetime
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-    resulting_booking_id: Optional[int] = None
+    resulting_booking_id: Optional[UUID] = None
     recipients: List[ServiceRequestRecipientRead] = []
     responses: List[ServiceRequestResponseRead] = []
 
@@ -511,7 +510,7 @@ class ServiceRequestDetailRead(ServiceRequestRead):
 
 
 class IncomingServiceRequestRead(BaseModel):
-    id: int
+    id: UUID
     contact_name: str
     location: str
     device_or_issue: str
@@ -583,11 +582,11 @@ class EmergencyConfigUpdate(BaseModel):
 
 
 class EmergencyConfigRead(BaseModel):
-    id: int
+    id: UUID
     category: str
     callout_fee: float
     hourly_rate: float
-    updated_by: Optional[int] = None
+    updated_by: Optional[UUID] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -609,10 +608,10 @@ class EmergencyPenaltyConfigUpdate(BaseModel):
 
 
 class EmergencyPenaltyConfigRead(BaseModel):
-    id: int
+    id: UUID
     event_type: str
     star_deduction: float
-    updated_by: Optional[int] = None
+    updated_by: Optional[UUID] = None
     updated_at: Optional[datetime] = None
 
     class Config:
@@ -633,7 +632,7 @@ class EmergencyRequestCreate(BaseModel):
     photos: Optional[List[str]] = []
     contact_name: str
     contact_phone: str
-    provider_ids: List[int]
+    provider_ids: List[UUID]
 
     @field_validator("category")
     @classmethod
@@ -660,7 +659,7 @@ class EmergencyRequestCreate(BaseModel):
 
     @field_validator("provider_ids")
     @classmethod
-    def validate_providers(cls, v: List[int]) -> List[int]:
+    def validate_providers(cls, v: List[UUID]) -> List[UUID]:
         if not v:
             raise ValueError("At least one provider must be selected")
         if len(v) != len(set(v)):
@@ -669,9 +668,9 @@ class EmergencyRequestCreate(BaseModel):
 
 
 class EmergencyResponseRead(BaseModel):
-    id: int
-    request_id: int
-    provider_id: int
+    id: UUID
+    request_id: UUID
+    provider_id: UUID
     arrival_time: datetime
     status: str
     penalty_count: int
@@ -683,8 +682,8 @@ class EmergencyResponseRead(BaseModel):
 
 
 class EmergencyRequestRead(BaseModel):
-    id: int
-    user_id: int
+    id: UUID
+    user_id: UUID
     society_name: str
     building_name: str
     flat_no: str
@@ -697,9 +696,9 @@ class EmergencyRequestRead(BaseModel):
     contact_name: str
     contact_phone: str
     status: str
-    config_id: Optional[int] = None
+    config_id: Optional[UUID] = None
     expires_at: datetime
-    resulting_booking_id: Optional[int] = None
+    resulting_booking_id: Optional[UUID] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     responses: List[EmergencyResponseRead] = []
@@ -754,13 +753,13 @@ class EmergencyStarAdjustCreate(BaseModel):
 
 
 class EmergencyStarAdjustRead(BaseModel):
-    id: int
-    provider_id: int
-    adjusted_by: int
+    id: UUID
+    provider_id: UUID
+    adjusted_by: UUID
     delta: float
     reason: str
     event_type: str
-    emergency_request_id: Optional[int] = None
+    emergency_request_id: Optional[UUID] = None
     created_at: Optional[datetime] = None
 
     class Config:
@@ -777,7 +776,7 @@ class AdminProviderStatusUpdate(BaseModel):
 # --- Incoming Emergency (Servicer side) ---
 
 class IncomingEmergencyRead(BaseModel):
-    id: int
+    id: UUID
     society_name: str
     building_name: str
     flat_no: str
