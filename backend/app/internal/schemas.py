@@ -288,25 +288,40 @@ class ReceiptRead(BaseModel):
 
 # Maintenance Task Schemas
 class TaskCreate(BaseModel):
-    title: str # Device Name
+    title: str                            # Device Name
     description: Optional[str] = None
     due_date: Optional[date] = None
     status: str = "Pending"
-    priority: str = "Routine" # Routine, Mandatory, Urgent
+    priority: str = "Routine"             # Routine, Mandatory, Urgent
+    category: Optional[str] = None        # Service category for Find Servicer
     service_provider_id: Optional[int] = None
 
-class TaskResponse(TaskCreate):
+class TaskResponse(BaseModel):
     id: int
-    user_id: int
+    title: str
+    description: Optional[str] = None
+    due_date: Optional[date] = None
+    status: str
+    priority: str
     category: Optional[str] = None
     location: Optional[str] = None
     task_type: Optional[str] = "standard"
     booking_id: Optional[int] = None
+    warning_sent: bool = False
+    final_sent: bool = False
+    overdue_sent: bool = False
+    completed_at: Optional[datetime] = None
+    completion_method: Optional[str] = None
     created_at: Optional[datetime] = None
     provider: Optional[ProviderResponse] = None
 
     class Config:
         from_attributes = True
+
+class MaintenanceTaskUpdate(BaseModel):
+    status: Optional[str] = None
+    completion_method: Optional[str] = None
+    task_type: Optional[str] = None
 
 # Routine Task Schemas
 class RoutineTaskCreate(BaseModel):

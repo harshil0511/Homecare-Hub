@@ -150,7 +150,9 @@ class ServiceBooking(Base):
     completion_notes = Column(Text, nullable=True)
     completion_photos = Column(Text, nullable=True)  # JSON string of URLs
     property_details = Column(Text, nullable=True) # Quick property info
-    
+    source_type = Column(String, nullable=True)   # "alert" | "manual" | null
+    source_id = Column(Integer, nullable=True)    # maintenance_tasks.id if source_type="alert"
+
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
@@ -216,6 +218,13 @@ class MaintenanceTask(Base):
     task_type = Column(String, default="standard") # standard, routine
     booking_id = Column(Integer, ForeignKey("service_bookings.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    # Alert lifecycle tracking
+    warning_sent = Column(Boolean, default=False)
+    final_sent = Column(Boolean, default=False)
+    overdue_sent = Column(Boolean, default=False)
+    completed_at = Column(DateTime, nullable=True)
+    completion_method = Column(String, nullable=True)  # "booked" | "manual" | "cancelled"
 
     user_id = Column(Integer, ForeignKey("users.id"))
     service_provider_id = Column(Integer, ForeignKey("service_providers.id"), nullable=True)

@@ -9,7 +9,7 @@ from app.internal.models import (
     ServiceProvider, ServiceBooking, BookingStatusHistory,
 )
 from app.internal.schemas import (
-    TaskCreate, TaskResponse,
+    TaskCreate, TaskResponse, MaintenanceTaskUpdate,
     RoutineTaskCreate, RoutineTaskResponse, RoutineTaskAssign,
     ProviderResponse
 )
@@ -54,6 +54,32 @@ def create_task(
     db.commit()
     db.refresh(db_task)
     return db_task
+
+@router.patch("/{task_id}", response_model=TaskResponse)
+def update_task(
+    task_id: int,
+    update_in: MaintenanceTaskUpdate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
+):
+    task = db.query(MaintenanceTask).filter(
+        MaintenanceTask.id == task_id,
+        MaintenanceTask.user_id == current_user.id
+    ).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    if update_in.status is not None:
+        task.status = update_in.status
+    if update_in.completion_method is not None:
+        task.completion_method = update_in.completion_method
+        task.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    if update_in.task_type is not None:
+        task.task_type = update_in.task_type
+
+    db.commit()
+    db.refresh(task)
+    return task
 
 # ── Routine Task endpoints ──
 
@@ -126,11 +152,10 @@ def get_matching_providers(
 ):
     task = db.query(MaintenanceTask).filter(
         MaintenanceTask.id == task_id,
-        MaintenanceTask.user_id == current_user.id,
-        MaintenanceTask.task_type == "routine"
+        MaintenanceTask.user_id == current_user.id
     ).first()
     if not task:
-        raise HTTPException(status_code=404, detail="Routine task not found")
+        raise HTTPException(status_code=404, detail="Task not found")
 
     # Build category filter using mapping
     mapped_categories = ROUTINE_CATEGORY_MAP.get(task.category, [task.category])
@@ -177,11 +202,10 @@ def assign_routine_provider(
     # Validate task — use SELECT FOR UPDATE to prevent double-assignment race condition
     task = db.query(MaintenanceTask).filter(
         MaintenanceTask.id == task_id,
-        MaintenanceTask.user_id == current_user.id,
-        MaintenanceTask.task_type == "routine"
+        MaintenanceTask.user_id == current_user.id
     ).with_for_update().first()
     if not task:
-        raise HTTPException(status_code=404, detail="Routine task not found")
+        raise HTTPException(status_code=404, detail="Task not found")
     if task.booking_id:
         raise HTTPException(status_code=400, detail="Task already has an assigned provider")
 
@@ -217,7 +241,9 @@ def assign_routine_provider(
         scheduled_at=scheduled,
         priority=task.priority,
         property_details=task.location,
-        estimated_cost=provider.hourly_rate or 0.0
+        estimated_cost=provider.hourly_rate or 0.0,
+        source_type="alert",
+        source_id=task.id
     )
     db.add(booking)
     db.flush()
