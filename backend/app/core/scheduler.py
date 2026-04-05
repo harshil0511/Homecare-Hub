@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -15,7 +15,7 @@ def _check_alert_notifications() -> None:
     """Run every hour. Fire WARNING / FINAL / OVERDUE notifications for due maintenance tasks."""
     db = SessionLocal()
     try:
-        today = date.today()
+        today = datetime.now(timezone.utc).date()
         two_days_later = today + timedelta(days=2)
 
         active_tasks = (
@@ -65,8 +65,8 @@ def _check_alert_notifications() -> None:
                 task.overdue_sent = True
                 task.status = "Overdue"
 
-            # Auto-expire after 7 days overdue
-            if task.status == "Overdue" and due < today - timedelta(days=7):
+            # Auto-expire after 7 days overdue (only if overdue was already set in a prior run)
+            if task.overdue_sent and due < today - timedelta(days=7):
                 task.status = "Expired"
 
         db.commit()
@@ -85,6 +85,7 @@ def start_scheduler() -> None:
         hours=1,
         id="alert_notifications",
         replace_existing=True,
+        misfire_grace_time=300,
     )
     scheduler.start()
     logger.info("Alert notification scheduler started.")
