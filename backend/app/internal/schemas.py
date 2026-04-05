@@ -1,7 +1,7 @@
 import json
 from enum import Enum
 from pydantic import BaseModel, EmailStr, field_validator
-from typing import Optional, List
+from typing import Optional, List, Literal
 from datetime import datetime, date
 
 class UserRole(str, Enum):
@@ -298,6 +298,7 @@ class TaskCreate(BaseModel):
 
 class TaskResponse(BaseModel):
     id: int
+    user_id: Optional[int] = None
     title: str
     description: Optional[str] = None
     due_date: Optional[date] = None
@@ -319,8 +320,8 @@ class TaskResponse(BaseModel):
         from_attributes = True
 
 class MaintenanceTaskUpdate(BaseModel):
-    status: Optional[str] = None
-    completion_method: Optional[str] = None
+    status: Optional[Literal["Pending", "Active", "Triggered", "Overdue", "Assigned", "Completed", "Cancelled", "Expired"]] = None
+    completion_method: Optional[Literal["booked", "manual", "cancelled"]] = None
     task_type: Optional[str] = None
 
 # Routine Task Schemas

@@ -74,6 +74,8 @@ def update_task(
     if update_in.completion_method is not None:
         task.completion_method = update_in.completion_method
         task.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        if update_in.status is None:
+            task.status = "Completed"
     if update_in.task_type is not None:
         task.task_type = update_in.task_type
 
@@ -242,8 +244,8 @@ def assign_routine_provider(
         priority=task.priority,
         property_details=task.location,
         estimated_cost=provider.hourly_rate or 0.0,
-        source_type="alert",
-        source_id=task.id
+        source_type="alert" if task.task_type != "standard" else None,
+        source_id=task.id if task.task_type != "standard" else None,
     )
     db.add(booking)
     db.flush()
