@@ -22,7 +22,7 @@ def _check_alert_notifications() -> None:
             db.query(MaintenanceTask)
             .filter(
                 MaintenanceTask.due_date.isnot(None),
-                MaintenanceTask.status.notin_(["Completed", "Cancelled", "Expired"])
+                MaintenanceTask.status.notin_(["Completed", "Cancelled", "Expired", "Assigned"])
             )
             .all()
         )

@@ -298,7 +298,6 @@ class TaskCreate(BaseModel):
 
 class TaskResponse(BaseModel):
     id: int
-    user_id: Optional[int] = None
     title: str
     description: Optional[str] = None
     due_date: Optional[date] = None
