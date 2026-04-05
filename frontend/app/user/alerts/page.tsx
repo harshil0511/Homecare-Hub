@@ -75,6 +75,15 @@ export default function AlertsPage() {
     const [activeTab, setActiveTab] = useState<"active" | "history">("active");
     const [alertHistory, setAlertHistory] = useState<PendingTask[]>([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
+    const [historyLoaded, setHistoryLoaded] = useState(false);
+
+    const handleTabSwitch = (tab: "active" | "history") => {
+        setActiveTab(tab);
+        if (tab === "history" && !historyLoaded) {
+            fetchAlertHistory();
+            setHistoryLoaded(true);
+        }
+    };
 
     const toggleExpand = (id: number) => {
         setExpandedId(prev => prev === id ? null : id);
@@ -151,7 +160,6 @@ export default function AlertsPage() {
         fetchNotifications();
         fetchPendingTasks();
         fetchPendingBookings();
-        fetchAlertHistory();
     }, []);
 
     const clearAll = async () => {
@@ -217,13 +225,13 @@ export default function AlertsPage() {
             {/* Tab Toggle */}
             <div className="flex gap-1 p-1 bg-slate-100 rounded-xl w-fit">
                 <button
-                    onClick={() => setActiveTab("active")}
+                    onClick={() => handleTabSwitch("active")}
                     className={`px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === "active" ? "bg-white text-[#064e3b] shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
                 >
                     Active
                 </button>
                 <button
-                    onClick={() => setActiveTab("history")}
+                    onClick={() => handleTabSwitch("history")}
                     className={`px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${activeTab === "history" ? "bg-white text-[#064e3b] shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
                 >
                     History
@@ -584,6 +592,11 @@ export default function AlertsPage() {
                                 Expired:   "text-slate-400",
                                 Cancelled: "text-rose-500",
                             };
+                            const badgeBg: Record<string, string> = {
+                                Completed: "bg-emerald-100 border-emerald-200 text-emerald-800",
+                                Expired:   "bg-slate-200 border-slate-300 text-slate-600",
+                                Cancelled: "bg-rose-100 border-rose-200 text-rose-700",
+                            };
                             return (
                                 <div
                                     key={task.id}
@@ -591,7 +604,7 @@ export default function AlertsPage() {
                                 >
                                     <div className="flex items-center justify-between gap-3">
                                         <div className="flex items-center gap-2">
-                                            <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-widest border ${statusBg[task.status] ?? ""} ${statusText[task.status] ?? "text-slate-400"}`}>
+                                            <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-widest border ${badgeBg[task.status] ?? "bg-slate-100 border-slate-200 text-slate-500"}`}>
                                                 {task.status}
                                             </span>
                                             <h4 className="text-xs font-black text-slate-600 uppercase tracking-tight">{task.title}</h4>
