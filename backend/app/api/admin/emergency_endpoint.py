@@ -3,6 +3,7 @@
 import logging
 from datetime import datetime, timezone
 from typing import List, Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -58,7 +59,7 @@ def create_emergency_config(
 
 @router.patch("/config/{config_id}", response_model=schemas.EmergencyConfigRead)
 def update_emergency_config(
-    config_id: int,
+    config_id: UUID,
     payload: schemas.EmergencyConfigUpdate,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(admin_only),
@@ -133,7 +134,7 @@ def list_all_emergency_requests(
 
 @router.get("/requests/{request_id}", response_model=schemas.EmergencyRequestRead)
 def get_emergency_request(
-    request_id: int,
+    request_id: UUID,
     db: Session = Depends(deps.get_db),
     _: models.User = Depends(admin_only),
 ):
@@ -150,7 +151,7 @@ def get_emergency_request(
 
 @router.post("/star-adjust/{provider_id}", response_model=schemas.EmergencyStarAdjustRead)
 def manual_star_adjustment(
-    provider_id: int,
+    provider_id: UUID,
     payload: schemas.EmergencyStarAdjustCreate,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(admin_only),
@@ -180,7 +181,7 @@ def manual_star_adjustment(
 
 @router.get("/star-adjust/{provider_id}", response_model=List[schemas.EmergencyStarAdjustRead])
 def list_star_adjustments(
-    provider_id: int,
+    provider_id: UUID,
     db: Session = Depends(deps.get_db),
     _: models.User = Depends(admin_only),
 ):
@@ -203,7 +204,7 @@ def list_star_adjustments(
 
 @router.patch("/provider/{provider_id}/status")
 def update_provider_status(
-    provider_id: int,
+    provider_id: UUID,
     payload: schemas.AdminProviderStatusUpdate,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(admin_only),
