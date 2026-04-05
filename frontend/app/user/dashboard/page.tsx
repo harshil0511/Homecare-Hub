@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-    Activity,
     ShieldCheck,
     Clock,
     LayoutDashboard,
@@ -111,8 +110,6 @@ export default function DashboardPage() {
             ]);
             if (userTasks.status === "fulfilled") setTasks(userTasks.value ?? []);
             if (userBookings.status === "fulfilled") setBookings(userBookings.value ?? []);
-        } catch (err) {
-            console.error("Dashboard fetch error:", err);
         } finally {
             setLoading(false);
         }
@@ -136,7 +133,7 @@ export default function DashboardPage() {
         try {
             await apiFetch(`/maintenance/${id}`, {
                 method: "PATCH",
-                body: JSON.stringify({ completion_method: "manual" })
+                body: JSON.stringify({ status: "Completed", completion_method: "manual" })
             });
             fetchData();
         } catch (err) {
@@ -165,6 +162,7 @@ export default function DashboardPage() {
                     body: JSON.stringify({ task_type: "routine" })
                 });
             }
+            setFindingServicer(null);
             router.push(`/user/routine?taskId=${task.id}`);
         } catch (err) {
             console.error("Failed to start find servicer flow", err);
@@ -174,13 +172,13 @@ export default function DashboardPage() {
 
     const activeAlerts = tasks.filter(t =>
         ["Pending", "Active", "Triggered", "Overdue", "Assigned"].includes(t.status)
-    ).sort((a, b) => {
+    ).sort((taskA, taskB) => {
         const order: Record<string, number> = { Overdue: 0, Triggered: 1, Assigned: 2, Active: 3, Pending: 4 };
-        const oa = order[a.status] ?? 5;
-        const ob = order[b.status] ?? 5;
+        const oa = order[taskA.status] ?? 5;
+        const ob = order[taskB.status] ?? 5;
         if (oa !== ob) return oa - ob;
-        const da = a.due_date ? new Date(a.due_date).getTime() : Infinity;
-        const db2 = b.due_date ? new Date(b.due_date).getTime() : Infinity;
+        const da = taskA.due_date ? new Date(taskA.due_date).getTime() : Infinity;
+        const db2 = taskB.due_date ? new Date(taskB.due_date).getTime() : Infinity;
         return da - db2;
     });
 
