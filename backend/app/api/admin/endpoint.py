@@ -1,4 +1,5 @@
 import uuid
+from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -186,7 +187,7 @@ def get_pending_providers(
 
 @router.patch("/providers/{provider_id}/verify")
 def verify_provider(
-    provider_id: int,
+    provider_id: UUID,
     db: Session = Depends(deps.get_db),
     _: User = Depends(admin_only)
 ):
@@ -290,7 +291,7 @@ def get_system_health(
 
 @router.get("/bookings/{booking_id}")
 def get_booking_detail(
-    booking_id: int,
+    booking_id: UUID,
     db: Session = Depends(deps.get_db),
     _: User = Depends(admin_only)
 ):
@@ -326,7 +327,7 @@ def get_booking_detail(
 
 @router.get("/providers/{provider_id}/detail")
 def get_provider_detail(
-    provider_id: int,
+    provider_id: UUID,
     db: Session = Depends(deps.get_db),
     _: User = Depends(admin_only)
 ):
