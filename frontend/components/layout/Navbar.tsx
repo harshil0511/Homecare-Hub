@@ -10,11 +10,13 @@ import {
     LogOut,
     Shield,
     Menu,
-    Wrench,
+    X,
+    CheckCheck,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { logout, getRole } from "@/lib/auth";
 import Link from "next/link";
+import { useToast } from "@/lib/toast-context";
 
 const ROLE_ALERTS: Record<string, string> = {
     ADMIN: "/admin/dashboard",
@@ -60,14 +62,42 @@ export default function Navbar({ onMenuToggle, isSidebarOpen }: NavbarProps) {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isNotifOpen, setIsNotifOpen] = useState(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
-    
+    const [expandedNotifId, setExpandedNotifId] = useState<number | null>(null);
+    const seenIdsRef = useRef<Set<number>>(new Set());
+    const isFirstFetchRef = useRef(true);
+
     const dropdownRef = useRef<HTMLDivElement>(null);
     const notifRef = useRef<HTMLDivElement>(null);
 
+    let toast: ReturnType<typeof useToast> | null = null;
+    try {
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        toast = useToast();
+    } catch {
+        // Navbar may render outside ToastProvider on non-portal pages (e.g. login)
+    }
+
     const fetchNotifications = async () => {
         try {
-            const data = await apiFetch("/notifications/");
+            const data: Notification[] = await apiFetch("/notifications/");
             setNotifications(data);
+
+            if (isFirstFetchRef.current) {
+                // Seed seen IDs on first load — don't pop toasts for existing notifications
+                data.forEach(n => seenIdsRef.current.add(n.id));
+                isFirstFetchRef.current = false;
+                return;
+            }
+
+            // Fire toast popup for any notification we haven't seen yet
+            if (toast) {
+                data.forEach(n => {
+                    if (!seenIdsRef.current.has(n.id)) {
+                        seenIdsRef.current.add(n.id);
+                        toast!.notify(n.title, n.message, n.notification_type as "INFO" | "WARNING" | "URGENT");
+                    }
+                });
+            }
         } catch (err) {
             console.error("Failed to fetch notifications", err);
         }
@@ -93,9 +123,10 @@ export default function Navbar({ onMenuToggle, isSidebarOpen }: NavbarProps) {
         fetchUser();
         fetchNotifications();
 
-        // Optional polling for real-time feel
-        const interval = setInterval(fetchNotifications, 60000); // 1 minute
+        // Poll every 30s for new notifications
+        const interval = setInterval(fetchNotifications, 30000);
         return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
@@ -123,6 +154,23 @@ export default function Navbar({ onMenuToggle, isSidebarOpen }: NavbarProps) {
         }
     };
 
+    const markAllRead = async () => {
+        const unread = notifications.filter(n => !n.is_read);
+        await Promise.all(unread.map(n =>
+            apiFetch(`/notifications/${n.id}`, {
+                method: "PATCH",
+                body: JSON.stringify({ is_read: true })
+            }).catch(() => null)
+        ));
+        setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    };
+
+    const handleNotifClick = (id: number) => {
+        setExpandedNotifId(prev => prev === id ? null : id);
+        const notif = notifications.find(n => n.id === id);
+        if (notif && !notif.is_read) markAsRead(id);
+    };
+
     const unreadCount = notifications.filter(n => !n.is_read).length;
 
     const roleBadge: Record<string, string> = {
@@ -132,26 +180,15 @@ export default function Navbar({ onMenuToggle, isSidebarOpen }: NavbarProps) {
     };
 
     return (
-        <header className="fixed top-0 left-0 right-0 h-16 bg-[#064e3b] px-4 flex items-center justify-between z-[1000] shadow-lg shadow-black/10">
-            {/* Left: Toggle + Logo */}
-            <div className="flex items-center gap-3 flex-shrink-0">
-                <button
-                    onClick={onMenuToggle}
-                    className="w-9 h-9 flex items-center justify-center text-emerald-300 hover:text-white hover:bg-white/10 rounded-lg transition-all"
-                    aria-label="Toggle sidebar"
-                >
-                    <Menu className="w-5 h-5" />
-                </button>
-                <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Wrench className="w-4 h-4 text-white" />
-                    </div>
-                    <div className="hidden sm:block">
-                        <p className="font-black text-white text-sm leading-tight tracking-tight">Homecare Hub</p>
-                        <p className="text-[9px] text-emerald-300 font-black uppercase tracking-[0.2em]">Control Center</p>
-                    </div>
-                </div>
-            </div>
+        <header className={`fixed top-0 right-0 h-16 bg-[#064e3b] px-4 flex items-center justify-between z-[999] shadow-lg shadow-black/10 transition-all duration-300 ${isSidebarOpen ? "left-64" : "left-0 md:left-16"}`}>
+            {/* Mobile-only menu toggle (hidden on desktop since sidebar has its own toggle) */}
+            <button
+                onClick={onMenuToggle}
+                className="w-9 h-9 flex items-center justify-center text-emerald-300 hover:text-white hover:bg-white/10 rounded-lg transition-all md:hidden"
+                aria-label="Toggle sidebar"
+            >
+                <Menu className="w-5 h-5" />
+            </button>
 
             {/* Search */}
             <div className="flex-1 max-w-md mx-4">
@@ -182,42 +219,74 @@ export default function Navbar({ onMenuToggle, isSidebarOpen }: NavbarProps) {
 
                     {isNotifOpen && (
                         <div className="absolute top-full right-0 mt-3 w-80 bg-white border border-slate-200 rounded-xl shadow-[0_12px_40px_rgba(0,0,0,0.15)] p-2 animate-fade-in z-[100]">
+                            {/* Header */}
                             <div className="px-4 py-3 border-b border-slate-100 mb-1 flex justify-between items-center">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Notifications</p>
-                                <span className="text-[9px] font-black text-emerald-600 uppercase">Real-time</span>
+                                <div className="flex items-center gap-2">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Notifications</p>
+                                    {unreadCount > 0 && (
+                                        <span className="px-1.5 py-0.5 bg-rose-50 text-rose-500 border border-rose-100 rounded text-[8px] font-black">{unreadCount} new</span>
+                                    )}
+                                </div>
+                                {unreadCount > 0 && (
+                                    <button
+                                        onClick={markAllRead}
+                                        className="flex items-center gap-1 text-[9px] font-black text-emerald-700 uppercase tracking-widest hover:text-emerald-900 transition-colors"
+                                    >
+                                        <CheckCheck className="w-3 h-3" />
+                                        Mark all read
+                                    </button>
+                                )}
                             </div>
 
                             <div className="max-h-[350px] overflow-y-auto">
                                 {notifications.length === 0 ? (
                                     <div className="p-8 text-center">
                                         <Shield className="w-8 h-8 text-slate-100 mx-auto mb-2" />
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">No Alerts Found</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">All caught up</p>
                                     </div>
                                 ) : (
                                     notifications.map(notif => (
-                                        <div 
+                                        <div
                                             key={notif.id}
-                                            onClick={() => markAsRead(notif.id)}
-                                            className={`p-4 rounded-lg mb-1 cursor-pointer transition-all ${notif.is_read ? 'opacity-60 grayscale-[0.5]' : 'bg-slate-50 hover:bg-slate-100'}`}
+                                            className={`rounded-lg mb-1 transition-all ${notif.is_read ? 'opacity-50' : 'bg-slate-50'}`}
                                         >
-                                            <div className="flex items-start gap-3">
+                                            {/* Row */}
+                                            <div
+                                                onClick={() => handleNotifClick(notif.id)}
+                                                className="flex items-start gap-3 p-3 cursor-pointer hover:bg-slate-100 rounded-lg transition-all"
+                                            >
                                                 <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
                                                     notif.notification_type === 'URGENT' ? 'bg-rose-500' :
                                                     notif.notification_type === 'WARNING' ? 'bg-amber-500' : 'bg-emerald-500'
                                                 }`} />
-                                                <div className="space-y-0.5">
-                                                    <p className="text-xs font-black text-[#000000] uppercase tracking-tight">{notif.title}</p>
-                                                    <p className="text-[10px] font-bold text-slate-600 leading-normal">{notif.message}</p>
-                                                    <p className="text-[8px] font-black text-slate-400 uppercase mt-1">
-                                                        {new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                <div className="flex-1 min-w-0 space-y-0.5">
+                                                    <p className="text-xs font-black text-[#000000] uppercase tracking-tight leading-tight">{notif.title}</p>
+                                                    <p className="text-[8px] font-black text-slate-400 uppercase">
+                                                        {new Date(notif.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                                     </p>
                                                 </div>
+                                                <button
+                                                    onClick={e => { e.stopPropagation(); markAsRead(notif.id); }}
+                                                    className="w-5 h-5 flex items-center justify-center text-slate-300 hover:text-slate-500 hover:bg-slate-200 rounded transition-all flex-shrink-0"
+                                                    title="Dismiss"
+                                                >
+                                                    <X className="w-3 h-3" />
+                                                </button>
                                             </div>
+
+                                            {/* Expanded message */}
+                                            {expandedNotifId === notif.id && (
+                                                <div className="px-4 pb-3 pt-0">
+                                                    <p className="text-[10px] font-medium text-slate-600 leading-relaxed border-l-2 border-emerald-300 pl-3">
+                                                        {notif.message}
+                                                    </p>
+                                                </div>
+                                            )}
                                         </div>
                                     ))
                                 )}
                             </div>
-                            
+
                             <Link
                                 href={ROLE_ALERTS[role] ?? "/user/alerts"}
                                 onClick={() => setIsNotifOpen(false)}

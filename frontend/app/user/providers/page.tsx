@@ -6,7 +6,7 @@ import {
     Search, MapPin, ShieldCheck, DollarSign,
     Filter, WifiOff, RefreshCw, Award, AlertTriangle,
     Star, CheckSquare, Square, Send, Users, X, SlidersHorizontal,
-    ArrowUpDown, Check,
+    Check,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
@@ -68,12 +68,18 @@ function ProvidersContent() {
     const [loading, setLoading] = useState(true);
     const [fetchError, setFetchError] = useState<string | null>(null);
 
-    // ── Filter state ─────────────────────────────────────────────────────────
+    // ── Applied filter state (drives useMemo) ────────────────────────────────
     const [searchQuery, setSearchQuery] = useState("");
     const [activeCategory, setActiveCategory] = useState("All");
     const [minRating, setMinRating] = useState(0);
     const [availabilityFilter, setAvailabilityFilter] = useState("All");
     const [sortKey, setSortKey] = useState<SortKey>("rating_desc");
+
+    // ── Draft filter state (inside panel, not applied until button click) ────
+    const [draftMinRating, setDraftMinRating] = useState(0);
+    const [draftAvailability, setDraftAvailability] = useState("All");
+    const [draftSortKey, setDraftSortKey] = useState<SortKey>("rating_desc");
+
     const [showFilterPanel, setShowFilterPanel] = useState(false);
     const [isEmergency, setIsEmergency] = useState(false);
 
@@ -246,10 +252,39 @@ function ProvidersContent() {
         return url;
     };
 
-    const resetAdvancedFilters = () => {
+    // Open panel → sync drafts from applied state
+    const openFilterPanel = () => {
+        setDraftMinRating(minRating);
+        setDraftAvailability(availabilityFilter);
+        setDraftSortKey(sortKey);
+        setShowFilterPanel(true);
+    };
+
+    const applyFilters = () => {
+        setMinRating(draftMinRating);
+        setAvailabilityFilter(draftAvailability);
+        setSortKey(draftSortKey);
+        setShowFilterPanel(false);
+        setFocusedIndex(-1);
+    };
+
+    const resetDrafts = () => {
+        setDraftMinRating(0);
+        setDraftAvailability("All");
+        setDraftSortKey("rating_desc");
+    };
+
+    const clearAllFilters = () => {
+        setActiveCategory("All");
+        setSearchQuery("");
         setMinRating(0);
         setAvailabilityFilter("All");
         setSortKey("rating_desc");
+        setDraftMinRating(0);
+        setDraftAvailability("All");
+        setDraftSortKey("rating_desc");
+        setShowFilterPanel(false);
+        setFocusedIndex(-1);
     };
 
     // ── Render ───────────────────────────────────────────────────────────────
@@ -301,23 +336,9 @@ function ProvidersContent() {
                     )}
                 </div>
 
-                {/* Sort dropdown */}
-                <div className="relative">
-                    <select
-                        value={sortKey}
-                        onChange={e => setSortKey(e.target.value as SortKey)}
-                        className="h-full px-4 pr-9 bg-white border border-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-600 outline-none focus:border-[#064e3b] appearance-none cursor-pointer"
-                    >
-                        {(Object.keys(SORT_LABELS) as SortKey[]).map(k => (
-                            <option key={k} value={k}>{SORT_LABELS[k]}</option>
-                        ))}
-                    </select>
-                    <ArrowUpDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                </div>
-
-                {/* Advanced filters button */}
+                {/* Filters button — opens panel with draft state */}
                 <button
-                    onClick={() => setShowFilterPanel(v => !v)}
+                    onClick={showFilterPanel ? () => setShowFilterPanel(false) : openFilterPanel}
                     className={`relative flex items-center gap-2 px-5 py-4 rounded-2xl border font-black text-[10px] uppercase tracking-widest transition-all ${
                         showFilterPanel || activeFilterCount > 0
                             ? "bg-[#064e3b] text-white border-[#064e3b]"
@@ -334,13 +355,13 @@ function ProvidersContent() {
                 </button>
             </div>
 
-            {/* Advanced Filter Panel */}
+            {/* Advanced Filter Panel — draft state, only applies on button click */}
             {showFilterPanel && (
-                <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-5 shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-6 shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="flex items-center justify-between">
                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Advanced Filters</p>
-                        <button onClick={resetAdvancedFilters} className="text-[10px] font-black text-rose-500 uppercase tracking-widest hover:text-rose-700">
-                            Reset All
+                        <button onClick={resetDrafts} className="text-[10px] font-black text-rose-500 uppercase tracking-widest hover:text-rose-700">
+                            Reset
                         </button>
                     </div>
 
@@ -348,15 +369,15 @@ function ProvidersContent() {
                         {/* Min Rating */}
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                Min Rating: {minRating > 0 ? `${minRating}+` : "Any"}
+                                Min Rating: {draftMinRating > 0 ? `${draftMinRating}+` : "Any"}
                             </label>
                             <div className="flex gap-2 flex-wrap">
                                 {[0, 3, 3.5, 4, 4.5].map(r => (
                                     <button
                                         key={r}
-                                        onClick={() => setMinRating(r)}
+                                        onClick={() => setDraftMinRating(r)}
                                         className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${
-                                            minRating === r
+                                            draftMinRating === r
                                                 ? "bg-amber-500 text-white"
                                                 : "bg-slate-100 text-slate-500 hover:bg-slate-200"
                                         }`}
@@ -374,9 +395,9 @@ function ProvidersContent() {
                                 {["All", "AVAILABLE", "WORKING"].map(s => (
                                     <button
                                         key={s}
-                                        onClick={() => setAvailabilityFilter(s)}
+                                        onClick={() => setDraftAvailability(s)}
                                         className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${
-                                            availabilityFilter === s
+                                            draftAvailability === s
                                                 ? "bg-[#064e3b] text-white"
                                                 : "bg-slate-100 text-slate-500 hover:bg-slate-200"
                                         }`}
@@ -387,26 +408,42 @@ function ProvidersContent() {
                             </div>
                         </div>
 
-                        {/* Sort (also in panel for clarity) */}
+                        {/* Sort */}
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Sort By</label>
                             <div className="flex flex-col gap-1.5">
                                 {(Object.keys(SORT_LABELS) as SortKey[]).map(k => (
                                     <button
                                         key={k}
-                                        onClick={() => setSortKey(k)}
+                                        onClick={() => setDraftSortKey(k)}
                                         className={`flex items-center justify-between px-3 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${
-                                            sortKey === k
+                                            draftSortKey === k
                                                 ? "bg-[#064e3b] text-white"
                                                 : "bg-slate-100 text-slate-500 hover:bg-slate-200"
                                         }`}
                                     >
                                         {SORT_LABELS[k]}
-                                        {sortKey === k && <Check size={11} />}
+                                        {draftSortKey === k && <Check size={11} />}
                                     </button>
                                 ))}
                             </div>
                         </div>
+                    </div>
+
+                    {/* Apply / Cancel row */}
+                    <div className="flex gap-3 pt-2 border-t border-slate-100">
+                        <button
+                            onClick={() => setShowFilterPanel(false)}
+                            className="flex-1 py-3 border border-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={applyFilters}
+                            className="flex-1 py-3 bg-[#064e3b] text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-800 transition-colors flex items-center justify-center gap-2"
+                        >
+                            <Check size={13} /> Apply Filters
+                        </button>
                     </div>
                 </div>
             )}
@@ -439,11 +476,7 @@ function ProvidersContent() {
                     </p>
                     {(activeCategory !== "All" || searchQuery || activeFilterCount > 0) && (
                         <button
-                            onClick={() => {
-                                setActiveCategory("All");
-                                setSearchQuery("");
-                                resetAdvancedFilters();
-                            }}
+                            onClick={clearAllFilters}
                             className="text-[9px] font-black text-rose-400 uppercase tracking-widest hover:text-rose-600 transition-colors flex items-center gap-1"
                         >
                             <X size={10} /> Clear All
@@ -492,7 +525,7 @@ function ProvidersContent() {
                     </p>
                     {allProviders.length > 0 && (
                         <button
-                            onClick={() => { setActiveCategory("All"); setSearchQuery(""); resetAdvancedFilters(); }}
+                            onClick={clearAllFilters}
                             className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#064e3b] text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-950 transition-all"
                         >
                             <X className="w-3.5 h-3.5" /> Clear Filters

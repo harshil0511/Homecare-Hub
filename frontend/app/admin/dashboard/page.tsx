@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import {
     Users, ShieldCheck, Activity, Search,
     BadgeCheck, Mail,
-    TrendingUp, Shield, ClipboardList, Wrench,
-    BarChart3, Trash2, DollarSign, X, Calendar, User
+    Shield, ClipboardList, Wrench,
+    BarChart3, Trash2, X, Calendar, User
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { getUsername } from "@/lib/auth";
@@ -36,13 +36,6 @@ interface AdminContract {
     estimated_cost?: number;
     status: string;
     created_at?: string;
-}
-
-interface Revenue {
-    total_revenue: number;
-    completed_bookings: number;
-    avg_booking_value: number;
-    top_categories: { category: string; revenue: number }[];
 }
 
 interface BookingDetail {
@@ -77,7 +70,6 @@ export default function AdminDashboardPage() {
     const [contractsLoading, setContractsLoading] = useState(false);
     const [contractStatusFilter, setContractStatusFilter] = useState("ALL");
     const [contractDateFilter, setContractDateFilter] = useState("");
-    const [revenue, setRevenue] = useState<Revenue | null>(null);
     const [selectedBooking, setSelectedBooking] = useState<BookingDetail | null>(null);
     const [bookingDetailLoading, setBookingDetailLoading] = useState(false);
     const adminName = getUsername();
@@ -98,9 +90,6 @@ export default function AdminDashboardPage() {
             .then((d: HealthStatus) => setHealth(d))
             .catch(() => setHealth({ database: false, api: true, jwt: true, checked_at: null }));
 
-        apiFetch("/admin/revenue")
-            .then((d: Revenue) => setRevenue(d))
-            .catch(() => {});
     }, []);
 
     useEffect(() => {
@@ -223,41 +212,6 @@ export default function AdminDashboardPage() {
                         </div>
                     )}
 
-                    {/* Revenue Summary */}
-                    {revenue && (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div className="bg-[#064e3b] rounded-[2rem] p-8 text-white shadow-xl">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <DollarSign className="w-5 h-5 text-emerald-300" />
-                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-300">Total Revenue</p>
-                                </div>
-                                <p className="text-3xl font-black tracking-tighter">₹{revenue.total_revenue.toLocaleString("en-IN")}</p>
-                                <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mt-1">From completed bookings</p>
-                            </div>
-                            <div className="bg-white border border-slate-200 rounded-[2rem] p-8 shadow-sm">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <TrendingUp className="w-5 h-5 text-blue-500" />
-                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Avg Booking Value</p>
-                                </div>
-                                <p className="text-3xl font-black tracking-tighter text-[#000000]">₹{revenue.avg_booking_value.toLocaleString("en-IN")}</p>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{revenue.completed_bookings} completed</p>
-                            </div>
-                            <div className="bg-white border border-slate-200 rounded-[2rem] p-8 shadow-sm">
-                                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-4">Top Categories</p>
-                                <div className="space-y-2">
-                                    {revenue.top_categories.slice(0, 3).map((cat) => (
-                                        <div key={cat.category} className="flex items-center justify-between">
-                                            <span className="text-[10px] font-black text-slate-600 uppercase truncate max-w-[140px]">{cat.category}</span>
-                                            <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg">₹{cat.revenue.toLocaleString("en-IN")}</span>
-                                        </div>
-                                    ))}
-                                    {revenue.top_categories.length === 0 && (
-                                        <p className="text-[10px] text-slate-300 uppercase">No data yet</p>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
 
                     {/* Users + System Health */}
                     <div className="grid grid-cols-1 xl:grid-cols-3 gap-10">

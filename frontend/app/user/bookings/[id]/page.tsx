@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { useToast } from "@/lib/toast-context";
 import {
     Clock as ClockIcon, Calendar,
     ChevronLeft, Settings, AlertTriangle,
@@ -14,13 +15,14 @@ import BookingStatusTimeline from "@/components/bookings/BookingStatusTimeline";
 export default function BookingDetailsPage() {
     const { id } = useParams();
     const router = useRouter();
+    const toast = useToast();
     const [booking, setBooking] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [messages, setMessages] = useState<any[]>([]);
     const [newMessage, setNewMessage] = useState("");
     const [showCancel, setShowCancel] = useState(false);
     const [cancelReason, setCancelReason] = useState("");
-    
+
     const chatEndRef = useRef<HTMLDivElement>(null);
     const [showReschedule, setShowReschedule] = useState(false);
     const [rescheduleDate, setRescheduleDate] = useState("");
@@ -34,6 +36,7 @@ export default function BookingDetailsPage() {
     const [professionalismRating, setProfessionalismRating] = useState(0);
     const [submittingReview, setSubmittingReview] = useState(false);
     const [completing, setCompleting] = useState(false);
+    const [receipt, setReceipt] = useState<any>(null);
 
     const fetchData = async () => {
         try {
@@ -44,6 +47,9 @@ export default function BookingDetailsPage() {
             setBooking(data);
             setMessages(data.chats || []);
             setUserRole(me.role);
+            if (data.status === "Completed") {
+                apiFetch(`/bookings/${id}/receipt`).then(setReceipt).catch((e) => console.error("Receipt fetch failed:", e));
+            }
         } catch (err) {
             console.error(err);
         } finally {
@@ -69,9 +75,10 @@ export default function BookingDetailsPage() {
                 method: "PATCH",
                 body: JSON.stringify({ status: "Completed" })
             });
+            toast.success("Booking marked as completed");
             await fetchData();
         } catch (err: any) {
-            alert(err.message || "Failed to mark as completed");
+            toast.error(err.message || "Failed to mark as completed");
         } finally {
             setCompleting(false);
         }
@@ -79,7 +86,7 @@ export default function BookingDetailsPage() {
 
     const handleSubmitReview = async () => {
         if (reviewRating === 0) {
-            alert("Please select a star rating");
+            toast.error("Please select a star rating");
             return;
         }
         setSubmittingReview(true);
@@ -95,9 +102,10 @@ export default function BookingDetailsPage() {
                 })
             });
             setShowReview(false);
+            toast.success("Review submitted — thank you!");
             await fetchData();
         } catch (err: any) {
-            alert(err.message || "Failed to submit review");
+            toast.error(err.message || "Failed to submit review");
         } finally {
             setSubmittingReview(false);
         }
@@ -128,10 +136,11 @@ export default function BookingDetailsPage() {
                 body: JSON.stringify({ reason: cancelReason })
             });
             setShowCancel(false);
+            toast.success("Booking cancelled");
             setLoading(true);
             await fetchData();
-        } catch (err) {
-            console.error(err);
+        } catch (err: any) {
+            toast.error(err.message || "Failed to cancel booking");
         }
     };
 
@@ -158,11 +167,11 @@ export default function BookingDetailsPage() {
                 body: JSON.stringify({ new_date: formattedDate })
             });
             setShowReschedule(false);
+            toast.success("Schedule updated");
             setLoading(true);
             await fetchData();
-        } catch (err) {
-            console.error(err);
-            alert("Failed to reschedule. Please check the network and try again.");
+        } catch (err: any) {
+            toast.error(err.message || "Failed to reschedule. Please try again.");
         } finally {
             setRescheduling(false);
         }
@@ -221,18 +230,30 @@ export default function BookingDetailsPage() {
                                 <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase mb-4">{booking.service_type} Service</h1>
                                 <div className="flex items-center gap-4">
                                     <span className="text-[10px] font-black bg-slate-100 text-slate-500 px-3 py-1.5 rounded-lg uppercase tracking-widest">ID: #{booking.id.toString().padStart(5, '0')}</span>
-                                    <span className={`text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest ${
-                                        booking.status === "Pending" ? "bg-amber-100 text-amber-600" :
+                                    <span className={`text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest ${booking.status === "Pending" ? "bg-amber-100 text-amber-600" :
                                         booking.status === "Completed" ? "bg-emerald-100 text-emerald-600" :
-                                        "bg-blue-100 text-blue-600"
-                                    }`}>
+                                            "bg-blue-100 text-blue-600"
+                                        }`}>
                                         {booking.status}
                                     </span>
                                 </div>
                             </div>
                             <div className="text-right">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Estimate</p>
-                                <p className="text-4xl font-black text-slate-900 tracking-tighter">${booking.estimated_cost.toFixed(2)}</p>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                                    {booking.status === "Completed" && booking.final_cost ? "Final Cost" : "Estimated Cost"}
+                                </p>
+                                <p className="text-4xl font-black text-slate-900 tracking-tighter">
+                                    {booking.status === "Completed" && booking.final_cost
+                                        ? `₹${Number(booking.final_cost).toLocaleString("en-IN")}`
+                                        : booking.estimated_cost != null
+                                            ? `₹${Number(booking.estimated_cost).toLocaleString("en-IN")}`
+                                            : "—"}
+                                </p>
+                                {booking.status === "Completed" && booking.final_cost && booking.estimated_cost && (
+                                    <p className="text-xs text-slate-400 mt-1">
+                                        Est. ₹{Number(booking.estimated_cost).toLocaleString("en-IN")}
+                                    </p>
+                                )}
                             </div>
                         </div>
 
@@ -263,7 +284,85 @@ export default function BookingDetailsPage() {
                                 {booking.issue_description}
                             </p>
                         </div>
+
+                        {/* Completion details inline */}
+                        {booking.status === "Completed" && (booking.actual_hours || booking.completion_notes) && (
+                            <div className="mt-10 pt-10 border-t border-slate-100 space-y-4">
+                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Completion Details</h4>
+                                <div className="grid grid-cols-2 gap-4">
+                                    {booking.actual_hours && (
+                                        <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Hours Worked</p>
+                                            <p className="text-lg font-black text-slate-900">{booking.actual_hours}h</p>
+                                        </div>
+                                    )}
+                                    {booking.final_cost && (
+                                        <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl">
+                                            <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Final Bill</p>
+                                            <p className="text-lg font-black text-emerald-700">₹{Number(booking.final_cost).toLocaleString("en-IN")}</p>
+                                        </div>
+                                    )}
+                                </div>
+                                {booking.completion_notes && (
+                                    <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Technician Notes</p>
+                                        <p className="text-sm text-slate-600 italic">{booking.completion_notes}</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
+
+                    {/* Payment Receipt Card */}
+                    {booking.status === "Completed" && receipt && (
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-[2.5rem] p-10">
+                            <h2 className="text-[10px] font-black text-emerald-700 uppercase tracking-widest mb-6 flex items-center gap-2">
+                                <FileText size={12} /> Payment Receipt
+                            </h2>
+                            <div className="grid grid-cols-2 gap-4 text-xs">
+                                <div>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Job ID</p>
+                                    <p className="font-black text-slate-900">#{String(receipt.booking_id).padStart(5, "0")}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Service</p>
+                                    <p className="font-black text-slate-900">{receipt.service_type}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Expert</p>
+                                    <p className="font-black text-slate-900">{receipt.provider_name}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Date</p>
+                                    <p className="font-black text-slate-900">
+                                        {new Date(receipt.scheduled_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                                    </p>
+                                </div>
+                                {receipt.actual_hours && (
+                                    <div>
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Hours Worked</p>
+                                        <p className="font-black text-slate-900">{receipt.actual_hours}h</p>
+                                    </div>
+                                )}
+                                <div>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Estimated</p>
+                                    <p className="font-black text-slate-500">₹{Number(receipt.estimated_cost).toLocaleString("en-IN")}</p>
+                                </div>
+                                <div className="col-span-2 mt-2 pt-4 border-t border-emerald-200">
+                                    <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Final Amount Paid</p>
+                                    <p className="text-3xl font-black text-emerald-700 tracking-tight">
+                                        ₹{Number(receipt.final_cost ?? receipt.estimated_cost).toLocaleString("en-IN")}
+                                    </p>
+                                </div>
+                            </div>
+                            {receipt.completion_notes && (
+                                <div className="mt-6 pt-6 border-t border-emerald-200">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Technician Notes</p>
+                                    <p className="text-sm text-slate-600 italic">{receipt.completion_notes}</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* Right Column: Provider & Chat */}
@@ -272,11 +371,15 @@ export default function BookingDetailsPage() {
                     <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-slate-900/40">
                         <div className="flex items-center gap-5 mb-8">
                             <div className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center font-black text-2xl text-emerald-400">
-                                {booking.provider.company_name.charAt(0)}
+                                {(booking.provider?.company_name || booking.provider?.first_name || "?").charAt(0).toUpperCase()}
                             </div>
                             <div>
                                 <div className="flex items-center gap-2">
-                                    <h3 className="text-xl font-black tracking-tight">{booking.provider.company_name}</h3>
+                                    <h3 className="text-xl font-black tracking-tight">
+                                        {booking.provider?.company_name
+                                            || `${booking.provider?.first_name || ""} ${booking.provider?.last_name || ""}`.trim()
+                                            || "Provider"}
+                                    </h3>
                                     <ShieldCheck size={18} className="text-emerald-500" />
                                 </div>
                                 <p className="text-[10px] font-bold text-emerald-400/60 uppercase tracking-widest mt-1">Assigned Expert</p>
@@ -307,11 +410,10 @@ export default function BookingDetailsPage() {
                         <div className="flex-1 overflow-y-auto p-6 space-y-6">
                             {messages.map((m, i) => (
                                 <div key={i} className={`flex ${m.sender_id === booking.user_id ? "justify-end" : "justify-start"}`}>
-                                    <div className={`max-w-[80%] p-4 rounded-2xl shadow-sm text-sm font-medium ${
-                                        m.sender_id === booking.user_id 
-                                            ? "bg-slate-900 text-white rounded-br-none" 
-                                            : "bg-slate-50 border border-slate-100 text-slate-800 rounded-bl-none"
-                                    }`}>
+                                    <div className={`max-w-[80%] p-4 rounded-2xl shadow-sm text-sm font-medium ${m.sender_id === booking.user_id
+                                        ? "bg-slate-900 text-white rounded-br-none"
+                                        : "bg-slate-50 border border-slate-100 text-slate-800 rounded-bl-none"
+                                        }`}>
                                         {m.message}
                                         <p className={`text-[8px] mt-2 font-black uppercase opacity-40 ${m.sender_id === booking.user_id ? "text-right" : "text-left"}`}>
                                             {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -324,14 +426,14 @@ export default function BookingDetailsPage() {
 
                         <div className="p-6 bg-slate-50 border-t border-slate-100">
                             <div className="relative">
-                                <input 
+                                <input
                                     value={newMessage}
                                     onChange={e => setNewMessage(e.target.value)}
                                     onKeyPress={e => e.key === 'Enter' && handleSendMessage()}
                                     placeholder="Type a message..."
                                     className="w-full bg-white border border-slate-200 rounded-xl pl-6 pr-14 py-4 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500/20 outline-none"
                                 />
-                                <button 
+                                <button
                                     onClick={handleSendMessage}
                                     className="absolute right-2 top-2 w-10 h-10 bg-slate-900 text-white rounded-lg flex items-center justify-center hover:bg-emerald-600 transition-all"
                                 >
@@ -352,7 +454,7 @@ export default function BookingDetailsPage() {
                             <button onClick={() => setShowCancel(false)} className="text-slate-400"><X /></button>
                         </div>
                         <p className="text-sm font-medium text-slate-500 leading-relaxed">Please provide a reason for cancellation. This help us improve our service network.</p>
-                        <textarea 
+                        <textarea
                             value={cancelReason}
                             onChange={e => setCancelReason(e.target.value)}
                             className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-6 font-bold text-sm outline-none"
@@ -375,10 +477,10 @@ export default function BookingDetailsPage() {
                             <button onClick={() => setShowReschedule(false)} className="text-slate-400"><X /></button>
                         </div>
                         <p className="text-sm font-medium text-slate-500 leading-relaxed">Choose a new date and time for this request. If the job was cancelled, it will be automatically re-opened for the provider.</p>
-                        
+
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">New Date & Time</label>
-                            <input 
+                            <input
                                 type="datetime-local"
                                 value={rescheduleDate}
                                 onChange={e => setRescheduleDate(e.target.value)}
@@ -388,12 +490,11 @@ export default function BookingDetailsPage() {
 
                         <div className="grid grid-cols-2 gap-4">
                             <button onClick={() => setShowReschedule(false)} className="py-4 rounded-xl border border-slate-200 font-black text-[10px] uppercase tracking-widest text-slate-400 hover:bg-slate-50">Cancel</button>
-                            <button 
-                                onClick={handleReschedule} 
+                            <button
+                                onClick={handleReschedule}
                                 disabled={rescheduling}
-                                className={`py-4 rounded-xl text-white font-black text-[10px] uppercase tracking-widest shadow-lg transition-all ${
-                                    rescheduling ? "bg-slate-400 cursor-not-allowed" : "bg-slate-900 shadow-slate-900/20 active:scale-95"
-                                }`}
+                                className={`py-4 rounded-xl text-white font-black text-[10px] uppercase tracking-widest shadow-lg transition-all ${rescheduling ? "bg-slate-400 cursor-not-allowed" : "bg-slate-900 shadow-slate-900/20 active:scale-95"
+                                    }`}
                             >
                                 {rescheduling ? "Updating..." : "Update Schedule"}
                             </button>

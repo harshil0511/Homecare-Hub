@@ -25,15 +25,21 @@ def signup(user_in: UserCreate, db: Session = Depends(deps.get_db)):
     if user_in.email == settings.SUPERADMIN_EMAIL:
         role = "ADMIN"
 
-    # 4. Secretary must provide a valid society_id
+    # 4. Secretary must provide society name + address to create a new society
     society_id = None
     if role == "SECRETARY":
-        if user_in.society_id is None:
-            raise HTTPException(status_code=400, detail="Secretary must select a society.")
-        society = db.query(Society).filter(Society.id == user_in.society_id).first()
-        if not society:
-            raise HTTPException(status_code=404, detail="Selected society not found.")
-        society_id = user_in.society_id
+        if not user_in.society_name or not user_in.society_address:
+            raise HTTPException(status_code=400, detail="Secretary must provide a society name and location.")
+        # Create the society first
+        new_society = Society(
+            name=user_in.society_name.strip(),
+            address=user_in.society_address.strip(),
+            secretary_name=user_in.username,
+            creator_role="SECRETARY",
+        )
+        db.add(new_society)
+        db.flush()  # get the new society id before committing
+        society_id = new_society.id
 
     # 5. Create and save the user
     db_user = User(

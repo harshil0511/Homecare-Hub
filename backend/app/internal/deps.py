@@ -1,8 +1,8 @@
 from typing import Generator, List
 from fastapi import Depends, HTTPException, status
 from jose import JWTError, jwt
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
-from app.core.database import SessionLocal
 from app.core.config import settings
 from app.core import security
 from .models import User
@@ -11,9 +11,20 @@ from .schemas import TokenData
 
 def get_db() -> Generator:
     """Provide a database session for each request, then close it."""
+    from app.core.database import SessionLocal
+    if SessionLocal is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Database is unavailable. Please ensure the database server is running.",
+        )
+    db = SessionLocal()
     try:
-        db = SessionLocal()
         yield db
+    except OperationalError:
+        raise HTTPException(
+            status_code=503,
+            detail="Database connection lost. Please try again in a moment.",
+        )
     finally:
         db.close()
 

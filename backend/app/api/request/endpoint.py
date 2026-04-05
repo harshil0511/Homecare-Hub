@@ -409,6 +409,52 @@ def accept_response(
     return booking
 
 
+@router.post("/{request_id}/responses/{response_id}/reject", status_code=200)
+def reject_response(
+    request_id: int,
+    response_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(user_or_secretary),
+):
+    req = db.query(models.ServiceRequest).filter(
+        models.ServiceRequest.id == request_id
+    ).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if req.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    _mark_expired_if_needed(req)
+    if req.status != "OPEN":
+        raise HTTPException(status_code=400, detail=f"Cannot reject: request is {req.status}")
+
+    response = db.query(models.ServiceRequestResponse).filter(
+        models.ServiceRequestResponse.id == response_id,
+        models.ServiceRequestResponse.request_id == request_id,
+        models.ServiceRequestResponse.status == "PENDING",
+    ).first()
+    if not response:
+        raise HTTPException(status_code=404, detail="Response not found or already processed")
+
+    response.status = "REJECTED"
+
+    provider = db.query(models.ServiceProvider).filter(
+        models.ServiceProvider.id == response.provider_id
+    ).first()
+    if provider and provider.user_id:
+        _notify(
+            db,
+            user_id=provider.user_id,
+            title="Offer Declined",
+            message=f"The user has declined your offer for '{req.device_or_issue}'.",
+            notification_type="INFO",
+            link="/service/jobs",
+        )
+
+    db.commit()
+    return {"detail": "Response rejected"}
+
+
 @router.delete("/{request_id}", status_code=200)
 def cancel_request(
     request_id: int,

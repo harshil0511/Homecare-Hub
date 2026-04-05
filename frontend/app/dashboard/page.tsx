@@ -725,7 +725,7 @@ export default function DashboardPage() {
                                                 )}
                                             </div>
 
-                                            <Link href="/dashboard/societies" className="block text-center mt-6 text-[9px] font-black text-[#064e3b] uppercase tracking-[0.3em] hover:tracking-[0.4em] transition-all py-2 border-t border-slate-50">
+                                            <Link href="/login" className="block text-center mt-6 text-[9px] font-black text-[#064e3b] uppercase tracking-[0.3em] hover:tracking-[0.4em] transition-all py-2 border-t border-slate-50">
                                                 Manage Society Infrastructure →
                                             </Link>
                                         </div>
@@ -737,7 +737,7 @@ export default function DashboardPage() {
                                         </div>
                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed max-w-[200px] mx-auto">Join an organization to build your service network.</p>
                                         <Link
-                                            href="/dashboard/societies"
+                                            href="/login"
                                             className="w-full py-5 bg-slate-900 text-white rounded-2xl text-[10px] text-center block font-black uppercase tracking-widest hover:bg-black transition-all shadow-lg"
                                         >
                                             Create Society

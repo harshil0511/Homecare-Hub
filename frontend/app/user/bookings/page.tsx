@@ -8,6 +8,7 @@ import {
   Search, X, MapPin, Star
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { useToast } from "@/lib/toast-context";
 
 interface ServiceRequest {
   id: number;
@@ -74,6 +75,7 @@ export default function UserBookingsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab") as Tab | null;
+  const toast = useToast();
 
   const [activeTab, setActiveTab] = useState<Tab>(tabParam || "active");
   const [requests, setRequests] = useState<ServiceRequest[]>([]);
@@ -88,6 +90,12 @@ export default function UserBookingsPage() {
     date: string;
   } | null>(null);
   const [accepting, setAccepting] = useState(false);
+  const [confirmReject, setConfirmReject] = useState<{
+    requestId: number;
+    responseId: number;
+    servicerName: string;
+  } | null>(null);
+  const [rejecting, setRejecting] = useState(false);
   const [cancelling, setCancelling] = useState<number | null>(null);
 
   const loadData = useCallback(async () => {
@@ -131,10 +139,11 @@ export default function UserBookingsPage() {
     try {
       await apiFetch(`/requests/${confirmAccept.requestId}/responses/${confirmAccept.responseId}/accept`, { method: "POST" });
       setConfirmAccept(null);
+      toast.success(`Contract created with ${confirmAccept.servicerName}`);
       await loadData();
       setActiveTab("contracts");
-    } catch (err) {
-      console.error("Failed to accept response:", err);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to accept offer — please try again");
     } finally {
       setAccepting(false);
     }
@@ -146,10 +155,26 @@ export default function UserBookingsPage() {
     try {
       await apiFetch(`/requests/${requestId}`, { method: "DELETE" });
       setRequests(prev => prev.filter(r => r.id !== requestId));
-    } catch (err) {
-      console.error("Failed to cancel:", err);
+      toast.success("Request cancelled — providers notified");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to cancel request");
     } finally {
       setCancelling(null);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!confirmReject) return;
+    setRejecting(true);
+    try {
+      await apiFetch(`/requests/${confirmReject.requestId}/responses/${confirmReject.responseId}/reject`, { method: "POST" });
+      setConfirmReject(null);
+      toast.success(`Offer from ${confirmReject.servicerName} declined`);
+      await loadData();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to reject offer");
+    } finally {
+      setRejecting(false);
     }
   };
 
@@ -293,18 +318,26 @@ export default function UserBookingsPage() {
                           <p className="font-black text-slate-900 text-sm">{servicerName}</p>
                           <p className="text-xs text-slate-500">Response to: <span className="font-bold">{req.device_or_issue}</span></p>
                         </div>
-                        <button
-                          onClick={() => setConfirmAccept({
-                            requestId: req.id,
-                            responseId: resp.id,
-                            servicerName,
-                            price: resp.proposed_price,
-                            date: resp.proposed_date,
-                          })}
-                          className="flex items-center gap-1.5 px-4 py-2 bg-[#064e3b] text-white text-xs font-black uppercase rounded-xl hover:bg-emerald-800 transition-colors"
-                        >
-                          <CheckCircle className="w-4 h-4" /> Accept
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setConfirmAccept({
+                              requestId: req.id,
+                              responseId: resp.id,
+                              servicerName,
+                              price: resp.proposed_price,
+                              date: resp.proposed_date,
+                            })}
+                            className="flex items-center gap-1.5 px-4 py-2 bg-[#064e3b] text-white text-xs font-black uppercase rounded-xl hover:bg-emerald-800 transition-colors"
+                          >
+                            <CheckCircle className="w-4 h-4" /> Accept
+                          </button>
+                          <button
+                            onClick={() => setConfirmReject({ requestId: req.id, responseId: resp.id, servicerName })}
+                            className="flex items-center gap-1.5 px-4 py-2 border border-rose-200 text-rose-600 text-xs font-black uppercase rounded-xl hover:bg-rose-50 transition-colors"
+                          >
+                            <XCircle className="w-4 h-4" /> Reject
+                          </button>
+                        </div>
                       </div>
                       <div className="grid grid-cols-2 gap-3 text-xs">
                         <div className="flex items-center gap-2 text-slate-600">
@@ -410,6 +443,31 @@ export default function UserBookingsPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* Reject Confirmation Dialog */}
+      {confirmReject && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl">
+            <h2 className="text-lg font-black text-slate-900 uppercase tracking-widest mb-2">Decline This Offer?</h2>
+            <p className="text-sm text-slate-600 mb-6">
+              You are about to decline <span className="font-bold">{confirmReject.servicerName}</span>&apos;s offer.
+              They will be notified that you chose someone else.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmReject(null)} className="flex-1 py-3 border border-slate-200 rounded-2xl text-sm font-black uppercase text-slate-500 hover:bg-slate-50">
+                Back
+              </button>
+              <button
+                onClick={handleReject}
+                disabled={rejecting}
+                className="flex-1 py-3 bg-rose-600 text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-rose-700 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {rejecting ? "Declining..." : <><XCircle className="w-4 h-4" /> Decline</>}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Accept Confirmation Dialog */}

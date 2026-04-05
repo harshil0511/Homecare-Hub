@@ -223,7 +223,7 @@ export default function HomecareLandingPage() {
                 </div>
               </div>
               <Link
-                href="/dashboard/societies"
+                href="/login"
                 className="inline-flex items-center space-x-3 bg-emerald-500 hover:bg-emerald-400 text-white px-10 py-5 rounded-3xl font-black text-lg transition-all shadow-xl shadow-emerald-500/20 hover:-translate-y-1 active:scale-95"
               >
                 <span>Start a Society</span>

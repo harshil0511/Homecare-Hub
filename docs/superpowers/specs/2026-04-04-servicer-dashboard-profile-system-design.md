@@ -16,6 +16,7 @@ Two goals:
 
 ## Architecture
 
+
 ### Files Changed
 
 | File | Change |
@@ -110,8 +111,8 @@ Mandatory fields show a red `*` in the label. Save button is disabled if any man
 
 **Category multi-select:** Predefined list of categories matching the backend `ALLOWED_CATEGORIES`. User clicks chips to toggle selection. Selected chips appear in emerald. At least one required.
 
-**Account Details sub-section:**
-Sourced from `GET /user/me`. Username is editable (calls `PATCH /user/me` on save). Email is read-only (shown as disabled input).
+**Account Details sub-section (read-only):**
+Username and email shown as read-only fields (sourced from `GET /user/me`). Username can be edited (calls `PATCH /user/me`).
 
 ---
 

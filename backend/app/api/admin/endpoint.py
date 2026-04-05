@@ -324,10 +324,16 @@ def get_provider_detail(
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found.")
 
-    cert_count = db.query(ServiceCertificate).filter(
-        ServiceCertificate.provider_id == provider_id
-    ).count()
-    booking_count = db.query(ServiceBooking).filter(ServiceBooking.provider_id == provider_id).count()
+    try:
+        cert_count = db.query(ServiceCertificate).filter(
+            ServiceCertificate.provider_id == provider_id
+        ).count()
+    except Exception:
+        cert_count = 0
+    try:
+        booking_count = db.query(ServiceBooking).filter(ServiceBooking.provider_id == provider_id).count()
+    except Exception:
+        booking_count = 0
 
     return {
         "id": provider.id,
@@ -360,8 +366,14 @@ def get_user_detail(
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
 
-    booking_count = db.query(ServiceBooking).filter(ServiceBooking.user_id == user.id).count()
-    request_count = db.query(ServiceRequest).filter(ServiceRequest.user_id == user.id).count()
+    try:
+        booking_count = db.query(ServiceBooking).filter(ServiceBooking.user_id == user.id).count()
+    except Exception:
+        booking_count = 0
+    try:
+        request_count = db.query(ServiceRequest).filter(ServiceRequest.user_id == user.id).count()
+    except Exception:
+        request_count = 0
 
     society_name = None
     if user.society_id:

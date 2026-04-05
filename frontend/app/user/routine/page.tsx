@@ -102,7 +102,7 @@ function RoutineServiceContent() {
     // Pending (unassigned) tasks
     const [pendingTasks, setPendingTasks] = useState<RoutineTask[]>([]);
     const [loadingPending, setLoadingPending] = useState(true);
-    const [pendingExpanded, setPendingExpanded] = useState(true);
+    const [pendingExpanded, setPendingExpanded] = useState(false);
     const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
 
     // Form state

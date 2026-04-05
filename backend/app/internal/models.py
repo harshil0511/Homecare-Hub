@@ -1,6 +1,6 @@
 import uuid
 import datetime
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Text, Table, Date, Float
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Table, Date, Float
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -74,7 +74,7 @@ class ServiceProvider(Base):
     owner_name = Column(String)
     first_name = Column(String, nullable=True)
     last_name = Column(String, nullable=True)
-    age = Column(Float, nullable=True)
+    age = Column(Integer, nullable=True)
     gender = Column(String, nullable=True)
     category = Column(String, index=True)
     categories = Column(Text, nullable=True)
@@ -85,7 +85,7 @@ class ServiceProvider(Base):
     availability = Column(Text, nullable=True)
     bio = Column(Text, nullable=True)
     education = Column(String, nullable=True)
-    experience_years = Column(Float, default=0)
+    experience_years = Column(Integer, default=0)
     availability_status = Column(String, default="AVAILABLE")
 
     is_verified = Column(Boolean, default=False)
@@ -179,13 +179,13 @@ class BookingReview(Base):
 
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     booking_id = Column(PG_UUID(as_uuid=True), ForeignKey("service_bookings.id"))
-    rating = Column(Float)
+    rating = Column(Integer)
     review_text = Column(Text, nullable=True)
     photos = Column(Text, nullable=True)
 
-    quality_rating = Column(Float, default=5)
-    punctuality_rating = Column(Float, default=5)
-    professionalism_rating = Column(Float, default=5)
+    quality_rating = Column(Integer, default=5)
+    punctuality_rating = Column(Integer, default=5)
+    professionalism_rating = Column(Integer, default=5)
 
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
@@ -361,7 +361,7 @@ class EmergencyResponse(Base):
     provider_id = Column(PG_UUID(as_uuid=True), ForeignKey("service_providers.id"), nullable=False)
     arrival_time = Column(DateTime, nullable=False)
     status = Column(String, default="PENDING", nullable=False, index=True)
-    penalty_count = Column(Float, nullable=False, default=0)
+    penalty_count = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
