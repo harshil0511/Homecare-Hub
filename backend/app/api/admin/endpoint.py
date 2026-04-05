@@ -52,7 +52,11 @@ def change_user_role(
             detail=f"Invalid role. Allowed: {', '.join(allowed_roles)}"
         )
 
-    user = db.query(User).filter(User.id == uuid.UUID(user_uuid)).first()
+    try:
+        uid = uuid.UUID(user_uuid)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid user UUID format.")
+    user = db.query(User).filter(User.id == uid).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
 
@@ -71,7 +75,11 @@ def toggle_user_active(
     _: User = Depends(admin_only)
 ):
     """Toggle a user's is_active status."""
-    user = db.query(User).filter(User.id == uuid.UUID(user_uuid)).first()
+    try:
+        uid = uuid.UUID(user_uuid)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid user UUID format.")
+    user = db.query(User).filter(User.id == uid).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
 
@@ -90,7 +98,11 @@ def delete_user(
     if str(current_admin.id) == user_uuid:
         raise HTTPException(status_code=400, detail="Cannot delete your own admin account.")
 
-    user = db.query(User).filter(User.id == uuid.UUID(user_uuid)).first()
+    try:
+        uid = uuid.UUID(user_uuid)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid user UUID format.")
+    user = db.query(User).filter(User.id == uid).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
 
@@ -363,7 +375,11 @@ def get_user_detail(
     """Curated user detail for admin view — need-to-know fields only."""
     from app.internal.models import ServiceRequest, Society
 
-    user = db.query(User).filter(User.id == uuid.UUID(user_uuid)).first()
+    try:
+        uid = uuid.UUID(user_uuid)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid user UUID format.")
+    user = db.query(User).filter(User.id == uid).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
 
