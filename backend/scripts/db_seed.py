@@ -24,9 +24,9 @@ def seed():
     
     # 2. Create Users
     user_harshil = User(
-        email="harshil123@gmail.com",
-        username="harshil",
-        hashed_password=get_password_hash("Hp@1234"),
+        email="servicer@example.com",
+        username="demo_servicer",
+        hashed_password=get_password_hash("Demo@1234"),
         role="SERVICER",
         is_active=True
     )
@@ -48,12 +48,12 @@ def seed():
     # 3. Create Service Providers
     providers = [
         ServiceProvider(
-            user_id=user_harshil.id, 
-            company_name="Harshil Tech Services",
-            owner_name="Harshil",
+            user_id=user_harshil.id,
+            company_name="Demo Tech Services",
+            owner_name="Demo Servicer",
             category="Electrical",
-            phone="+91-9876543210",
-            email="harshil123@gmail.com",
+            phone="+91-9000000001",
+            email="servicer@example.com",
             is_verified=True,
             qualification="B.Tech Electrical",
             government_id="GOV-IND-001",

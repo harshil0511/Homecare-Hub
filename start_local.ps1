@@ -97,10 +97,14 @@ Set-Location $Backend
 # ── Step 3: Test DB connection ─────────────────────────────────────
 Write-Host ""
 Write-Host "▶ [3/4] Testing database connection..." -ForegroundColor Yellow
+$dbUrl = $env:DATABASE_URL_LOCAL
+if (-not $dbUrl) {
+    $dbUrl = "postgresql://homecare_user:homecare_pass@127.0.0.1:5435/homecare"
+}
 $dbTest = & $Venv -c @"
 import psycopg, sys
 try:
-    conn = psycopg.connect('postgresql://homecare_user:homecare_pass@127.0.0.1:5435/homecare', connect_timeout=5)
+    conn = psycopg.connect('$dbUrl', connect_timeout=5)
     conn.close()
     print('OK')
 except Exception as e:

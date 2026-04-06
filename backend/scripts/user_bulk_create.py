@@ -14,15 +14,15 @@ def create_test_users():
     try:
         users_to_create = [
             {
-                "email": "nidhi123@gmail.com",
-                "username": "nidhi12",
-                "password": "Hp@12345",
+                "email": "user1@example.com",
+                "username": "demo_user1",
+                "password": "Demo@12345",
                 "role": "USER"
             },
             {
-                "email": "sneh12@gmail.com",
-                "username": "sneh",
-                "password": "Sneh@12",
+                "email": "servicer1@example.com",
+                "username": "demo_servicer1",
+                "password": "Demo@12345",
                 "role": "SERVICER"
             }
         ]

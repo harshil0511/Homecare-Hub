@@ -5,6 +5,9 @@
 .env.*.local
 *.log
 
+# Uploaded user files (never commit real user data)
+backend/app/uploads/
+
 # Python
 __pycache__/
 *.pyc
