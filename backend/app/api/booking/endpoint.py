@@ -11,6 +11,7 @@ from app.internal.services import (
     get_provider_display_name,
     ALLOWED_CATEGORIES, BOOKING_CONFLICT_WINDOW_HOURS,
 )
+from app.internal.point_engine import award_points
 
 logger = logging.getLogger(__name__)
 
@@ -166,6 +167,17 @@ def update_booking_status(
                 booking.actual_hours = booking_update.actual_hours
             if booking_update.completion_notes is not None:
                 booking.completion_notes = booking_update.completion_notes
+            # Award points based on job priority
+            if provider:
+                priority = (booking.priority or "Normal").strip()
+                if priority == "Emergency":
+                    event = "EMERGENCY_COMPLETE"
+                elif priority == "High":
+                    event = "URGENT_COMPLETE"
+                else:
+                    event = "REGULAR_COMPLETE"
+                award_points(db, provider.id, event, source_id=booking.id,
+                             note=f"{booking.service_type} completed")
 
         # Record status change in history
         db.add(models.BookingStatusHistory(
@@ -282,7 +294,17 @@ def cancel_booking(
          return booking # Already cancelled
 
     booking.status = "Cancelled"
-    
+
+    # Deduct points only if the PROVIDER is cancelling (not the user)
+    _cancel_provider = db.query(models.ServiceProvider).filter(
+        models.ServiceProvider.id == booking.provider_id
+    ).first()
+    if _cancel_provider and _cancel_provider.user_id == current_user.id:
+        priority = (booking.priority or "Normal").strip()
+        cancel_event = "EMERGENCY_CANCEL" if priority == "Emergency" else "REGULAR_CANCEL"
+        award_points(db, _cancel_provider.id, cancel_event, source_id=booking.id,
+                     note=f"Cancelled by provider: {cancel_in.reason}")
+
     history = models.BookingStatusHistory(
         booking_id=booking.id,
         status="Cancelled",
@@ -334,14 +356,22 @@ def create_review(
     )
     db.add(db_review)
     
-    # Update provider rating
-    provider = db.query(models.ServiceProvider).filter(models.ServiceProvider.id == booking.provider_id).first()
-    if provider:
-        all_reviews = db.query(models.BookingReview).join(models.ServiceBooking).filter(models.ServiceBooking.provider_id == provider.id).all()
-        ratings = [r.rating for r in all_reviews] + [review_in.rating]
-        provider.rating = sum(ratings) / len(ratings)
-        
-    db.commit()
+    # Award feedback points — point engine recalculates rating and commits
+    _review_provider = db.query(models.ServiceProvider).filter(
+        models.ServiceProvider.id == booking.provider_id
+    ).first()
+    if _review_provider:
+        star = review_in.rating
+        event_map = {5: "FEEDBACK_5_STAR", 4: "FEEDBACK_4_STAR",
+                     3: "FEEDBACK_3_STAR", 2: "FEEDBACK_2_STAR", 1: "FEEDBACK_1_STAR"}
+        feedback_event = event_map.get(star, "FEEDBACK_1_STAR")
+        award_points(db, _review_provider.id, feedback_event, source_id=booking_id,
+                     note=f"{star}-star review for {booking.service_type}")
+        if review_in.review_text and review_in.review_text.strip():
+            award_points(db, _review_provider.id, "REVIEW_WRITTEN", source_id=booking_id,
+                         note="Written review bonus")
+    else:
+        db.commit()
     db.refresh(db_review)
     return db_review
 
