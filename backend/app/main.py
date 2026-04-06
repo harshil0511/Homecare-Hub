@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api.auth.endpoint import router as auth_router
 from app.api.user.endpoint import router as user_router
 from app.api.service.endpoint import router as service_router
+from app.api.service.analytics_endpoint import router as analytics_router
 from app.api.task.endpoint import router as task_router
 from app.api.admin.endpoint import router as admin_router
 from app.api.admin.emergency_endpoint import router as admin_emergency_router
@@ -130,6 +131,7 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 app.include_router(auth_router,         prefix="/api/v1/auth")
 app.include_router(user_router,         prefix="/api/v1/user")
 app.include_router(service_router,      prefix="/api/v1/services")
+app.include_router(analytics_router,    prefix="/api/v1/services")
 app.include_router(task_router,         prefix="/api/v1/maintenance")
 app.include_router(admin_router,        prefix="/api/v1/admin")
 app.include_router(ai_router,           prefix="/api/v1/ai")
