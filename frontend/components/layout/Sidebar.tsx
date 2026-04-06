@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Wrench, Bell, Settings,
   LogOut, Briefcase, Star, Users, ShieldCheck, ShieldAlert,
   BarChart3, ClipboardList, UserCheck, ChevronRight,
-  User, Lock, BellRing, Search, Home,
+  User, Lock, BellRing, Search, Home, TrendingUp,
   PanelLeftClose, PanelLeftOpen,
 } from "lucide-react";
 import { logout, getRole, getUsername } from "@/lib/auth";
@@ -53,6 +53,7 @@ const SERVICER_NAV = [
   { name: "Overview", icon: LayoutDashboard, path: "/service/dashboard" },
   { name: "My Jobs", icon: Briefcase, path: "/service/jobs" },
   { name: "Ratings", icon: Star, path: "/service/ratings" },
+  { name: "Analytics", icon: TrendingUp, path: "/service/analytics" },
   { name: "Settings", icon: Settings, path: "/service/settings" },
 ];
 
