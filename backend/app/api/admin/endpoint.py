@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from app.internal import deps
+from app.internal import deps, models, schemas
 from app.internal.models import User, ServiceProvider, ServiceBooking, MaintenanceTask
 from app.internal.schemas import UserResponse
 from app.core.config import settings
@@ -199,6 +199,38 @@ def verify_provider(
     provider.is_verified = True
     db.commit()
     return {"message": f"Provider '{provider.company_name}' is now verified."}
+
+
+@router.patch("/providers/{provider_id}/revoke-verify")
+def revoke_provider_verification(
+    provider_id: UUID,
+    body: schemas.AdminVerifyUpdate,
+    db: Session = Depends(deps.get_db),
+    _: models.User = Depends(deps.RoleChecker(["ADMIN"])),
+):
+    provider = db.query(models.ServiceProvider).filter(
+        models.ServiceProvider.id == provider_id
+    ).first()
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider not found")
+
+    provider.is_verified = body.is_verified
+
+    if provider.user_id:
+        if not body.is_verified:
+            msg = f"Your verified status has been revoked by admin. Reason: {body.reason or 'Not specified'}"
+        else:
+            msg = "Your profile has been re-verified by admin."
+        db.add(models.Notification(
+            user_id=provider.user_id,
+            title="Verification Status Updated",
+            message=msg,
+            notification_type="WARNING" if not body.is_verified else "INFO",
+        ))
+
+    db.commit()
+    db.refresh(provider)
+    return {"id": str(provider.id), "is_verified": provider.is_verified, "message": "Verification status updated"}
 
 
 @router.get("/contracts")

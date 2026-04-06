@@ -848,3 +848,8 @@ class ProviderAnalyticsRead(BaseModel):
     points_breakdown: PointsBreakdown
     recent_point_log: List[PointLogEntry] = []
     monthly_stats: List[MonthlyStatEntry] = []
+
+
+class AdminVerifyUpdate(BaseModel):
+    is_verified: bool
+    reason: Optional[str] = None
