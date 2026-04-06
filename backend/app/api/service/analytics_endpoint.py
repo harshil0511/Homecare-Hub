@@ -73,12 +73,20 @@ def get_my_analytics(
     monthly_stats = []
     now = datetime.datetime.utcnow()
     for i in range(5, -1, -1):
-        # Build first day of each of the last 6 months
-        target = now.replace(day=1) - datetime.timedelta(days=i * 28)
-        month_start = target.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        if i > 0:
-            next_month = (month_start + datetime.timedelta(days=32)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        # Reliable month arithmetic: subtract months from current year/month
+        year = now.year
+        month = now.month - i
+        while month <= 0:
+            month += 12
+            year -= 1
+        month_start = datetime.datetime(year, month, 1, 0, 0, 0)
+        # next_month is always the first day of the following calendar month
+        if month == 12:
+            next_month = datetime.datetime(year + 1, 1, 1, 0, 0, 0)
         else:
+            next_month = datetime.datetime(year, month + 1, 1, 0, 0, 0)
+        # For the current month, cap at now so we don't include future data
+        if i == 0:
             next_month = now
 
         month_label = month_start.strftime("%Y-%m")
