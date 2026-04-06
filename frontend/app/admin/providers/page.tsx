@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import {
     Wrench, Star, Phone, Mail, BadgeCheck, XCircle, Search,
     X, MapPin, DollarSign, ClipboardList, ShieldCheck, Eye,
-    AlertTriangle
+    AlertTriangle, ShieldAlert
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
@@ -57,6 +57,12 @@ export default function AdminProvidersPage() {
     const [rejectReason, setRejectReason] = useState("");
     const [showRejectInput, setShowRejectInput] = useState(false);
 
+    // Revoke verification state
+    const [revokeTarget, setRevokeTarget] = useState<{ id: number; name: string } | null>(null);
+    const [revokeReason, setRevokeReason] = useState("");
+    const [revokeLoading, setRevokeLoading] = useState(false);
+    const [revokeError, setRevokeError] = useState("");
+
     useEffect(() => {
         apiFetch("/admin/providers")
             .then((d) => setProviders(d || []))
@@ -97,6 +103,29 @@ export default function AdminProvidersPage() {
         setActionMsg(`Provider rejected${rejectReason ? `: ${rejectReason}` : ""}.`);
         setTimeout(() => setActionMsg(""), 3000);
         setReviewProvider(null);
+    };
+
+    const handleRevoke = async () => {
+        if (!revokeTarget) return;
+        setRevokeLoading(true);
+        setRevokeError("");
+        try {
+            await apiFetch(`/admin/providers/${revokeTarget.id}/revoke-verify`, {
+                method: "PATCH",
+                body: JSON.stringify({ is_verified: false, reason: revokeReason }),
+            });
+            setProviders((prev) =>
+                prev.map((p) => p.id === revokeTarget.id ? { ...p, is_verified: false } : p)
+            );
+            setActionMsg(`Verification revoked for ${revokeTarget.name}.`);
+            setTimeout(() => setActionMsg(""), 3000);
+            setRevokeTarget(null);
+            setRevokeReason("");
+        } catch (err: any) {
+            setRevokeError(err.message || "Failed to revoke verification.");
+        } finally {
+            setRevokeLoading(false);
+        }
     };
 
     const filtered = providers.filter((p) => {
@@ -252,6 +281,15 @@ export default function AdminProvidersPage() {
                                                         Verify
                                                     </button>
                                                 )}
+                                                {p.is_verified && (
+                                                    <button
+                                                        onClick={() => { setRevokeTarget({ id: p.id, name: p.company_name }); setRevokeReason(""); setRevokeError(""); }}
+                                                        className="flex items-center gap-1.5 text-[10px] font-black px-3 py-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 uppercase tracking-widest transition-all"
+                                                    >
+                                                        <ShieldAlert className="w-3.5 h-3.5" />
+                                                        Revoke
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
@@ -261,6 +299,72 @@ export default function AdminProvidersPage() {
                     )}
                 </div>
             </div>
+
+            {/* Revoke Verification Modal */}
+            {revokeTarget && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 mx-4">
+                        {/* Modal Header */}
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center flex-shrink-0">
+                                <ShieldAlert className="w-6 h-6 text-rose-600" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-black text-[#000000] uppercase tracking-tight">Revoke Verification</h3>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">This action will remove verified status</p>
+                            </div>
+                        </div>
+
+                        <p className="text-sm text-slate-600 mb-6">
+                            You are about to revoke verification for{" "}
+                            <span className="font-black text-[#000000]">{revokeTarget.name}</span>.
+                            The provider will be notified.
+                        </p>
+
+                        {/* Reason Field */}
+                        <div className="mb-6 space-y-2">
+                            <label className="text-[10px] font-black text-rose-600 uppercase tracking-[0.3em]">Reason (optional)</label>
+                            <textarea
+                                value={revokeReason}
+                                onChange={(e) => setRevokeReason(e.target.value)}
+                                placeholder="Explain why verification is being revoked..."
+                                rows={3}
+                                className="w-full bg-rose-50 border border-rose-200 rounded-xl p-4 text-sm text-slate-700 focus:outline-none focus:border-rose-400 resize-none"
+                            />
+                        </div>
+
+                        {/* Error Message */}
+                        {revokeError && (
+                            <div className="mb-4 px-4 py-2.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-black uppercase tracking-widest">
+                                {revokeError}
+                            </div>
+                        )}
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-3">
+                            <button
+                                onClick={handleRevoke}
+                                disabled={revokeLoading}
+                                className="flex-1 px-4 py-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                            >
+                                {revokeLoading ? (
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                    <ShieldAlert className="w-4 h-4" />
+                                )}
+                                {revokeLoading ? "Revoking..." : "Confirm Revoke"}
+                            </button>
+                            <button
+                                onClick={() => { setRevokeTarget(null); setRevokeReason(""); setRevokeError(""); }}
+                                disabled={revokeLoading}
+                                className="px-4 py-3 bg-slate-100 hover:bg-slate-200 disabled:opacity-60 text-slate-600 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Full-Screen Review Panel */}
             {(reviewProvider || reviewLoading) && (
