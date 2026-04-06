@@ -27,6 +27,7 @@ interface Provider {
     availability_status: string;
     is_verified: boolean;
     rating: number;
+    completed_jobs: number;
     experience_years: number;
     certificates: { id: number; category: string; certificate_url: string; is_verified: boolean; uploaded_at: string }[];
 }
@@ -140,6 +141,12 @@ function ProviderDetailModal({ provider, onClose }: { provider: Provider; onClos
                         <div className="bg-slate-50 rounded-xl p-3">
                             <p className="text-slate-400 mb-0.5">Rate</p>
                             <p className="text-slate-900">₹{provider.hourly_rate}/hr</p>
+                        </div>
+                    )}
+                    {provider.completed_jobs > 0 && (
+                        <div className="bg-slate-50 rounded-xl p-3">
+                            <p className="text-slate-400 mb-0.5">Jobs Done</p>
+                            <p className="text-slate-900">{provider.completed_jobs}</p>
                         </div>
                     )}
                     {provider.location && (

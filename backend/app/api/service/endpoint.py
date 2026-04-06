@@ -214,6 +214,19 @@ def get_providers(
 
     providers = query.offset(skip).limit(limit).all()
 
+    # Annotate each provider with completed booking count
+    if providers:
+        from sqlalchemy import func
+        provider_ids = [p.id for p in providers]
+        counts = dict(
+            db.query(ServiceBooking.provider_id, func.count(ServiceBooking.id))
+            .filter(ServiceBooking.provider_id.in_(provider_ids), ServiceBooking.status == "Completed")
+            .group_by(ServiceBooking.provider_id)
+            .all()
+        )
+        for p in providers:
+            p.completed_jobs = counts.get(p.id, 0)
+
     # Time-based availability: if scheduled_at provided, check for booking conflicts
     if scheduled_at:
         window_start = scheduled_at - timedelta(hours=3)
