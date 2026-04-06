@@ -806,3 +806,45 @@ class IncomingEmergencyRead(BaseModel):
 
     class Config:
         from_attributes = True
+
+# ────────────────────────────────────────────────────────────
+# Provider Analytics Schemas
+# ────────────────────────────────────────────────────────────
+
+class PointLogEntry(BaseModel):
+    created_at: Optional[datetime] = None
+    event_type: str
+    delta: float
+    note: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class MonthlyStatEntry(BaseModel):
+    month: str
+    jobs: int
+    points_earned: float
+    rating_end: float
+
+
+class PointsBreakdown(BaseModel):
+    emergency: float = 0.0
+    urgent: float = 0.0
+    regular: float = 0.0
+    feedback: float = 0.0
+    penalties: float = 0.0
+
+
+class ProviderAnalyticsRead(BaseModel):
+    total_jobs: int
+    emergency_jobs: int
+    urgent_jobs: int
+    regular_jobs: int
+    cancelled_jobs: int
+    total_points: float
+    current_rating: float
+    completion_rate: float
+    points_breakdown: PointsBreakdown
+    recent_point_log: List[PointLogEntry] = []
+    monthly_stats: List[MonthlyStatEntry] = []

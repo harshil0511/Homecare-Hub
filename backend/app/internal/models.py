@@ -382,3 +382,16 @@ class EmergencyStarAdjustment(Base):
 
     provider = relationship("ServiceProvider", back_populates="star_adjustments")
     admin_user = relationship("User", foreign_keys=[adjusted_by])
+
+class ProviderPoints(Base):
+    __tablename__ = "provider_points"
+
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    provider_id = Column(PG_UUID(as_uuid=True), ForeignKey("service_providers.id", ondelete="CASCADE"), nullable=False, index=True)
+    delta = Column(Float, nullable=False)
+    event_type = Column(String, nullable=False)
+    source_id = Column(PG_UUID(as_uuid=True), nullable=True)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    provider = relationship("ServiceProvider", backref="points_log")
