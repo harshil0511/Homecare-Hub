@@ -1,16 +1,24 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { saveAuthData } from "@/lib/auth";
 import { HeartPulse, Mail, Lock, ArrowRight, Key, X, AlertCircle, CheckCircle } from "lucide-react";
 
+interface SavedAccount {
+    email: string;
+    password: string;
+}
+
 export default function LoginPage() {
     const router = useRouter();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const emailRef = useRef<HTMLDivElement>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
 
@@ -28,6 +36,33 @@ export default function LoginPage() {
     const [newPass, setNewPass] = useState("");
     const [forgotMsg, setForgotMsg] = useState("");
     const [forgotLoading, setForgotLoading] = useState(false);
+
+    // Load saved accounts from localStorage
+    useEffect(() => {
+        const stored = localStorage.getItem("hc_saved_accounts");
+        if (stored) setSavedAccounts(JSON.parse(stored));
+    }, []);
+
+    // Close suggestions when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (emailRef.current && !emailRef.current.contains(e.target as Node)) {
+                setShowSuggestions(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    const filteredAccounts = savedAccounts.filter(a =>
+        a.email.toLowerCase().includes(email.toLowerCase())
+    );
+
+    const selectAccount = (account: SavedAccount) => {
+        setEmail(account.email);
+        setPassword(account.password);
+        setShowSuggestions(false);
+    };
 
     // Login page is always accessible — no redirect even if other roles are logged in
 
@@ -137,18 +172,37 @@ export default function LoginPage() {
                 {/* Login Form */}
                 <form onSubmit={handleLogin} className="space-y-5">
                     {/* Email */}
-                    <div>
+                    <div ref={emailRef}>
                         <label className="block text-sm font-semibold text-slate-700 mb-1.5">Email Address</label>
                         <div className="relative">
-                            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 z-10" />
                             <input
                                 type="email"
                                 required
                                 placeholder="you@example.com"
                                 value={email}
-                                onChange={(e) => setEmail(e.target.value)}
+                                onChange={(e) => { setEmail(e.target.value); setShowSuggestions(true); }}
+                                onFocus={() => setShowSuggestions(true)}
                                 className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition"
                             />
+                            {showSuggestions && filteredAccounts.length > 0 && (
+                                <ul className="absolute z-50 top-full mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                                    {filteredAccounts.map((account) => (
+                                        <li
+                                            key={account.email}
+                                            onMouseDown={() => selectAccount(account)}
+                                            className="flex items-center gap-3 px-4 py-2.5 hover:bg-emerald-50 cursor-pointer transition"
+                                        >
+                                            <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                                                <span className="text-emerald-700 text-xs font-bold uppercase">
+                                                    {account.email[0]}
+                                                </span>
+                                            </div>
+                                            <span className="text-sm text-slate-700 truncate">{account.email}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                         </div>
                     </div>
 

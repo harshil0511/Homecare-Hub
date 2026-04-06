@@ -95,6 +95,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const [role, setRole] = useState<string | null>(null);
   const [username, setUsername] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     setRole(getRole());
@@ -102,10 +103,27 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
   }, []);
 
   useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  // Auto-close sidebar on mobile when route changes
+  useEffect(() => {
+    if (isMobile && isOpen) onToggle();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
+  useEffect(() => {
     if (role && pathname.startsWith(SETTINGS_PATH_PREFIX[role] ?? "/settings")) {
       setSettingsOpen(true);
     }
   }, [pathname, role]);
+
+  const handleNavClick = () => {
+    if (isMobile && isOpen) onToggle();
+  };
 
   const menuItems =
     role === "ADMIN" ? ADMIN_NAV :
@@ -124,6 +142,11 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const badge = role ? ROLE_BADGE[role] : null;
 
   return (
+    <>
+      {/* Mobile overlay — tap outside to close */}
+      {isMobile && isOpen && (
+        <div className="sidebar-overlay" onClick={onToggle} aria-hidden="true" />
+      )}
     <div className={`fixed top-0 left-0 h-screen bg-white border-r border-slate-200 flex flex-col z-[1000] shadow-[4px_0_24px_rgba(0,0,0,0.08)] transition-all duration-300 ${isOpen ? "w-64 translate-x-0" : "w-16 -translate-x-full md:translate-x-0"}`}>
 
       {isOpen ? (
@@ -200,6 +223,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                   ) : (
                     <Link
                       href={item.path}
+                      onClick={handleNavClick}
                       className={`group flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl text-sm font-black transition-all duration-150 relative outline-none ${isActive
                         ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/20"
                         : "text-slate-500 hover:bg-emerald-50 hover:text-emerald-700 hover:shadow-sm"
@@ -223,6 +247,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                           <Link
                             key={sub.path}
                             href={sub.path}
+                            onClick={handleNavClick}
                             className={`group flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-black transition-all ${
                               isSubActive
                                 ? "bg-emerald-50 text-[#064e3b]"
@@ -319,5 +344,6 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
         </nav>
       )}
     </div>
+    </>
   );
 }

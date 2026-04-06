@@ -116,7 +116,6 @@ export default function RegisterPage() {
             }
         }
         if (step === 1) {
-            if (!firstName.trim() || !lastName.trim()) { setError("Please enter your full name."); return false; }
             if (!age || Number(age) < 18 || Number(age) > 80) { setError("Please enter a valid age (18–80)."); return false; }
             if (!gender) { setError("Please select your gender."); return false; }
         }
@@ -154,6 +153,12 @@ export default function RegisterPage() {
             const body: Record<string, unknown> = { email, username, password, role };
             if (role === "SECRETARY") { body.society_name = societyName.trim(); body.society_address = societyAddress.trim(); }
             await apiFetch("/auth/signup", { method: "POST", body: JSON.stringify(body) });
+            // Save credentials for login autofill
+            const saved = JSON.parse(localStorage.getItem("hc_saved_accounts") || "[]");
+            if (!saved.find((a: { email: string }) => a.email === email)) {
+                saved.push({ email, password });
+                localStorage.setItem("hc_saved_accounts", JSON.stringify(saved));
+            }
             setSuccess(true);
             setTimeout(() => router.push("/login"), 2500);
         } catch (err: any) {
@@ -228,10 +233,14 @@ export default function RegisterPage() {
                 certUrl = data.url || "";
             }
 
-            // 5. Create provider profile
+            // 5. Create provider profile — split full name into first/last
+            const nameParts = username.trim().split(/\s+/);
+            const derivedFirstName = nameParts[0];
+            const derivedLastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : nameParts[0];
+
             const profilePayload: Record<string, unknown> = {
-                first_name: firstName.trim(),
-                last_name: lastName.trim(),
+                first_name: derivedFirstName,
+                last_name: derivedLastName,
                 age: Number(age),
                 gender,
                 phone: phone.trim(),
@@ -251,6 +260,12 @@ export default function RegisterPage() {
                 body: JSON.stringify(profilePayload)
             });
 
+            // Save credentials for login autofill
+            const saved = JSON.parse(localStorage.getItem("hc_saved_accounts") || "[]");
+            if (!saved.find((a: { email: string }) => a.email === email)) {
+                saved.push({ email, password });
+                localStorage.setItem("hc_saved_accounts", JSON.stringify(saved));
+            }
             setSuccess(true);
             setTimeout(() => router.push("/login"), 2500);
         } catch (err: any) {
@@ -358,16 +373,6 @@ export default function RegisterPage() {
                         {step === 1 && (
                             <div className="space-y-4">
                                 <h2 className="text-base font-black text-slate-900">Personal Information</h2>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className={labelCls}>First Name</label>
-                                        <input className={inputCls} placeholder="John" value={firstName} onChange={e => setFirstName(e.target.value)} />
-                                    </div>
-                                    <div>
-                                        <label className={labelCls}>Last Name</label>
-                                        <input className={inputCls} placeholder="Doe" value={lastName} onChange={e => setLastName(e.target.value)} />
-                                    </div>
-                                </div>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
                                         <label className={labelCls}>Age</label>

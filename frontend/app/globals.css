@@ -232,3 +232,137 @@
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-slate-400;
 }
+
+/* ─────────────────────────────────────────
+   MOBILE RESPONSIVE STYLES (max-width: 767px)
+   Desktop layout is 100% untouched.
+   All rules below activate ONLY on mobile.
+───────────────────────────────────────── */
+@media (max-width: 767px) {
+
+  /* Reduce base font so 18px doesn't feel huge on small screens */
+  :root {
+    font-size: 15px;
+  }
+
+  /* Body: prevent horizontal overflow */
+  body {
+    overflow-x: hidden;
+  }
+
+  /* ── Cards ── */
+  .card {
+    @apply rounded-lg;
+  }
+
+  .card-elevated {
+    @apply rounded-xl;
+  }
+
+  /* ── Buttons: bigger touch targets ── */
+  .btn-primary {
+    @apply py-3 px-4 text-sm w-full justify-center;
+    min-height: 44px;
+  }
+
+  .btn-ghost {
+    @apply py-2.5 px-3 text-sm;
+    min-height: 44px;
+  }
+
+  /* ── Inputs ── */
+  .input-field {
+    @apply text-base py-3;   /* text-base prevents iOS auto-zoom on focus */
+    min-height: 44px;
+  }
+
+  /* ── Tables: horizontal scroll on mobile ── */
+  .table-header {
+    @apply py-3 px-3 text-xs;
+    white-space: nowrap;
+  }
+
+  .table-cell {
+    @apply py-3 px-3 text-sm;
+    white-space: nowrap;
+  }
+
+  /* Wrap any <table> inside a scroll container */
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+  }
+
+  /* ── Modal / overlay panels ── */
+  .card-elevated[role="dialog"],
+  .modal-panel {
+    @apply rounded-t-2xl rounded-b-none fixed bottom-0 left-0 right-0 w-full max-h-[90vh] overflow-y-auto;
+    top: auto !important;
+    transform: none !important;
+  }
+
+  /* ── Notification & dropdown panels ── */
+  /* Notification panel: full-width on mobile */
+  .notification-panel {
+    width: calc(100vw - 2rem) !important;
+    right: -1rem !important;
+  }
+
+  /* ── Typography scale-down ── */
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.25rem; }
+  h3 { font-size: 1.1rem; }
+
+  /* ── Stat/info grids: force single column if not overridden ── */
+  .stats-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 0.75rem !important;
+  }
+
+  /* ── Spacing helpers ── */
+  .mobile-p {
+    @apply px-4 py-4;
+  }
+
+  /* ── Touch-friendly minimum tap target ── */
+  button, a, [role="button"] {
+    min-height: 36px;
+  }
+
+  /* ── Sidebar overlay backdrop ── */
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 999;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+}
+
+/* ── Tablet (768px–1023px): mild adjustments ── */
+@media (min-width: 768px) and (max-width: 1023px) {
+  :root {
+    font-size: 16px;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ── Safe area insets (iPhone notch/home bar) ── */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
