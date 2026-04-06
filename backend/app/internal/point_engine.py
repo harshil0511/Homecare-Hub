@@ -42,8 +42,7 @@ def award_points(
     """
     delta = custom_delta if custom_delta is not None else POINTS.get(event_type, 0.0)
     if delta == 0.0 and event_type not in ("FEEDBACK_1_STAR", "ADMIN_ADJUSTMENT"):
-        if event_type not in POINTS:
-            return
+        return
 
     row = ProviderPoints(
         id=uuid.uuid4(),
@@ -56,7 +55,7 @@ def award_points(
     )
     db.add(row)
 
-    # Recalculate rating from total points (include the new row)
+    # Query existing committed points, then add the new delta manually
     existing_total: float = db.query(func.sum(ProviderPoints.delta)).filter(
         ProviderPoints.provider_id == provider_id
     ).scalar() or 0.0
