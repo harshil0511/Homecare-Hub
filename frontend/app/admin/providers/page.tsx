@@ -9,7 +9,7 @@ import {
 import { apiFetch } from "@/lib/api";
 
 interface Provider {
-    id: number;
+    id: string;
     company_name: string;
     owner_name: string;
     first_name: string | null;
@@ -23,7 +23,7 @@ interface Provider {
 }
 
 interface ProviderDetail {
-    id: number;
+    id: string;
     name: string;
     category: string;
     rating: number;
@@ -58,7 +58,7 @@ export default function AdminProvidersPage() {
     const [showRejectInput, setShowRejectInput] = useState(false);
 
     // Revoke verification state
-    const [revokeTarget, setRevokeTarget] = useState<{ id: number; name: string } | null>(null);
+    const [revokeTarget, setRevokeTarget] = useState<{ id: string; name: string } | null>(null);
     const [revokeReason, setRevokeReason] = useState("");
     const [revokeLoading, setRevokeLoading] = useState(false);
     const [revokeError, setRevokeError] = useState("");
@@ -70,7 +70,7 @@ export default function AdminProvidersPage() {
             .finally(() => setLoading(false));
     }, []);
 
-    const openReview = async (id: number) => {
+    const openReview = async (id: string) => {
         setReviewLoading(true);
         setReviewProvider(null);
         setShowRejectInput(false);
@@ -86,7 +86,7 @@ export default function AdminProvidersPage() {
         }
     };
 
-    const verifyProvider = async (id: number) => {
+    const verifyProvider = async (id: string) => {
         try {
             await apiFetch(`/admin/providers/${id}/verify`, { method: "PATCH" });
             setProviders((prev) => prev.map((p) => p.id === id ? { ...p, is_verified: true } : p));
@@ -99,7 +99,7 @@ export default function AdminProvidersPage() {
         }
     };
 
-    const rejectProvider = async (_id: number) => {
+    const rejectProvider = async (_id: string) => {
         setActionMsg(`Provider rejected${rejectReason ? `: ${rejectReason}` : ""}.`);
         setTimeout(() => setActionMsg(""), 3000);
         setReviewProvider(null);
@@ -302,8 +302,8 @@ export default function AdminProvidersPage() {
 
             {/* Revoke Verification Modal */}
             {revokeTarget && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 mx-4">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { if (!revokeLoading) { setRevokeTarget(null); setRevokeReason(""); setRevokeError(""); } }}>
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 mx-4" onClick={(e) => e.stopPropagation()}>
                         {/* Modal Header */}
                         <div className="flex items-center gap-4 mb-6">
                             <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center flex-shrink-0">
