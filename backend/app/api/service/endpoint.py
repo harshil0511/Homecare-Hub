@@ -5,6 +5,7 @@ import logging
 from datetime import datetime, timedelta
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.internal import deps
@@ -215,19 +216,18 @@ def get_providers(
     providers = query.offset(skip).limit(limit).all()
 
     # Annotate each provider with completed booking count
-    if providers:
-        from sqlalchemy import func
-        provider_ids = [p.id for p in providers]
+    provider_ids = [p.id for p in providers]
+    counts: dict = {}
+    if provider_ids:
         counts = dict(
             db.query(ServiceBooking.provider_id, func.count(ServiceBooking.id))
             .filter(ServiceBooking.provider_id.in_(provider_ids), ServiceBooking.status == "Completed")
             .group_by(ServiceBooking.provider_id)
             .all()
         )
-        for p in providers:
-            p.completed_jobs = counts.get(p.id, 0)
 
     # Time-based availability: if scheduled_at provided, check for booking conflicts
+    availability_overrides: dict = {}
     if scheduled_at:
         window_start = scheduled_at - timedelta(hours=3)
         window_end = scheduled_at + timedelta(hours=3)
@@ -240,10 +240,16 @@ def get_providers(
                 ServiceBooking.scheduled_at >= window_start,
                 ServiceBooking.scheduled_at <= window_end
             ).first()
-            # Temporarily set computed status (not saved to DB)
-            provider.availability_status = "WORKING" if conflict else "AVAILABLE"
+            availability_overrides[provider.id] = "WORKING" if conflict else "AVAILABLE"
 
-    return providers
+    result = []
+    for p in providers:
+        r = ProviderResponse.model_validate(p)
+        r.completed_jobs = counts.get(p.id, 0)
+        if p.id in availability_overrides:
+            r.availability_status = availability_overrides[p.id]
+        result.append(r)
+    return result
 
 @router.get("/providers/me", response_model=ProviderResponse)
 def get_my_provider_profile(

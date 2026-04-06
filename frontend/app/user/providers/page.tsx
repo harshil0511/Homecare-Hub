@@ -11,7 +11,7 @@ import {
 import { apiFetch } from "@/lib/api";
 
 interface Provider {
-    id: number;
+    id: string;
     company_name: string;
     owner_name: string;
     first_name: string | null;
@@ -29,7 +29,7 @@ interface Provider {
     rating: number;
     completed_jobs: number;
     experience_years: number;
-    certificates: { id: number; category: string; certificate_url: string; is_verified: boolean; uploaded_at: string }[];
+    certificates: { id: string; category: string; certificate_url: string; is_verified: boolean; uploaded_at: string }[];
 }
 
 const CATEGORIES = [
@@ -73,8 +73,8 @@ function ProviderDetailModal({ provider, onClose }: { provider: Provider; onClos
     const hasHalf = provider.rating - starFull >= 0.5;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-150">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 relative animate-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-150" onClick={onClose}>
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 relative animate-in zoom-in-95 duration-150" onClick={e => e.stopPropagation()}>
                 <button
                     onClick={onClose}
                     className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 transition-all"
@@ -186,7 +186,7 @@ function ProvidersContent() {
     const [isEmergency, setIsEmergency] = useState(false);
 
     // ── Selection & request state ────────────────────────────────────────────
-    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [focusedIndex, setFocusedIndex] = useState(-1);
     const [showRequestModal, setShowRequestModal] = useState(false);
     const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
@@ -306,7 +306,7 @@ function ProvidersContent() {
     }, [filteredProviders, focusedIndex, loading]);
 
     // ── Helpers ──────────────────────────────────────────────────────────────
-    const toggleSelect = (id: number) => {
+    const toggleSelect = (id: string) => {
         setSelectedIds(prev => {
             const next = new Set(prev);
             next.has(id) ? next.delete(id) : next.add(id);
