@@ -59,6 +59,101 @@ function matchesSearch(p: Provider, q: string): boolean {
     return name.includes(lower) || location.includes(lower) || cats.includes(lower);
 }
 
+function ProviderDetailModal({ provider, onClose }: { provider: Provider; onClose: () => void }) {
+    const photoUrl = provider.profile_photo_url
+        ? provider.profile_photo_url.startsWith("/")
+            ? `${process.env.NEXT_PUBLIC_API_URL}${provider.profile_photo_url}`
+            : provider.profile_photo_url
+        : null;
+    const name = provider.first_name && provider.last_name
+        ? `${provider.first_name} ${provider.last_name}`
+        : provider.owner_name || provider.company_name;
+    const starFull = Math.floor(provider.rating);
+    const hasHalf = provider.rating - starFull >= 0.5;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-150">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 relative animate-in zoom-in-95 duration-150">
+                <button
+                    onClick={onClose}
+                    className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 transition-all"
+                >
+                    <X size={16} />
+                </button>
+
+                <div className="flex items-start gap-4 mb-6">
+                    <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 flex-shrink-0 flex items-center justify-center">
+                        {photoUrl ? (
+                            <img src={photoUrl} alt={name} className="w-full h-full object-cover" />
+                        ) : (
+                            <span className="text-2xl font-black text-slate-300">{name.charAt(0).toUpperCase()}</span>
+                        )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <h2 className="text-lg font-black text-[#000000] uppercase tracking-tight">{name}</h2>
+                            {provider.is_verified && (
+                                <span className="flex items-center gap-1 text-[9px] font-black text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-wide">
+                                    <ShieldCheck size={10} /> Verified
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-1 mt-1">
+                            {[1,2,3,4,5].map(s => (
+                                <Star key={s} size={13} className={
+                                    s <= starFull ? "text-amber-400 fill-amber-400"
+                                    : s === starFull + 1 && hasHalf ? "text-amber-400 fill-amber-200"
+                                    : "text-slate-200"
+                                } />
+                            ))}
+                            <span className="text-[10px] font-black text-slate-500 ml-1">
+                                {provider.rating > 0 ? provider.rating.toFixed(1) : "New"}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                {provider.bio && (
+                    <p className="text-xs font-bold text-slate-600 leading-relaxed mb-5 border-b border-slate-100 pb-5">
+                        {provider.bio}
+                    </p>
+                )}
+
+                {provider.categories?.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-5">
+                        {provider.categories.map((cat: string) => (
+                            <span key={cat} className="text-[9px] font-black bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-lg uppercase tracking-wide">
+                                {cat}
+                            </span>
+                        ))}
+                    </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3 text-[10px] font-black uppercase tracking-wide">
+                    {provider.experience_years > 0 && (
+                        <div className="bg-slate-50 rounded-xl p-3">
+                            <p className="text-slate-400 mb-0.5">Experience</p>
+                            <p className="text-slate-900">{provider.experience_years} yrs</p>
+                        </div>
+                    )}
+                    {provider.hourly_rate > 0 && (
+                        <div className="bg-slate-50 rounded-xl p-3">
+                            <p className="text-slate-400 mb-0.5">Rate</p>
+                            <p className="text-slate-900">₹{provider.hourly_rate}/hr</p>
+                        </div>
+                    )}
+                    {provider.location && (
+                        <div className="bg-slate-50 rounded-xl p-3 col-span-2">
+                            <p className="text-slate-400 mb-0.5">Location</p>
+                            <p className="text-slate-900">{provider.location}</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function ProvidersContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -87,6 +182,7 @@ function ProvidersContent() {
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
     const [focusedIndex, setFocusedIndex] = useState(-1);
     const [showRequestModal, setShowRequestModal] = useState(false);
+    const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
     const [submittingRequest, setSubmittingRequest] = useState(false);
     const [reqName, setReqName] = useState("");
     const [reqMobile, setReqMobile] = useState("");
@@ -533,142 +629,57 @@ function ProvidersContent() {
                     )}
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filteredProviders.map((provider, index) => (
-                        <div
-                            key={provider.id}
-                            tabIndex={0}
-                            onFocus={() => setFocusedIndex(index)}
-                            className={`relative bg-white border rounded-3xl p-6 transition-all duration-200 group outline-none cursor-pointer ${
-                                focusedIndex === index
-                                    ? "border-[#064e3b] ring-4 ring-[#064e3b]/5 shadow-xl shadow-emerald-900/5 -translate-y-1"
-                                    : "border-slate-100 hover:shadow-xl hover:shadow-slate-900/5 hover:-translate-y-1 hover:border-slate-200"
-                            }`}
-                        >
-                            {/* Checkbox */}
-                            <button
-                                onClick={e => { e.stopPropagation(); toggleSelect(provider.id); }}
-                                className="absolute top-3 left-3 z-10 p-1 rounded-lg bg-white/90 shadow-sm hover:bg-white transition-colors"
+                <div className="flex flex-col gap-2">
+                    {filteredProviders.map((p, idx) => {
+                        const name = displayName(p);
+                        const photoUrl = getPhotoUrl(p.profile_photo_url);
+                        const isSelected = selectedIds.has(p.id);
+                        const isFocused = focusedIndex === idx;
+                        return (
+                            <div
+                                key={p.id}
+                                className={`flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all ${
+                                    isSelected ? "border-[#064e3b] bg-emerald-50/50"
+                                    : isFocused ? "border-slate-300 bg-slate-50"
+                                    : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50"
+                                }`}
                             >
-                                {selectedIds.has(provider.id)
-                                    ? <CheckSquare className="w-5 h-5 text-[#064e3b]" />
-                                    : <Square className="w-5 h-5 text-slate-400" />}
-                            </button>
-
-                            {/* Header */}
-                            <div className="flex items-start gap-4 mb-5">
-                                <div className="w-16 h-16 rounded-2xl bg-slate-100 overflow-hidden flex-shrink-0">
-                                    {getPhotoUrl(provider.profile_photo_url) ? (
-                                        <img
-                                            src={getPhotoUrl(provider.profile_photo_url)!}
-                                            alt={displayName(provider)}
-                                            className="w-full h-full object-cover"
-                                        />
+                                <button onClick={() => toggleSelect(p.id)} className="flex-shrink-0 text-slate-300 hover:text-[#064e3b] transition-colors">
+                                    {isSelected ? <CheckSquare size={16} className="text-[#064e3b]" /> : <Square size={16} />}
+                                </button>
+                                <div className="w-9 h-9 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex-shrink-0 flex items-center justify-center">
+                                    {photoUrl ? (
+                                        <img src={photoUrl} alt={name} className="w-full h-full object-cover" />
                                     ) : (
-                                        <div className="w-full h-full flex items-center justify-center bg-[#064e3b] text-white font-black text-lg">
-                                            {(provider.first_name || provider.owner_name || "?")[0].toUpperCase()}
-                                        </div>
+                                        <span className="text-sm font-black text-slate-300">{name.charAt(0).toUpperCase()}</span>
                                     )}
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                        <h3 className="text-sm font-black text-[#000000] tracking-tight truncate">{displayName(provider)}</h3>
-                                        {provider.is_verified && <ShieldCheck className="w-4 h-4 text-[#064e3b] flex-shrink-0" />}
-                                    </div>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <div className={`w-2 h-2 rounded-full ${STATUS_COLORS[provider.availability_status] || "bg-slate-300"}`} />
-                                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
-                                            {provider.availability_status}
-                                        </span>
-                                    </div>
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                    <span className="text-sm font-black text-[#000000] uppercase tracking-tight truncate">{name}</span>
+                                    {p.is_verified && <ShieldCheck size={13} className="text-emerald-600 flex-shrink-0" />}
+                                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_COLORS[p.availability_status] || "bg-slate-300"}`} />
                                 </div>
-                            </div>
-
-                            {/* Categories */}
-                            <div className="flex flex-wrap gap-1.5 mb-4">
-                                {(provider.categories || []).slice(0, 3).map(cat => (
-                                    <span key={cat} className="px-3 py-1 bg-emerald-50 text-[#064e3b] text-[9px] font-black uppercase tracking-widest rounded-full">
-                                        {cat}
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                    <Star size={12} className="text-amber-400 fill-amber-400" />
+                                    <span className="text-[10px] font-black text-slate-600">
+                                        {p.rating > 0 ? p.rating.toFixed(1) : "New"}
                                     </span>
-                                ))}
-                                {(provider.categories || []).length > 3 && (
-                                    <span className="px-3 py-1 bg-slate-50 text-slate-400 text-[9px] font-black uppercase tracking-widest rounded-full">
-                                        +{provider.categories.length - 3}
-                                    </span>
-                                )}
-                            </div>
-
-                            {/* Info */}
-                            <div className="grid grid-cols-2 gap-3 mb-4 text-xs">
-                                {provider.location && (
-                                    <div className="flex items-center gap-1.5 text-slate-500">
-                                        <MapPin className="w-3 h-3" />
-                                        <span className="font-bold truncate">{provider.location}</span>
-                                    </div>
-                                )}
-                                {provider.hourly_rate > 0 && (
-                                    <div className="flex items-center gap-1.5 text-slate-500">
-                                        <DollarSign className="w-3 h-3" />
-                                        <span className="font-bold">₹{provider.hourly_rate}/hr</span>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Rating */}
-                            {provider.rating > 0 && (
-                                <div className="flex items-center gap-2 mb-4">
-                                    <div className="flex items-center gap-0.5">
-                                        {[1, 2, 3, 4, 5].map(s => (
-                                            <Star
-                                                key={s}
-                                                size={13}
-                                                className={
-                                                    provider.rating >= s ? "text-amber-400 fill-amber-400"
-                                                    : provider.rating >= s - 0.5 ? "text-amber-400 fill-amber-200"
-                                                    : "text-slate-200"
-                                                }
-                                            />
-                                        ))}
-                                    </div>
-                                    <span className="text-[10px] font-black text-slate-500 tracking-wider">{provider.rating.toFixed(1)}</span>
                                 </div>
-                            )}
-
-                            {/* Certificates */}
-                            {provider.certificates && provider.certificates.length > 0 && (
-                                <div className="flex items-center gap-1.5 mb-4">
-                                    <Award className="w-3.5 h-3.5 text-amber-600" />
-                                    <span className="text-[9px] font-black uppercase tracking-widest text-amber-700">
-                                        {provider.certificates.length} Certificate{provider.certificates.length !== 1 ? "s" : ""}
-                                    </span>
-                                    {provider.certificates.some(c => c.is_verified) && (
-                                        <span className="px-2 py-0.5 bg-emerald-50 text-[#064e3b] text-[8px] font-black uppercase tracking-widest rounded-full">
-                                            Verified
-                                        </span>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Bio */}
-                            {provider.bio && (
-                                <p className="text-xs text-slate-400 font-medium line-clamp-2 mb-5 italic">
-                                    &ldquo;{provider.bio}&rdquo;
-                                </p>
-                            )}
-
-                            {/* Action */}
-                            <button
-                                onClick={() => {
-                                    if (!selectedIds.has(provider.id)) setSelectedIds(new Set([provider.id]));
-                                    setShowRequestModal(true);
-                                }}
-                                className="flex items-center gap-2 px-4 py-2 bg-[#064e3b] text-white text-xs font-black uppercase rounded-xl hover:bg-emerald-800 transition-colors"
-                            >
-                                <Send className="w-4 h-4" />
-                                Send Request
-                            </button>
-                        </div>
-                    ))}
+                                <span className="hidden md:block text-[9px] font-black bg-slate-100 text-slate-500 px-2 py-0.5 rounded-lg uppercase tracking-wide flex-shrink-0">
+                                    {p.category}
+                                </span>
+                                <span className="hidden lg:block text-[10px] font-black text-slate-500 flex-shrink-0">
+                                    ₹{p.hourly_rate}/hr
+                                </span>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setSelectedProvider(p); }}
+                                    className="flex-shrink-0 text-[9px] font-black text-[#064e3b] bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-xl hover:bg-emerald-100 transition-all uppercase tracking-wide"
+                                >
+                                    Details
+                                </button>
+                            </div>
+                        );
+                    })}
                 </div>
             )}
 
@@ -763,6 +774,13 @@ function ProvidersContent() {
                         <X className="w-4 h-4" />
                     </button>
                 </div>
+            )}
+
+            {selectedProvider && (
+                <ProviderDetailModal
+                    provider={selectedProvider}
+                    onClose={() => setSelectedProvider(null)}
+                />
             )}
         </div>
     );
