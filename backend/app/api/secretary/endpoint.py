@@ -108,6 +108,7 @@ def get_society_providers(
 ):
     """Get trusted service providers for the society."""
     society = get_secretary_society(current_user, db)
+    sorted_providers = sorted(society.trusted_providers, key=lambda p: p.rating or 0, reverse=True)
     return [
         {
             "id": p.id,
@@ -115,9 +116,10 @@ def get_society_providers(
             "category": p.category,
             "rating": p.rating,
             "availability_status": p.availability_status,
-            "phone": p.phone
+            "phone": p.phone,
+            "is_verified": p.is_verified
         }
-        for p in society.trusted_providers
+        for p in sorted_providers
     ]
 
 
