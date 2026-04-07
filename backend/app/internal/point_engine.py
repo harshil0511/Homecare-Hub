@@ -61,10 +61,27 @@ def award_points(
     ).scalar() or 0.0
     total = existing_total + delta
 
-    new_rating = max(0.0, min(5.0, total / POINTS_PER_STAR))
+    new_rating = max(0.0, total / POINTS_PER_STAR)
 
     provider = db.query(ServiceProvider).filter(ServiceProvider.id == provider_id).first()
     if provider:
         provider.rating = round(new_rating, 2)
+        # Auto-verify when provider earns 10 stars for the first time
+        if new_rating >= 10.0 and not provider.is_verified:
+            provider.is_verified = True
+            from app.internal.models import Notification
+            notif = Notification(
+                id=uuid.uuid4(),
+                user_id=provider.user_id,
+                title="You've been automatically verified!",
+                message=(
+                    "Congratulations! You've earned 10 stars through your outstanding work. "
+                    "Your profile is now automatically verified."
+                ),
+                notification_type="SYSTEM",
+                is_read=False,
+                created_at=datetime.datetime.utcnow(),
+            )
+            db.add(notif)
 
     db.commit()
