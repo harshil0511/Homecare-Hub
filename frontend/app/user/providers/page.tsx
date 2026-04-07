@@ -97,7 +97,7 @@ function ProviderDetailModal({ provider, onClose }: { provider: Provider; onClos
                         </div>
                         <div className="mt-1">
                             <span className="text-base font-black text-amber-500 tracking-tight">
-                                {provider.rating > 0 ? `★ ${provider.rating.toFixed(1)}` : "★ New"}
+                                {provider.rating > 0 ? `★ ${provider.rating.toFixed(1)}` : "★ 0.0"}
                             </span>
                         </div>
                     </div>
@@ -663,7 +663,7 @@ function ProvidersContent() {
                                 </div>
                                 <div className="flex items-center gap-1 flex-shrink-0">
                                     <span className="text-xs font-black text-amber-500">
-                                        {p.rating > 0 ? `★ ${p.rating.toFixed(1)}` : "★ New"}
+                                        {p.rating > 0 ? `★ ${p.rating.toFixed(1)}` : "★ 0.0"}
                                     </span>
                                 </div>
                                 <span className="hidden md:block text-[9px] font-black bg-slate-100 text-slate-500 px-2 py-0.5 rounded-lg uppercase tracking-wide flex-shrink-0">

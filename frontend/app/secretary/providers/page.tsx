@@ -185,7 +185,7 @@ export default function SecretaryProvidersPage() {
                         <p className="text-xs text-slate-500 mb-3">{p.category}</p>
                         <div className="flex items-center justify-between text-xs text-slate-400">
                             <span className="font-black text-amber-500">
-                                {(p.rating || 0) > 0 ? `★ ${p.rating.toFixed(1)}` : "★ New"}
+                                {(p.rating || 0) > 0 ? `★ ${p.rating.toFixed(1)}` : "★ 0.0"}
                             </span>
                             <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{p.phone || "—"}</span>
                         </div>
