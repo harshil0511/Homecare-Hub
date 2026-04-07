@@ -146,7 +146,7 @@ def get_all_providers(
     _: User = Depends(admin_only)
 ):
     """List all service providers."""
-    providers = db.query(ServiceProvider).order_by(ServiceProvider.id.desc()).all()
+    providers = db.query(ServiceProvider).order_by(ServiceProvider.rating.desc()).all()
     return [
         {
             "id": p.id,

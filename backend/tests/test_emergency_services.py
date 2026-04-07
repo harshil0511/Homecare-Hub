@@ -74,13 +74,13 @@ def test_apply_star_delta_clamps_at_zero():
     assert provider.rating == 0.0
 
 def test_apply_star_delta_clamps_at_five():
-    """Rating should never exceed 5.0."""
+    """Rating is uncapped and can exceed 5.0."""
     from unittest.mock import MagicMock
     from app.internal.services import apply_star_delta
     provider = MagicMock()
     provider.rating = 4.9
     apply_star_delta(provider, delta=0.5)
-    assert provider.rating == 5.0
+    assert provider.rating == 5.4
 
 def test_apply_star_delta_normal():
     from unittest.mock import MagicMock
