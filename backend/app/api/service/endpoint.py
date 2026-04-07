@@ -213,15 +213,26 @@ def get_providers(
             (ServiceProvider.categories.ilike(search_term))
         )
 
-    providers = query.offset(skip).limit(limit).all()
+    providers = query.order_by(ServiceProvider.rating.desc()).offset(skip).limit(limit).all()
 
-    # Annotate each provider with completed booking count
+    # Batch-annotate completed and emergency job counts
     provider_ids = [p.id for p in providers]
-    counts: dict = {}
+    counts: dict[str, int] = {}
+    emergency_counts: dict[str, int] = {}
     if provider_ids:
         counts = dict(
             db.query(ServiceBooking.provider_id, func.count(ServiceBooking.id))
             .filter(ServiceBooking.provider_id.in_(provider_ids), ServiceBooking.status == "Completed")
+            .group_by(ServiceBooking.provider_id)
+            .all()
+        )
+        emergency_counts = dict(
+            db.query(ServiceBooking.provider_id, func.count(ServiceBooking.id))
+            .filter(
+                ServiceBooking.provider_id.in_(provider_ids),
+                ServiceBooking.status == "Completed",
+                ServiceBooking.priority == "Emergency",
+            )
             .group_by(ServiceBooking.provider_id)
             .all()
         )
@@ -246,6 +257,7 @@ def get_providers(
     for p in providers:
         r = ProviderResponse.model_validate(p)
         r.completed_jobs = counts.get(p.id, 0)
+        r.emergency_jobs = emergency_counts.get(p.id, 0)
         if p.id in availability_overrides:
             r.availability_status = availability_overrides[p.id]
         result.append(r)
@@ -520,8 +532,35 @@ def find_nearest_providers(
     
     if category:
         query = query.filter(ServiceProvider.category == category)
-        
-    return query.limit(20).all()
+
+    providers = query.order_by(ServiceProvider.rating.desc()).limit(20).all()
+    provider_ids = [p.id for p in providers]
+    counts: dict[str, int] = {}
+    emergency_counts: dict[str, int] = {}
+    if provider_ids:
+        counts = dict(
+            db.query(ServiceBooking.provider_id, func.count(ServiceBooking.id))
+            .filter(ServiceBooking.provider_id.in_(provider_ids), ServiceBooking.status == "Completed")
+            .group_by(ServiceBooking.provider_id)
+            .all()
+        )
+        emergency_counts = dict(
+            db.query(ServiceBooking.provider_id, func.count(ServiceBooking.id))
+            .filter(
+                ServiceBooking.provider_id.in_(provider_ids),
+                ServiceBooking.status == "Completed",
+                ServiceBooking.priority == "Emergency",
+            )
+            .group_by(ServiceBooking.provider_id)
+            .all()
+        )
+    result = []
+    for p in providers:
+        r = ProviderResponse.model_validate(p)
+        r.completed_jobs = counts.get(p.id, 0)
+        r.emergency_jobs = emergency_counts.get(p.id, 0)
+        result.append(r)
+    return result
 
 @router.post("/societies/{society_id}/recruit/{provider_id}", response_model=SocietyRequestResponse)
 def recruit_provider(
@@ -693,8 +732,35 @@ def get_trusted_providers(
     society = db.query(Society).filter(Society.id == society_id).first()
     if not society:
         raise HTTPException(status_code=404, detail="Society not found")
-    
-    return society.trusted_providers
+
+    providers = sorted(list(society.trusted_providers), key=lambda p: p.rating, reverse=True)
+    provider_ids = [p.id for p in providers]
+    counts: dict[str, int] = {}
+    emergency_counts: dict[str, int] = {}
+    if provider_ids:
+        counts = dict(
+            db.query(ServiceBooking.provider_id, func.count(ServiceBooking.id))
+            .filter(ServiceBooking.provider_id.in_(provider_ids), ServiceBooking.status == "Completed")
+            .group_by(ServiceBooking.provider_id)
+            .all()
+        )
+        emergency_counts = dict(
+            db.query(ServiceBooking.provider_id, func.count(ServiceBooking.id))
+            .filter(
+                ServiceBooking.provider_id.in_(provider_ids),
+                ServiceBooking.status == "Completed",
+                ServiceBooking.priority == "Emergency",
+            )
+            .group_by(ServiceBooking.provider_id)
+            .all()
+        )
+    result = []
+    for p in providers:
+        r = ProviderResponse.model_validate(p)
+        r.completed_jobs = counts.get(p.id, 0)
+        r.emergency_jobs = emergency_counts.get(p.id, 0)
+        result.append(r)
+    return result
 
 # Booking Routes
 @router.post("/bookings", response_model=BookingRead)
