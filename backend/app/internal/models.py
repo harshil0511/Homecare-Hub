@@ -96,7 +96,7 @@ class ServiceProvider(Base):
     location = Column(String, nullable=True)
     profile_photo_url = Column(String, nullable=True)
 
-    rating = Column(Float, default=5.0)
+    rating = Column(Float, default=0.0)
     society_id = Column(PG_UUID(as_uuid=True), ForeignKey("societies.id"), nullable=True)
 
     user = relationship("User", back_populates="provider_profile")

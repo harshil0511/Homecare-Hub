@@ -125,8 +125,9 @@ class ProviderResponse(ProviderBase):
     id: UUID
     user_id: Optional[UUID] = None
     is_verified: Optional[bool] = False
-    rating: Optional[float] = 5.0
+    rating: Optional[float] = 0.0
     completed_jobs: Optional[int] = 0
+    emergency_jobs: Optional[int] = 0
     certificates: List["CertificateResponse"] = []
 
     @field_validator('categories', mode='before')
