@@ -1,9 +1,18 @@
 "use client";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
-import { Wrench, Star, Phone, CheckSquare, Square, Send, Users, X } from "lucide-react";
+import { Wrench, Star, Phone, CheckSquare, Square, Send, Users, X, ShieldCheck } from "lucide-react";
 
-interface Provider { id: number; company_name: string; category: string; categories?: string[]; rating: number; availability_status: string; phone: string; }
+interface Provider {
+    id: string;
+    company_name: string;
+    category: string;
+    categories?: string[];
+    rating: number;
+    availability_status: string;
+    phone: string;
+    is_verified?: boolean;
+}
 
 const AVAIL_STYLE: Record<string, string> = {
     AVAILABLE: "text-emerald-700 bg-emerald-50",
@@ -20,7 +29,7 @@ export default function SecretaryProvidersPage() {
     const [categoryFilter, setCategoryFilter] = useState("All");
     const [availFilter, setAvailFilter] = useState("All");
     const [ratingFilter, setRatingFilter] = useState(0);
-    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [showBehalfModal, setShowBehalfModal] = useState(false);
     const [submittingBehalf, setSubmittingBehalf] = useState(false);
     const [memberName, setMemberName] = useState("");
@@ -44,7 +53,7 @@ export default function SecretaryProvidersPage() {
         return catMatch && availMatch && ratingMatch;
     });
 
-    const toggleSelect = (id: number) => {
+    const toggleSelect = (id: string) => {
         setSelectedIds(prev => {
             const next = new Set(prev);
             if (next.has(id)) next.delete(id);
@@ -131,8 +140,9 @@ export default function SecretaryProvidersPage() {
                         >
                             <option value={0}>Any Rating</option>
                             <option value={3}>3+ Stars</option>
-                            <option value={4}>4+ Stars</option>
-                            <option value={5}>5 Stars Only</option>
+                            <option value={5}>5+ Stars</option>
+                            <option value={8}>8+ Stars</option>
+                            <option value={10}>10 Stars (Auto-Verified)</option>
                         </select>
                     </div>
                 </div>
@@ -164,10 +174,19 @@ export default function SecretaryProvidersPage() {
                                 {p.availability_status}
                             </span>
                         </div>
-                        <p className="font-black text-slate-900 mb-1">{p.company_name}</p>
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <p className="font-black text-slate-900">{p.company_name}</p>
+                            {p.is_verified && (
+                                <span className="flex items-center gap-1 text-[9px] font-black text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-wide">
+                                    <ShieldCheck size={10} /> Verified
+                                </span>
+                            )}
+                        </div>
                         <p className="text-xs text-slate-500 mb-3">{p.category}</p>
                         <div className="flex items-center justify-between text-xs text-slate-400">
-                            <span className="flex items-center gap-1"><Star className="w-3 h-3 text-amber-400" />{p.rating?.toFixed(1)}</span>
+                            <span className="font-black text-amber-500">
+                                {(p.rating || 0) > 0 ? `★ ${p.rating.toFixed(1)}` : "★ New"}
+                            </span>
                             <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{p.phone || "—"}</span>
                         </div>
                     </div>
