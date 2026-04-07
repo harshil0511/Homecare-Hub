@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
     Search, MapPin, ShieldCheck, DollarSign,
     Filter, WifiOff, RefreshCw, Award, AlertTriangle,
-    Star, CheckSquare, Square, Send, Users, X, SlidersHorizontal,
+    CheckSquare, Square, Send, Users, X, SlidersHorizontal,
     Check,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
@@ -18,17 +18,16 @@ interface Provider {
     last_name: string | null;
     category: string;
     categories: string[];
-    phone: string;
-    email: string;
-    hourly_rate: number;
-    bio: string | null;
-    location: string | null;
     profile_photo_url: string | null;
+    hourly_rate: number;
     availability_status: string;
     is_verified: boolean;
     rating: number;
     completed_jobs: number;
+    emergency_jobs: number;
     experience_years: number;
+    location: string | null;
+    bio: string | null;
     certificates: { id: string; category: string; certificate_url: string; is_verified: boolean; uploaded_at: string }[];
 }
 
@@ -69,9 +68,6 @@ function ProviderDetailModal({ provider, onClose }: { provider: Provider; onClos
     const name = provider.first_name && provider.last_name
         ? `${provider.first_name} ${provider.last_name}`
         : provider.owner_name || provider.company_name;
-    const starFull = Math.floor(provider.rating);
-    const hasHalf = provider.rating - starFull >= 0.5;
-
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-150" onClick={onClose}>
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 relative animate-in zoom-in-95 duration-150" onClick={e => e.stopPropagation()}>
@@ -99,16 +95,9 @@ function ProviderDetailModal({ provider, onClose }: { provider: Provider; onClos
                                 </span>
                             )}
                         </div>
-                        <div className="flex items-center gap-1 mt-1">
-                            {[1,2,3,4,5].map(s => (
-                                <Star key={s} size={13} className={
-                                    s <= starFull ? "text-amber-400 fill-amber-400"
-                                    : s === starFull + 1 && hasHalf ? "text-amber-400 fill-amber-200"
-                                    : "text-slate-200"
-                                } />
-                            ))}
-                            <span className="text-[10px] font-black text-slate-500 ml-1">
-                                {provider.rating > 0 ? provider.rating.toFixed(1) : "New"}
+                        <div className="mt-1">
+                            <span className="text-base font-black text-amber-500 tracking-tight">
+                                {provider.rating > 0 ? `★ ${provider.rating.toFixed(1)}` : "★ New"}
                             </span>
                         </div>
                     </div>
@@ -147,6 +136,12 @@ function ProviderDetailModal({ provider, onClose }: { provider: Provider; onClos
                         <div className="bg-slate-50 rounded-xl p-3">
                             <p className="text-slate-400 mb-0.5">Jobs Done</p>
                             <p className="text-slate-900">{provider.completed_jobs}</p>
+                        </div>
+                    )}
+                    {provider.emergency_jobs > 0 && (
+                        <div className="bg-slate-50 rounded-xl p-3">
+                            <p className="text-slate-400 mb-0.5">Emergency Jobs</p>
+                            <p className="text-slate-900">{provider.emergency_jobs}</p>
                         </div>
                     )}
                     {provider.location && (
@@ -667,9 +662,8 @@ function ProvidersContent() {
                                     <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_COLORS[p.availability_status] || "bg-slate-300"}`} />
                                 </div>
                                 <div className="flex items-center gap-1 flex-shrink-0">
-                                    <Star size={12} className="text-amber-400 fill-amber-400" />
-                                    <span className="text-[10px] font-black text-slate-600">
-                                        {p.rating > 0 ? p.rating.toFixed(1) : "New"}
+                                    <span className="text-xs font-black text-amber-500">
+                                        {p.rating > 0 ? `★ ${p.rating.toFixed(1)}` : "★ New"}
                                     </span>
                                 </div>
                                 <span className="hidden md:block text-[9px] font-black bg-slate-100 text-slate-500 px-2 py-0.5 rounded-lg uppercase tracking-wide flex-shrink-0">
