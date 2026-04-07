@@ -188,7 +188,7 @@ def update_booking_status(
 
         # Emergency acceptance bonus: boost provider rating by 0.2 (capped at 5.0)
         if new_status == "Accepted" and booking.priority == "Emergency" and is_provider and provider:
-            provider.rating = min(5.0, (provider.rating or 0) + 0.2)
+            provider.rating = (provider.rating or 0) + 0.2
 
         # Reset provider availability when booking is completed
         if new_status == "Completed" and provider:

@@ -134,4 +134,4 @@ def calculate_emergency_bill(callout_fee: float, hourly_rate: float, actual_hour
 
 def apply_star_delta(provider: "ServiceProvider", delta: float) -> None:
     """Mutates provider.rating, clamped to [0.0, 5.0]. Caller must commit."""
-    provider.rating = max(0.0, min(5.0, provider.rating + delta))
+    provider.rating = max(0.0, provider.rating + delta)
