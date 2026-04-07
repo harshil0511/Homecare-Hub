@@ -470,7 +470,7 @@ function ProvidersContent() {
                                 Min Rating: {draftMinRating > 0 ? `${draftMinRating}+` : "Any"}
                             </label>
                             <div className="flex gap-2 flex-wrap">
-                                {[0, 3, 3.5, 4, 4.5].map(r => (
+                                {[0, 3, 5, 8, 10].map(r => (
                                     <button
                                         key={r}
                                         onClick={() => setDraftMinRating(r)}
@@ -480,7 +480,7 @@ function ProvidersContent() {
                                                 : "bg-slate-100 text-slate-500 hover:bg-slate-200"
                                         }`}
                                     >
-                                        {r === 0 ? "Any" : `${r}+`}
+                                        {r === 0 ? "Any" : r === 10 ? "10 (Verified)" : `${r}+`}
                                     </button>
                                 ))}
                             </div>
