@@ -6,7 +6,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from app.internal.models import ServiceProvider, ProviderPoints
+from app.internal.models import ServiceProvider, ProviderPoints, Notification
 
 
 # Points configuration
@@ -69,7 +69,6 @@ def award_points(
         # Auto-verify when provider earns 10 stars for the first time
         if new_rating >= 10.0 and not provider.is_verified:
             provider.is_verified = True
-            from app.internal.models import Notification
             notif = Notification(
                 id=uuid.uuid4(),
                 user_id=provider.user_id,
