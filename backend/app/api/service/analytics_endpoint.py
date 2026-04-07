@@ -106,7 +106,7 @@ def get_my_analytics(
             p.delta for p in all_points
             if p.created_at is not None and p.created_at < next_month
         )
-        rating_end = round(max(0.0, min(5.0, cumulative / 100.0)), 2)
+        rating_end = round(max(0.0, cumulative / 100.0), 2)
 
         monthly_stats.append(schemas.MonthlyStatEntry(
             month=month_label,
