@@ -348,8 +348,9 @@ export default function RegisterPage() {
                                     </button>
                                 </div>
                                 <div>
-                                    <label className={labelCls}>Full Name</label>
-                                    <input className={inputCls} placeholder="Enter your name" value={username} onChange={e => setUsername(e.target.value)} />
+                                    <label className={labelCls}>Display Name</label>
+                                    <input className={inputCls} placeholder="e.g. Ravi Kumar" value={username} onChange={e => setUsername(e.target.value)} />
+                                    <p className="text-[10px] text-slate-400 mt-1">How you appear in the app — different from your personal name</p>
                                 </div>
                                 <div>
                                     <label className={labelCls}>Email Address</label>
@@ -594,9 +595,10 @@ export default function RegisterPage() {
                 )}
                 <form onSubmit={handleRegister} className="space-y-5">
                     <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Full Name</label>
-                        <input required placeholder="Enter your name" value={username} onChange={e => setUsername(e.target.value)}
+                        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Display Name</label>
+                        <input required placeholder="e.g. Ravi Kumar" value={username} onChange={e => setUsername(e.target.value)}
                             className="w-full px-4 py-3 border border-slate-200 rounded-xl text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition" />
+                        <p className="text-xs text-slate-400 mt-1.5">How you appear in the app</p>
                     </div>
                     <div>
                         <label className="block text-sm font-semibold text-slate-700 mb-1.5">Email Address</label>
