@@ -58,7 +58,9 @@ Route access is enforced by **dual-layer protection**:
 - **Professional Profile** — Bio, category, hourly rate, location, certifications, government ID, profile photo
 - **Availability Management** — Toggle between `AVAILABLE`, `WORKING`, `VACATION`
 - **Ratings Dashboard** — View detailed feedback: overall, quality, punctuality, professionalism
-- **Star Rating System** — Affected by performance (late arrival, cancellation, no-show deductions)
+- **Points-Based Star Rating** — 100 pts = 1 star, uncapped. Earn via completed jobs and reviews; lose via cancellations and penalties. Displayed as `★ X.X` throughout the UI. Providers are sorted by star rating across all listings
+- **Auto-Verification** — Providers who earn ≥ 10 stars (1,000 pts) are automatically verified — no admin action needed
+- **Analytics Dashboard** — Full performance view: total/emergency/urgent jobs, completion rate, points breakdown by category, recent activity log, and 6-month performance history at `/service/analytics`
 
 ### Society Secretaries (SECRETARY)
 - **Member Directory** — View all society residents; assign home numbers
@@ -69,7 +71,7 @@ Route access is enforced by **dual-layer protection**:
 
 ### Admins (ADMIN)
 - **User Management** — View all users, change roles, toggle active status, delete accounts; superadmin is protected from demotion
-- **Provider Oversight** — Verify providers, view full profile with booking history and certificates
+- **Provider Oversight** — Verify providers, revoke verification, view full profile with booking history and certificates; providers listed by star rating
 - **Booking Monitor** — All bookings with detailed view
 - **Emergency Management** — Configure emergency category pricing (callout fee + hourly rate), manage penalty configs (LATE_ARRIVAL, CANCELLATION, NO_SHOW), view all SOS incidents, apply penalties with star deductions
 - **System Logs** — Full activity audit log for security and compliance
@@ -317,6 +319,8 @@ ServiceProvider ───── 1:N ── EmergencyStarAdjustment
 - [ ] **Document Vault** — Society documents (NOC, agreements, bylaws) stored per society
 
 ### Phase 3 — Intelligence & Automation
+- [x] **Points-Based Star Rating** — Uncapped, achievement-driven rating system with auto-verification at 10 stars
+- [x] **Provider Analytics** — Performance dashboard with job stats, points breakdown, and monthly trends
 - [ ] **Smart Provider Matching** — AI-powered provider recommendation based on rating, proximity, category, and past bookings
 - [ ] **Predictive Maintenance** — Suggest upcoming maintenance based on past task history and seasonal patterns
 - [ ] **AI Booking Assistant** — Conversational booking flow — describe the problem in plain language, AI creates the request
