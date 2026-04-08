@@ -5,6 +5,8 @@ import {
     ShieldAlert, Settings, AlertTriangle, Star, Users,
     ChevronDown, ChevronUp, Check, X, Loader2, Edit3,
 } from "lucide-react";
+import Spinner from "@/components/ui/Spinner";
+import EmptyState from "@/components/ui/EmptyState";
 import {
     adminEmergencyApi,
     EmergencyConfig,
@@ -173,7 +175,7 @@ export default function AdminEmergencyPage() {
     ];
 
     return (
-        <div className="space-y-8 animate-fade-in pb-16">
+        <div className="space-y-8 pb-16">
             <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-2xl bg-rose-100 flex items-center justify-center text-rose-600">
                     <ShieldAlert size={24} />
@@ -339,7 +341,7 @@ export default function AdminEmergencyPage() {
                     {requestsLoading ? (
                         <div className="flex justify-center py-12"><Loader2 className="animate-spin text-slate-400" size={24} /></div>
                     ) : requests.length === 0 ? (
-                        <div className="text-center py-16 text-slate-400 text-sm">No emergency requests found.</div>
+                        <EmptyState icon={ShieldAlert} title="No emergency requests" />
                     ) : (
                         <div className="space-y-3">
                             {requests.map(req => {

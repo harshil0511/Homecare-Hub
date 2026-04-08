@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { ClipboardList, Calendar, DollarSign, Search, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import Spinner from "@/components/ui/Spinner";
+import EmptyState from "@/components/ui/EmptyState";
 
 interface Booking {
     id: number;
@@ -146,14 +148,9 @@ export default function AdminBookingsPage() {
                 </div>
                 <div className="overflow-x-auto">
                     {loading ? (
-                        <div className="flex justify-center py-16">
-                            <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-                        </div>
+                        <Spinner size="lg" />
                     ) : filtered.length === 0 ? (
-                        <div className="text-center py-16 text-slate-400">
-                            <ClipboardList className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                            <p className="font-semibold text-sm">No bookings found</p>
-                        </div>
+                        <EmptyState icon={ClipboardList} title="No bookings found" />
                     ) : (
                         <table className="w-full text-left border-collapse">
                             <thead>

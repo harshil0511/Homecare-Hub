@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import {
     Wrench, Star, Phone, Mail, BadgeCheck, XCircle, Search,
     X, MapPin, DollarSign, ClipboardList, ShieldCheck, Eye,
-    AlertTriangle, ShieldAlert
+    AlertTriangle, ShieldAlert, UserCheck
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import Spinner from "@/components/ui/Spinner";
+import EmptyState from "@/components/ui/EmptyState";
 
 interface Provider {
     id: string;
@@ -201,14 +203,9 @@ export default function AdminProvidersPage() {
                 </div>
                 <div className="overflow-x-auto">
                     {loading ? (
-                        <div className="flex justify-center py-16">
-                            <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-                        </div>
+                        <Spinner size="lg" />
                     ) : filtered.length === 0 ? (
-                        <div className="text-center py-16 text-slate-400">
-                            <Wrench className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                            <p className="font-semibold text-sm">No providers found</p>
-                        </div>
+                        <EmptyState icon={UserCheck} title="No providers found" />
                     ) : (
                         <table className="w-full text-left border-collapse">
                             <thead>
@@ -348,7 +345,7 @@ export default function AdminProvidersPage() {
                                 className="flex-1 px-4 py-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
                             >
                                 {revokeLoading ? (
-                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                    <Spinner size="sm" py="py-0" />
                                 ) : (
                                     <ShieldAlert className="w-4 h-4" />
                                 )}
@@ -386,9 +383,7 @@ export default function AdminProvidersPage() {
                         </div>
 
                         {reviewLoading ? (
-                            <div className="flex items-center justify-center py-20">
-                                <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-                            </div>
+                            <Spinner size="lg" py="py-20" />
                         ) : reviewProvider && (
                             <>
                                 <div className="overflow-y-auto flex-1 p-10 space-y-8">
