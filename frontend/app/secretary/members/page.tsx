@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { Spinner } from "@/components/ui/Spinner";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Users, CheckCircle, XCircle, Search, AlertTriangle, Clock, Circle } from "lucide-react";
 
 interface Member { id: number; username: string; email: string; is_active: boolean; }
@@ -96,14 +98,9 @@ export default function SecretaryMembersPage() {
 
             {/* Member cards */}
             {loading ? (
-                <div className="flex justify-center py-16">
-                    <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-                </div>
+                <Spinner size="lg" />
             ) : filtered.length === 0 ? (
-                <div className="text-center py-16 bg-white border border-slate-200 rounded-2xl text-slate-400">
-                    <Users className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                    <p className="font-bold text-sm">No members found</p>
-                </div>
+                <EmptyState icon={Users} title="No members found" />
             ) : (
                 <div className="bg-white border border-slate-200 rounded-2xl">
                     <div className="divide-y divide-slate-50 h-[520px] overflow-y-auto">

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { getUsername } from "@/lib/auth";
+import { Spinner } from "@/components/ui/Spinner";
 import {
     Building2, Users, Bell, Wrench, ChevronRight,
     MapPin, Hash, ShieldCheck, Edit2, Save, X,
@@ -124,11 +125,7 @@ export default function SecretaryDashboard() {
     ];
 
     if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-[60vh]">
-                <div className="w-10 h-10 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-            </div>
-        );
+        return <Spinner size="lg" py="py-32" />;
     }
 
     return (
@@ -433,7 +430,7 @@ export default function SecretaryDashboard() {
 
             {/* Add Home Modal */}
             {showAddHome && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/30 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 w-full max-w-sm mx-4">
                         <div className="flex items-center justify-between mb-5">
                             <div className="flex items-center gap-2">

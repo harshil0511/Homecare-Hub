@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { Spinner } from "@/components/ui/Spinner";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Wrench, Star, Phone, CheckSquare, Square, Send, Users, X, ShieldCheck } from "lucide-react";
 
 interface Provider {
@@ -150,12 +152,9 @@ export default function SecretaryProvidersPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {loading ? (
-                    <div className="col-span-3 flex justify-center py-16"><div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" /></div>
+                    <div className="col-span-3"><Spinner size="lg" /></div>
                 ) : filteredProviders.length === 0 ? (
-                    <div className="col-span-3 text-center py-16 text-slate-400">
-                        <Wrench className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                        <p className="font-semibold">No trusted providers yet</p>
-                    </div>
+                    <div className="col-span-3"><EmptyState icon={Wrench} title="No trusted providers" /></div>
                 ) : filteredProviders.map((p) => (
                     <div key={p.id} className="bg-white border border-slate-200 rounded-2xl p-6 hover:shadow-md transition-all">
                         <button
@@ -213,7 +212,7 @@ export default function SecretaryProvidersPage() {
 
             {/* Behalf Modal */}
             {showBehalfModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-4 bg-slate-900/60 backdrop-blur-sm">
                     <div className="bg-white rounded-[2.5rem] w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
                         <div className="p-8">
                             <div className="flex items-center justify-between mb-6">
