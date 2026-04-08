@@ -209,7 +209,7 @@ export default function AdminEmergencyPage() {
             {activeTab === "pricing" && (
                 <div className="space-y-6">
                     {configsLoading ? (
-                        <div className="flex justify-center py-12"><Loader2 className="animate-spin text-slate-400" size={24} /></div>
+                        <div className="flex justify-center py-12"><Spinner /></div>
                     ) : (
                         <div className="space-y-3">
                             {configs.map(cfg => (
@@ -287,7 +287,7 @@ export default function AdminEmergencyPage() {
             {activeTab === "penalties" && (
                 <div className="space-y-3">
                     {penaltiesLoading ? (
-                        <div className="flex justify-center py-12"><Loader2 className="animate-spin text-slate-400" size={24} /></div>
+                        <div className="flex justify-center py-12"><Spinner /></div>
                     ) : penalties.length === 0 ? (
                         <p className="text-center text-slate-400 py-12 text-sm">No penalty configs found. They are seeded on server startup.</p>
                     ) : penalties.map(p => (
@@ -339,7 +339,7 @@ export default function AdminEmergencyPage() {
                     </div>
 
                     {requestsLoading ? (
-                        <div className="flex justify-center py-12"><Loader2 className="animate-spin text-slate-400" size={24} /></div>
+                        <div className="flex justify-center py-12"><Spinner /></div>
                     ) : requests.length === 0 ? (
                         <EmptyState icon={ShieldAlert} title="No emergency requests" />
                     ) : (
