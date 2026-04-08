@@ -22,6 +22,8 @@ import { apiFetch } from "@/lib/api";
 import { page, card, stat, btn, form, modal, badge, iconBox } from "@/lib/ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Spinner from "@/components/ui/Spinner";
+import EmptyState from "@/components/ui/EmptyState";
 
 interface MaintenanceTask {
     id: number;
@@ -190,7 +192,7 @@ export default function DashboardPage() {
     const triggeredCount = activeAlerts.filter(t => t.status === "Triggered").length;
 
     return (
-        <div className={`${page.wrapper} animate-fade-in`}>
+        <div className={`${page.wrapper}`}>
             {/* Header */}
             <div className={page.header}>
                 <div className="space-y-0.5">
@@ -236,17 +238,13 @@ export default function DashboardPage() {
                     </div>
 
                     {loading ? (
-                        <div className="py-16 flex items-center justify-center">
-                            <div className="w-6 h-6 border-2 border-[#064e3b] border-t-transparent rounded-full animate-spin" />
-                        </div>
+                        <Spinner />
                     ) : activeAlerts.length === 0 ? (
-                        <div className="py-16 flex flex-col items-center text-center gap-3 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
-                            <Bell className="w-8 h-8 text-slate-200" />
-                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No Active Alerts</p>
-                            <button onClick={() => setShowTaskModal(true)} className="text-[9px] font-black text-[#064e3b] uppercase tracking-widest">
-                                Create First Alert →
-                            </button>
-                        </div>
+                        <EmptyState
+                            icon={Bell}
+                            title="No Active Alerts"
+                            action={{ label: "Create First Alert", onClick: () => setShowTaskModal(true) }}
+                        />
                     ) : (
                         <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
                             {activeAlerts.map(task => {
