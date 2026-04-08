@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Bell, AlertCircle, ShieldAlert, CheckCircle2, Clock, MoreHorizontal, Search, Loader2, Wrench, ArrowRight, CalendarClock, ChevronDown, Send, DollarSign } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
+import Spinner from "@/components/ui/Spinner";
+import EmptyState from "@/components/ui/EmptyState";
 
 interface Notification {
     id: number;
@@ -202,7 +204,7 @@ export default function AlertsPage() {
     );
 
     return (
-        <div className="space-y-8 animate-fade-in pb-12">
+        <div className="space-y-8 pb-12">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
@@ -470,14 +472,10 @@ export default function AlertsPage() {
 
                         <div className="divide-y divide-slate-100 max-h-[560px] overflow-y-auto">
                             {loading ? (
-                                <div className="p-20 text-center">
-                                    <Loader2 className="w-8 h-8 text-emerald-600 animate-spin mx-auto mb-4" />
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Accessing Secure Records...</p>
-                                </div>
+                                <Spinner py="p-20" />
                             ) : filteredNotifications.length === 0 ? (
                                 <div className="p-20 text-center">
-                                    <Bell className="w-12 h-12 text-slate-100 mx-auto mb-4" />
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No active alerts detected</p>
+                                    <EmptyState icon={Bell} title="No alerts" />
                                 </div>
                             ) : (
                                 filteredNotifications.map((alert) => {

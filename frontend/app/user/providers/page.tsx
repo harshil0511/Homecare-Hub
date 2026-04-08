@@ -9,6 +9,8 @@ import {
     Check,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import Spinner from "@/components/ui/Spinner";
+import EmptyState from "@/components/ui/EmptyState";
 
 interface Provider {
     id: string;
@@ -69,7 +71,7 @@ function ProviderDetailModal({ provider, onClose }: { provider: Provider; onClos
         ? `${provider.first_name} ${provider.last_name}`
         : provider.owner_name || provider.company_name;
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-150" onClick={onClose}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150" onClick={onClose}>
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 relative animate-in zoom-in-95 duration-150" onClick={e => e.stopPropagation()}>
                 <button
                     onClick={onClose}
@@ -387,7 +389,7 @@ function ProvidersContent() {
 
     // ── Render ───────────────────────────────────────────────────────────────
     return (
-        <div className="space-y-6 animate-fade-in pb-24">
+        <div className="space-y-6 pb-24">
 
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -585,9 +587,7 @@ function ProvidersContent() {
 
             {/* Results */}
             {loading ? (
-                <div className="flex items-center justify-center h-[30vh]">
-                    <div className="w-10 h-10 border-4 border-[#064e3b] border-t-transparent rounded-full animate-spin" />
-                </div>
+                <Spinner size="lg" py="py-[30vh]" />
             ) : fetchError === "backend_offline" ? (
                 <div className="text-center py-20 bg-white border border-red-100 rounded-3xl space-y-4">
                     <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto">
@@ -614,19 +614,16 @@ function ProvidersContent() {
                 </div>
             ) : filteredProviders.length === 0 ? (
                 <div className="text-center py-20 bg-white border border-slate-100 rounded-3xl space-y-3">
-                    <Filter className="w-12 h-12 text-slate-300 mx-auto" />
-                    <p className="text-lg font-black text-slate-400 uppercase tracking-wider">No Providers Found</p>
-                    <p className="text-sm text-slate-400">
-                        {allProviders.length > 0
-                            ? "Try adjusting your filters or search query."
-                            : "No providers are registered yet."}
-                    </p>
+                    <EmptyState icon={Search} title="No providers found" description="Try adjusting your filters" />
                     {allProviders.length > 0 && (
                         <button
                             onClick={clearAllFilters}
                             className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#064e3b] text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-950 transition-all"
                         >
                             <X className="w-3.5 h-3.5" /> Clear Filters
+                        </button>
+                    )}
+                </div>
                         </button>
                     )}
                 </div>
@@ -678,6 +675,12 @@ function ProvidersContent() {
                                 >
                                     Details
                                 </button>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setSelectedIds(new Set([p.id])); setShowRequestModal(true); }}
+                                    className="flex-shrink-0 text-[9px] font-black text-white bg-[#064e3b] border border-[#064e3b] px-3 py-1.5 rounded-xl hover:bg-emerald-800 transition-all uppercase tracking-wide"
+                                >
+                                    Request
+                                </button>
                             </div>
                         );
                     })}
@@ -686,69 +689,74 @@ function ProvidersContent() {
 
             {/* Request Modal */}
             {showRequestModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
-                        <div className="p-8">
-                            <div className="flex items-center justify-between mb-8">
+                <div className="fixed inset-0 z-[100] overflow-y-auto bg-slate-900/60 backdrop-blur-sm">
+                    <div className="flex min-h-full items-center justify-center px-4 sm:px-8 py-5 sm:py-7">
+                        <div className="bg-white rounded-[2.5rem] w-full max-w-lg mx-auto animate-fade-in shadow-2xl">
+                            {/* Header */}
+                            <div className="flex items-center justify-between px-8 pt-8 pb-5 border-b border-slate-100">
                                 <div>
                                     <h2 className="text-xl font-black text-slate-900 uppercase tracking-widest">Send Service Request</h2>
                                     <p className="text-xs text-slate-500 mt-1">Sending to {selectedIds.size} provider{selectedIds.size !== 1 ? "s" : ""}</p>
                                 </div>
-                                <button onClick={() => setShowRequestModal(false)} className="p-2 hover:bg-slate-100 rounded-xl">
+                                <button onClick={() => setShowRequestModal(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
                                     <X className="w-5 h-5 text-slate-500" />
                                 </button>
                             </div>
 
-                            <div className="mb-6">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Contact Information</p>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <input value={reqName} onChange={e => setReqName(e.target.value)} placeholder="Your Name *" className="border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b]" />
-                                    <input value={reqMobile} onChange={e => setReqMobile(e.target.value)} placeholder="Mobile Number *" type="tel" className="border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b]" />
-                                </div>
-                                <input value={reqLocation} onChange={e => setReqLocation(e.target.value)} placeholder="Your Address / Location *" className="mt-3 w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b]" />
-                            </div>
-
-                            <div className="mb-6">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Problem Details</p>
-                                <select value={reqProblemType} onChange={e => setReqProblemType(e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b] bg-white mb-3">
-                                    <option value="">Select Problem Type *</option>
-                                    {["Plumbing","Electrical","Cleaning","Mechanical","Carpentry","Painting","Gardening","HVAC","Pest Control","Appliance Repair","Other"].map(t => (
-                                        <option key={t} value={t}>{t}</option>
-                                    ))}
-                                </select>
-                                <textarea value={reqDescription} onChange={e => setReqDescription(e.target.value)} placeholder="Describe the problem in detail..." rows={4} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b] resize-none" />
-                            </div>
-
-                            <div className="mb-6">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Preferred Schedule</p>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="text-xs text-slate-500 mb-1 block">From Date</label>
-                                        <input type="date" value={reqDateStart} onChange={e => setReqDateStart(e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b]" />
+                            {/* Body */}
+                            <div className="px-8 py-6 flex flex-col gap-6">
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Contact Information</p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <input value={reqName} onChange={e => setReqName(e.target.value)} placeholder="Your Name *" className="border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b]" />
+                                        <input value={reqMobile} onChange={e => setReqMobile(e.target.value)} placeholder="Mobile Number *" type="tel" className="border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b]" />
                                     </div>
-                                    <div>
-                                        <label className="text-xs text-slate-500 mb-1 block">To Date</label>
-                                        <input type="date" value={reqDateEnd} onChange={e => setReqDateEnd(e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b]" />
+                                    <input value={reqLocation} onChange={e => setReqLocation(e.target.value)} placeholder="Your Address / Location *" className="mt-3 w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b]" />
+                                </div>
+
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Problem Details</p>
+                                    <select value={reqProblemType} onChange={e => setReqProblemType(e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b] bg-white mb-3">
+                                        <option value="">Select Problem Type *</option>
+                                        {["Plumbing","Electrical","Cleaning","Mechanical","Carpentry","Painting","Gardening","HVAC","Pest Control","Appliance Repair","Other"].map(t => (
+                                            <option key={t} value={t}>{t}</option>
+                                        ))}
+                                    </select>
+                                    <textarea value={reqDescription} onChange={e => setReqDescription(e.target.value)} placeholder="Describe the problem in detail..." rows={4} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b] resize-none" />
+                                </div>
+
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Preferred Schedule</p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-xs text-slate-500 mb-1 block">From Date</label>
+                                            <input type="date" value={reqDateStart} onChange={e => setReqDateStart(e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b]" />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-slate-500 mb-1 block">To Date</label>
+                                            <input type="date" value={reqDateEnd} onChange={e => setReqDateEnd(e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b]" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Urgency Level</p>
+                                    <div className="flex gap-3">
+                                        {(["Normal", "High", "Emergency"] as const).map(u => (
+                                            <button key={u} onClick={() => setReqUrgency(u)} className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-colors ${
+                                                reqUrgency === u
+                                                    ? u === "Emergency" ? "bg-rose-600 text-white" : u === "High" ? "bg-amber-500 text-white" : "bg-[#064e3b] text-white"
+                                                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                                            }`}>
+                                                {u === "High" ? "Urgent" : u}
+                                            </button>
+                                        ))}
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="mb-8">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Urgency Level</p>
-                                <div className="flex gap-3">
-                                    {(["Normal", "High", "Emergency"] as const).map(u => (
-                                        <button key={u} onClick={() => setReqUrgency(u)} className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-colors ${
-                                            reqUrgency === u
-                                                ? u === "Emergency" ? "bg-rose-600 text-white" : u === "High" ? "bg-amber-500 text-white" : "bg-[#064e3b] text-white"
-                                                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                                        }`}>
-                                            {u === "High" ? "Urgent" : u}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="flex gap-3">
+                            {/* Footer */}
+                            <div className="flex gap-3 px-8 pb-8 pt-2">
                                 <button onClick={() => setShowRequestModal(false)} className="flex-1 py-4 border border-slate-200 rounded-2xl text-sm font-black uppercase text-slate-500 hover:bg-slate-50 transition-colors">Cancel</button>
                                 <button
                                     onClick={handleSubmitRequest}
@@ -789,7 +797,7 @@ function ProvidersContent() {
 
 export default function ProvidersPage() {
     return (
-        <Suspense fallback={<div className="flex items-center justify-center min-h-[60vh]"><div className="w-8 h-8 border-4 border-[#064e3b] border-t-transparent rounded-full animate-spin" /></div>}>
+        <Suspense fallback={<Spinner size="lg" />}>
             <ProvidersContent />
         </Suspense>
     );

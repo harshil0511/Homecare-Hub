@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useToast } from "@/lib/toast-context";
+import Spinner from "@/components/ui/Spinner";
+import EmptyState from "@/components/ui/EmptyState";
 
 interface ServiceRequest {
   id: number;
@@ -222,21 +224,14 @@ export default function UserBookingsPage() {
       </div>
 
       {loading ? (
-        <div className="text-center py-16 text-slate-400 text-sm">Loading...</div>
+        <Spinner />
       ) : (
         <>
           {/* Tab 1: Active Requests */}
           {activeTab === "active" && (
             <div className="space-y-4">
               {openRequests.length === 0 ? (
-                <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center">
-                  <ClipboardList className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                  <p className="text-slate-500 text-sm font-bold">No active requests</p>
-                  <p className="text-slate-400 text-xs mt-1">Browse providers to send a request</p>
-                  <button onClick={() => router.push("/user/providers")} className="mt-4 px-6 py-2.5 bg-[#064e3b] text-white text-xs font-black uppercase rounded-xl hover:bg-emerald-800 transition-colors">
-                    Find Providers
-                  </button>
-                </div>
+                <EmptyState icon={ClipboardList} title="No bookings yet" action={{ label: "Find Providers", href: "/user/providers" }} />
               ) : (
                 openRequests.map(req => {
                   const urgencyColor = req.urgency === "Emergency" ? "border-l-rose-500"
@@ -295,11 +290,7 @@ export default function UserBookingsPage() {
           {activeTab === "responses" && (
             <div className="space-y-4">
               {allResponses.length === 0 ? (
-                <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center">
-                  <MessageSquare className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                  <p className="text-slate-500 text-sm font-bold">No responses yet</p>
-                  <p className="text-slate-400 text-xs mt-1">Providers will submit their offers here</p>
-                </div>
+                <EmptyState icon={MessageSquare} title="No responses yet" description="Providers will submit their offers here" />
               ) : (
                 allResponses.map(({ request: req, ...resp }) => {
                   const urgencyColor = req.urgency === "Emergency" ? "border-l-rose-500"
@@ -375,11 +366,7 @@ export default function UserBookingsPage() {
           {activeTab === "contracts" && (
             <div className="space-y-4">
               {activeContracts.length === 0 ? (
-                <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center">
-                  <CheckCircle className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                  <p className="text-slate-500 text-sm font-bold">No active contracts</p>
-                  <p className="text-slate-400 text-xs mt-1">Accept a servicer offer to create a contract</p>
-                </div>
+                <EmptyState icon={CheckCircle} title="No active contracts" description="Accept a servicer offer to create a contract" />
               ) : (
                 activeContracts.map(b => (
                   <div key={b.id} className="bg-white border border-slate-200 rounded-2xl p-6 flex items-center gap-4">
@@ -414,10 +401,7 @@ export default function UserBookingsPage() {
           {activeTab === "history" && (
             <div className="space-y-4">
               {history.length === 0 ? (
-                <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center">
-                  <Clock className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                  <p className="text-slate-500 text-sm font-bold">No completed bookings</p>
-                </div>
+                <EmptyState icon={Clock} title="No completed bookings" />
               ) : (
                 history.map(b => (
                   <div key={b.id} className="bg-white border border-slate-200 rounded-2xl p-6 flex items-center gap-4">

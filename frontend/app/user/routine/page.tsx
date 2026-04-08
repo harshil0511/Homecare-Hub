@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
+import Spinner from "@/components/ui/Spinner";
+import EmptyState from "@/components/ui/EmptyState";
 
 interface Provider {
     id: number;
@@ -535,9 +537,7 @@ function RoutineServiceContent() {
 
                     {/* Providers Grid */}
                     {loadingProviders ? (
-                        <div className="flex items-center justify-center h-[30vh]">
-                            <div className="w-10 h-10 border-4 border-[#064e3b] border-t-transparent rounded-full animate-spin" />
-                        </div>
+                        <Spinner size="lg" py="py-[30vh]" />
                     ) : providers.length === 0 ? (
                         /* ── No Experts Available: task already saved, show alert info ── */
                         <div className="text-center py-16 bg-white border border-slate-100 rounded-3xl space-y-5 px-8">
@@ -766,7 +766,7 @@ function RoutineServiceContent() {
 
 export default function RoutineServicePage() {
     return (
-        <Suspense fallback={<div className="flex items-center justify-center min-h-[60vh]"><div className="w-8 h-8 border-4 border-[#064e3b] border-t-transparent rounded-full animate-spin" /></div>}>
+        <Suspense fallback={<Spinner size="lg" />}>
             <RoutineServiceContent />
         </Suspense>
     );
