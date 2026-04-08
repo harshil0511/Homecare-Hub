@@ -5,6 +5,8 @@ import { Briefcase, Clock, MapPin, CheckCircle, XCircle, ChevronRight, User, Ind
 import { apiFetch, emergencyApi, createServicerAlertSocket, IncomingEmergencyRead } from "@/lib/api";
 import { useToast } from "@/lib/toast-context";
 import Link from "next/link";
+import Spinner from "@/components/ui/Spinner";
+import EmptyState from "@/components/ui/EmptyState";
 
 interface Booking {
     id: number;
@@ -267,7 +269,7 @@ export default function ServicerJobsPage() {
     };
 
     return (
-        <div className="space-y-8 animate-fade-in pb-12">
+        <div className="space-y-8 pb-12">
             {fetchError && (
                 <div className="mb-6 bg-amber-50 border border-amber-200 text-amber-800 px-5 py-4 rounded-2xl flex items-center gap-3">
                     <span className="text-xs font-black uppercase tracking-widest">{fetchError}</span>
@@ -285,7 +287,7 @@ export default function ServicerJobsPage() {
             </div>
 
             {/* Tab strip */}
-            <div className="flex border-b border-slate-200 mb-8">
+            <div className="flex border-b border-slate-200 mb-8 overflow-x-auto">
                 {([
                     { key: "jobs", label: "Active Jobs" },
                     { key: "requests", label: "Incoming Requests" },
@@ -294,7 +296,7 @@ export default function ServicerJobsPage() {
                     <button
                         key={tab.key}
                         onClick={() => setActiveTab(tab.key)}
-                        className={`relative px-6 py-4 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${
+                        className={`relative flex-shrink-0 px-6 py-4 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${
                             activeTab === tab.key
                                 ? "border-[#064e3b] text-[#064e3b]"
                                 : "border-transparent text-slate-400 hover:text-slate-700"
@@ -315,16 +317,9 @@ export default function ServicerJobsPage() {
             {activeTab === "jobs" && (
                 <>
                     {loading ? (
-                        <div className="grid grid-cols-1 gap-4">
-                            {[1, 2, 3].map(i => (
-                                <div key={i} className="h-32 bg-slate-100 rounded-3xl animate-pulse" />
-                            ))}
-                        </div>
+                        <Spinner size="lg" />
                     ) : bookings.length === 0 ? (
-                        <div className="text-center py-24 bg-white rounded-[3rem] border border-slate-200 border-dashed">
-                            <Briefcase className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                            <p className="text-slate-500 font-black uppercase tracking-widest text-sm">No active jobs found in your queue</p>
-                        </div>
+                        <EmptyState icon={Briefcase} title="No active jobs found" description="New bookings will appear here" py="py-24" />
                     ) : (
                         <div className="grid grid-cols-1 gap-6">
                             {bookings.map((booking) => (
@@ -430,12 +425,9 @@ export default function ServicerJobsPage() {
             {activeTab === "requests" && (
                 <div>
                     {requestsLoading ? (
-                        <div className="text-center py-16 text-slate-400 text-sm">Loading requests...</div>
+                        <Spinner />
                     ) : incomingRequests.length === 0 ? (
-                        <div className="text-center py-16">
-                            <p className="text-slate-400 text-sm">No incoming requests at the moment.</p>
-                            <p className="text-slate-300 text-xs mt-1">New requests from home users will appear here.</p>
-                        </div>
+                        <EmptyState icon={FileText} title="No incoming requests" description="New requests from home users will appear here" />
                     ) : (
                         <div className="space-y-4">
                             {incomingRequests.map(req => {
@@ -516,13 +508,9 @@ export default function ServicerJobsPage() {
             {activeTab === "emergency" && (
                 <div className="space-y-4">
                     {emergencyLoading ? (
-                        <div className="text-center py-16 text-slate-400 text-sm">Loading emergencies...</div>
+                        <Spinner />
                     ) : emergencies.length === 0 ? (
-                        <div className="text-center py-20 bg-white rounded-[3rem] border border-dashed border-slate-200">
-                            <ShieldAlert className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                            <p className="text-slate-500 font-black uppercase tracking-widest text-sm">No active emergencies</p>
-                            <p className="text-slate-300 text-xs mt-1">Open SOS requests will appear here in real time.</p>
-                        </div>
+                        <EmptyState icon={ShieldAlert} title="No emergency requests" description="Active emergency SOS requests will appear here" />
                     ) : (
                         emergencies.map(em => {
                             const timeLeft = emergencyCountdown[em.id];
