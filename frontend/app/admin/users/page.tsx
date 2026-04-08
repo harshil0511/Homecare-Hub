@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { Users, Mail, Shield, ShieldCheck, ShieldAlert, Search, CheckCircle, XCircle, Trash2, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import Spinner from "@/components/ui/Spinner";
+import EmptyState from "@/components/ui/EmptyState";
 
 interface User {
     id: number;
@@ -123,7 +125,7 @@ export default function AdminUsersPage() {
     });
 
     return (
-        <div className="space-y-8 animate-fade-in pb-12">
+        <div className="space-y-8 pb-12">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
                     <h1 className="text-3xl font-black text-[#000000] tracking-tight uppercase">Identity Registry</h1>
@@ -140,10 +142,10 @@ export default function AdminUsersPage() {
 
             {/* Filters */}
             <div className="flex flex-wrap gap-3 items-center">
-                <div className="relative">
+                <div className="relative w-full sm:w-auto">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                     <input
-                        className="bg-white border border-slate-200 rounded-xl py-2.5 pl-12 pr-4 text-xs font-black uppercase tracking-tight outline-none focus:ring-1 focus:ring-emerald-500 w-64 transition-all"
+                        className="bg-white border border-slate-200 rounded-xl py-2.5 pl-12 pr-4 text-xs font-black uppercase tracking-tight outline-none focus:ring-1 focus:ring-emerald-500 w-full sm:w-64 transition-all"
                         placeholder="Search by name or email..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
@@ -171,13 +173,10 @@ export default function AdminUsersPage() {
 
                 <div className="overflow-x-auto">
                     {loading ? (
-                        <div className="flex justify-center py-16">
-                            <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-                        </div>
+                        <Spinner size="lg" />
                     ) : filtered.length === 0 ? (
-                        <div className="text-center py-16 text-slate-400">
-                            <Users className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                            <p className="font-semibold text-sm">No users found</p>
+                        <div className="px-4">
+                            <EmptyState icon={Users} title="No users found" />
                         </div>
                     ) : (
                         <table className="w-full text-left border-collapse">
@@ -269,8 +268,8 @@ export default function AdminUsersPage() {
             </div>
 
             {selectedUser && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-sm shadow-2xl">
+                <div className="fixed inset-0 z-[100] flex items-end sm:items-center sm:p-4 bg-slate-900/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-t-[2rem] sm:rounded-[2.5rem] w-full sm:max-w-sm shadow-2xl max-h-[90vh] overflow-y-auto sm:max-h-none">
                         <div className="p-8">
                             <div className="flex items-center justify-between mb-6">
                                 <h2 className="text-base font-black text-slate-900 uppercase tracking-widest">User Info</h2>
