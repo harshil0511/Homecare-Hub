@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
-import { Spinner } from "@/components/ui/Spinner";
-import { EmptyState } from "@/components/ui/EmptyState";
+import Spinner from "@/components/ui/Spinner";
+import EmptyState from "@/components/ui/EmptyState";
 import { Bell, Clock, Circle, CheckCircle2, X, AlertTriangle, Search } from "lucide-react";
 
 interface Alert { id: number; title: string; status: string; priority: string; created_at: string; user_id: number; }

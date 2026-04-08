@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { getUsername } from "@/lib/auth";
-import { Spinner } from "@/components/ui/Spinner";
+import Spinner from "@/components/ui/Spinner";
 import {
     Building2, Users, Bell, Wrench, ChevronRight,
     MapPin, Hash, ShieldCheck, Edit2, Save, X,

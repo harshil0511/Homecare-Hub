@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
-import { Spinner } from "@/components/ui/Spinner";
-import { EmptyState } from "@/components/ui/EmptyState";
+import Spinner from "@/components/ui/Spinner";
+import EmptyState from "@/components/ui/EmptyState";
 import { Wrench, Star, Phone, CheckSquare, Square, Send, Users, X, ShieldCheck } from "lucide-react";
 
 interface Provider {

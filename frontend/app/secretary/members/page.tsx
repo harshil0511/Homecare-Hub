@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
-import { Spinner } from "@/components/ui/Spinner";
-import { EmptyState } from "@/components/ui/EmptyState";
+import Spinner from "@/components/ui/Spinner";
+import EmptyState from "@/components/ui/EmptyState";
 import { Users, CheckCircle, XCircle, Search, AlertTriangle, Clock, Circle } from "lucide-react";
 
 interface Member { id: number; username: string; email: string; is_active: boolean; }
