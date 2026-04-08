@@ -17,7 +17,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="fixed inset-0 bg-black/50 z-[998] md:hidden" onClick={() => setSidebarOpen(false)} />
       )}
       <main className={`pt-16 min-h-screen bg-slate-50 transition-all duration-300 ${sidebarOpen ? "md:pl-64" : ""}`}>
-        <div className="px-8 py-7 max-w-7xl mx-auto animate-fade-in">
+        <div className="px-4 sm:px-8 py-5 sm:py-7 max-w-7xl mx-auto animate-fade-in">
           {children}
         </div>
       </main>
