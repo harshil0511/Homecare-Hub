@@ -541,15 +541,11 @@ function RoutineServiceContent() {
                     ) : providers.length === 0 ? (
                         /* ── No Experts Available: task already saved, show alert info ── */
                         <div className="text-center py-16 bg-white border border-slate-100 rounded-3xl space-y-5 px-8">
-                            <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto">
-                                <Bell className="w-8 h-8 text-amber-500" />
-                            </div>
-                            <div>
-                                <p className="text-lg font-black text-slate-700 uppercase tracking-wider">No Experts Available Right Now</p>
-                                <p className="text-sm text-slate-400 mt-2 font-medium max-w-sm mx-auto leading-relaxed">
-                                    Your request has been <span className="font-black text-[#064e3b]">recorded and saved</span>. When an expert becomes available for <span className="font-black">{createdTask?.category}</span>, you can assign them from this page.
-                                </p>
-                            </div>
+                            <EmptyState
+                                icon={Bell}
+                                title="No Experts Available Right Now"
+                                description={`Your request has been recorded and saved. When an expert becomes available for ${createdTask?.category}, you can assign them from this page.`}
+                            />
                             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
                                 <Link
                                     href={`/user/providers?category=${encodeURIComponent(createdTask?.category || "")}`}

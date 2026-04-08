@@ -571,9 +571,7 @@ export default function AlertsPage() {
             {activeTab === "history" && (
                 <div className="space-y-3">
                     {loadingHistory ? (
-                        <div className="py-16 flex items-center justify-center">
-                            <div className="w-6 h-6 border-2 border-[#064e3b] border-t-transparent rounded-full animate-spin" />
-                        </div>
+                        <Spinner py="py-16" />
                     ) : alertHistory.length === 0 ? (
                         <div className="py-16 flex flex-col items-center text-center gap-3 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
                             <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No alert history yet</p>
