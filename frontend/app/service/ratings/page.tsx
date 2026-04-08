@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Star, TrendingUp, MessageSquare, Award, ShieldCheck, Loader2 } from "lucide-react";
+import { Star, TrendingUp, MessageSquare, Award, ShieldCheck } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import Spinner from "@/components/ui/Spinner";
+import EmptyState from "@/components/ui/EmptyState";
 
 interface Review {
     id: number;
@@ -75,16 +77,10 @@ export default function ServicerRatingsPage() {
         return d.toLocaleDateString();
     };
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-[60vh]">
-                <Loader2 className="w-8 h-8 text-[#064e3b] animate-spin" />
-            </div>
-        );
-    }
+    if (loading) return <Spinner size="lg" py="py-32" />;
 
     return (
-        <div className="space-y-10 animate-fade-in pb-16">
+        <div className="space-y-10 pb-16">
             {fetchError && (
                 <div className="mb-6 bg-amber-50 border border-amber-200 text-amber-800 px-5 py-4 rounded-2xl flex items-center gap-3">
                     <span className="text-xs font-black uppercase tracking-widest">{fetchError}</span>
@@ -151,11 +147,7 @@ export default function ServicerRatingsPage() {
                 </div>
 
                 {reviews.length === 0 ? (
-                    <div className="text-center py-20 bg-white border border-slate-200 border-dashed rounded-[2.5rem]">
-                        <MessageSquare className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                        <p className="text-slate-400 font-black uppercase tracking-widest text-sm">No reviews yet</p>
-                        <p className="text-slate-300 text-xs font-bold mt-2">Complete jobs to receive client feedback</p>
-                    </div>
+                    <EmptyState icon={Star} title="No ratings yet" description="Ratings appear after completing bookings" />
                 ) : (
                     <div className="space-y-4">
                         {reviews.map((review) => (

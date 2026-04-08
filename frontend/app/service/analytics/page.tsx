@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 import {
     Briefcase, Star, TrendingUp, CheckCircle2,
-    Zap, AlertTriangle, Award, BarChart2, Loader2,
+    Zap, AlertTriangle, Award, BarChart2,
     Calendar, Activity
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import Spinner from "@/components/ui/Spinner";
+import EmptyState from "@/components/ui/EmptyState";
 
 interface PointsBreakdown {
     emergency: number;
@@ -109,13 +111,7 @@ export default function ServicerAnalyticsPage() {
         fetchAnalytics();
     }, []);
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-[60vh]">
-                <Loader2 className="w-8 h-8 text-[#064e3b] animate-spin" />
-            </div>
-        );
-    }
+    if (loading) return <Spinner size="lg" py="py-32" />;
 
     if (fetchError) {
         return (
@@ -277,11 +273,7 @@ export default function ServicerAnalyticsPage() {
                 </div>
 
                 {recentLog.length === 0 ? (
-                    <div className="text-center py-16">
-                        <CheckCircle2 className="w-10 h-10 text-slate-200 mx-auto mb-4" />
-                        <p className="text-slate-400 font-black uppercase tracking-widest text-sm">No activity yet</p>
-                        <p className="text-slate-300 text-xs font-bold mt-2">Complete jobs to earn points</p>
-                    </div>
+                    <EmptyState icon={Activity} title="No activity yet" description="Complete jobs to earn points" />
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full">
@@ -341,11 +333,7 @@ export default function ServicerAnalyticsPage() {
                 </div>
 
                 {monthlyStats.length === 0 ? (
-                    <div className="text-center py-16">
-                        <Calendar className="w-10 h-10 text-slate-200 mx-auto mb-4" />
-                        <p className="text-slate-400 font-black uppercase tracking-widest text-sm">No monthly data yet</p>
-                        <p className="text-slate-300 text-xs font-bold mt-2">Stats will appear after your first completed month</p>
-                    </div>
+                    <EmptyState icon={Calendar} title="No monthly data yet" description="Stats will appear after your first completed month" />
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full">

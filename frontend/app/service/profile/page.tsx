@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { User, Briefcase, DollarSign, Clock, ShieldCheck, Upload, Save, CheckCircle2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import Spinner from "@/components/ui/Spinner";
 
 export default function ServicerProfilePage() {
     const [profile, setProfile] = useState({
@@ -56,12 +57,12 @@ export default function ServicerProfilePage() {
         }
     };
 
-    if (loading) return <div className="flex items-center justify-center min-h-[60vh] text-[#000000] font-black uppercase tracking-widest animate-pulse">Loading Manifest...</div>;
+    if (loading) return <Spinner size="lg" py="py-32" />;
 
     const categories = ["Nursing", "Physiotherapy", "Elderly Care", "Electrician", "Plumber", "HVAC Technician", "General Maintenance"];
 
     return (
-        <div className="max-w-4xl mx-auto space-y-12 pb-20 animate-fade-in">
+        <div className="max-w-4xl mx-auto space-y-12 pb-20">
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>

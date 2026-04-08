@@ -9,6 +9,8 @@ import {
 import { apiFetch } from "@/lib/api";
 import Image from "next/image";
 import Link from "next/link";
+import Spinner from "@/components/ui/Spinner";
+import EmptyState from "@/components/ui/EmptyState";
 
 export default function ServicerDashboard() {
     const [jobs, setJobs] = useState([]);
@@ -82,7 +84,7 @@ export default function ServicerDashboard() {
     if (loading) return null;
 
     return (
-        <div className="space-y-8 animate-fade-in pb-12">
+        <div className="space-y-8 pb-12">
 
             {/* Fetch error */}
             {fetchError && (
@@ -329,12 +331,8 @@ export default function ServicerDashboard() {
                 </div>
 
                 {filteredJobs.length === 0 ? (
-                    <div className="flex-1 flex flex-col items-center justify-center p-20 text-center">
-                        <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6">
-                            <CheckCircle2 className="w-10 h-10 text-slate-200" />
-                        </div>
-                        <h3 className="text-xl font-black text-[#000000] tracking-tight">No Results</h3>
-                        <p className="text-slate-600 text-xs font-bold uppercase tracking-widest mt-2">No jobs match the selected filter.</p>
+                    <div className="flex-1 flex items-center justify-center p-20">
+                        <EmptyState icon={CheckCircle2} title="No Results" description="No jobs match the selected filter." />
                     </div>
                 ) : (
                     <div className="divide-y divide-slate-50">
