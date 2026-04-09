@@ -330,37 +330,31 @@ export default function BookingDetailsPage() {
                                 </div>
                                 <div>
                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Expert</p>
-                                    <p className="font-black text-slate-900">{receipt.provider_name}</p>
+                                    <p className="font-black text-slate-900">{receipt.servicer_name}</p>
                                 </div>
                                 <div>
                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Date</p>
                                     <p className="font-black text-slate-900">
-                                        {new Date(receipt.scheduled_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                                        {new Date(receipt.completed_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                                     </p>
                                 </div>
-                                {receipt.actual_hours && (
+                                {receipt.extra_hours > 0 && (
                                     <div>
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Hours Worked</p>
-                                        <p className="font-black text-slate-900">{receipt.actual_hours}h</p>
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Extra Hours</p>
+                                        <p className="font-black text-slate-900">{receipt.extra_hours}h</p>
                                     </div>
                                 )}
                                 <div>
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Estimated</p>
-                                    <p className="font-black text-slate-500">₹{Number(receipt.estimated_cost).toLocaleString("en-IN")}</p>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Base Price</p>
+                                    <p className="font-black text-slate-500">₹{Number(receipt.base_price).toLocaleString("en-IN")}</p>
                                 </div>
                                 <div className="col-span-2 mt-2 pt-4 border-t border-emerald-200">
                                     <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Final Amount Paid</p>
                                     <p className="text-3xl font-black text-emerald-700 tracking-tight">
-                                        ₹{Number(receipt.final_cost ?? receipt.estimated_cost).toLocaleString("en-IN")}
+                                        ₹{Number(receipt.final_amount).toLocaleString("en-IN")}
                                     </p>
                                 </div>
                             </div>
-                            {receipt.completion_notes && (
-                                <div className="mt-6 pt-6 border-t border-emerald-200">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Technician Notes</p>
-                                    <p className="text-sm text-slate-600 italic">{receipt.completion_notes}</p>
-                                </div>
-                            )}
                         </div>
                     )}
                 </div>

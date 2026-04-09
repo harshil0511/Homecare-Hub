@@ -253,8 +253,9 @@ export default function ServicerJobsPage() {
             setIncomingRequests(prev => prev.filter(r => r.id !== respondingTo.id));
             setRespondingTo(null);
             setResDate(""); setResTime("09:00"); setResPrice(""); setResDuration(2); setResMessage("");
-        } catch (err) {
+        } catch (err: any) {
             console.error("Failed to submit response:", err);
+            toast.error(err?.message || "Failed to submit response — please try again");
         } finally {
             setSubmittingResponse(false);
         }

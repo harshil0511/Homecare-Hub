@@ -416,8 +416,8 @@ def final_complete_booking(
     if not provider or provider.id != booking.provider_id:
         raise HTTPException(status_code=403, detail="Only the assigned servicer can mark this complete")
 
-    if booking.status != "In Progress":
-        raise HTTPException(status_code=400, detail=f"Booking is '{booking.status}', must be 'In Progress' to complete")
+    if booking.status not in ("In Progress", "Accepted"):
+        raise HTTPException(status_code=400, detail=f"Booking is '{booking.status}', must be 'Accepted' or 'In Progress' to complete")
 
     base_price = booking.estimated_cost or 0.0
     estimated_hours = booking.actual_hours if booking.actual_hours and booking.actual_hours > 0 else 1.0
@@ -569,7 +569,7 @@ def file_complaint(
                         title="New Booking Complaint Filed",
                         message=f"Complaint filed for booking '{booking.service_type}' (#{str(booking.id)[:8]}). Review required.",
                         notification_type="WARNING",
-                        link="/admin/complaints")
+                        link="/admin/bookings?tab=complaints")
 
     db.commit()
     db.refresh(complaint)
