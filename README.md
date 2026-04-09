@@ -87,7 +87,7 @@ Route access is enforced by **dual-layer protection**:
 | **Frontend** | Next.js 16 (App Router), React 19, TypeScript | `"use client"` components, App Router file-based routing |
 | **Styling** | Tailwind CSS 4, ShigenTech Premium design system | Emerald/Charcoal palette, Manrope + Inter fonts, light theme only |
 | **Icons** | `lucide-react` | All icons use this library exclusively |
-| **Backend** | FastAPI (Python 3.10+), Uvicorn ASGI | 11 routers, lifespan context, WebSocket support |
+| **Backend** | FastAPI (Python 3.10+), Uvicorn ASGI | 14 routers, domain-driven structure, WebSocket support |
 | **ORM** | SQLAlchemy 2.0 | `Mapped` / `mapped_column` style, 22 tables |
 | **Validation** | Pydantic v2 | Request/response schemas with strict validators |
 | **Database** | PostgreSQL | UUID primary keys on all tables |
@@ -180,28 +180,35 @@ homecare-hub/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py               # FastAPI app entry — CORS, routers, lifespan
-│   │   ├── api/                  # One endpoint file per domain
+│   │   ├── core/
+│   │   │   ├── config.py         # Pydantic Settings (.env loader)
+│   │   │   ├── security.py       # JWT, password hashing, OAuth2
+│   │   │   ├── scheduler.py      # APScheduler hourly maintenance alerts
+│   │   │   └── db/
+│   │   │       ├── base.py       # SQLAlchemy declarative Base
+│   │   │       └── session.py    # Engine, SessionLocal, init_db, retry thread
+│   │   ├── common/
+│   │   │   ├── deps.py           # get_db, get_current_user, RoleChecker
+│   │   │   └── constants.py      # Shared constants (categories, conflict window)
+│   │   ├── api/                  # HTTP layer — endpoints + schemas per domain
 │   │   │   ├── auth/             # /auth — signup, login, forgot-password
 │   │   │   ├── user/             # /user — profile, password
-│   │   │   ├── services/         # /services — societies, providers, certificates
+│   │   │   ├── service/          # /services — societies, providers, certificates
 │   │   │   ├── booking/          # /bookings — create, chat, review, reschedule
 │   │   │   ├── maintenance/      # /maintenance — tasks, routine tasks
-│   │   │   ├── requests/         # /requests — service request broadcast workflow
+│   │   │   ├── request/          # /requests — service request broadcast workflow
 │   │   │   ├── emergency/        # /emergency — SOS requests and responses
 │   │   │   ├── admin/            # /admin — users, providers, bookings, logs
 │   │   │   ├── secretary/        # /secretary — society, members, trusted providers
-│   │   │   ├── notifications/    # /notifications — list, read, delete
+│   │   │   ├── notification/     # /notifications — list, read, delete
 │   │   │   └── ai/               # /ai — Claude AI chat
-│   │   ├── core/
-│   │   │   ├── config.py         # Pydantic Settings (.env loader)
-│   │   │   ├── database.py       # Engine, session, auto-seed, retry thread
-│   │   │   ├── security.py       # JWT, password hashing, OAuth2
-│   │   │   └── scheduler.py      # APScheduler hourly maintenance alerts
-│   │   ├── internal/
-│   │   │   ├── models.py         # SQLAlchemy ORM — 22 tables, UUID PKs
-│   │   │   ├── schemas.py        # Pydantic v2 request/response schemas
-│   │   │   ├── deps.py           # get_db, get_current_user, RoleChecker
-│   │   │   └── services.py       # Business logic helpers
+│   │   ├── auth/domain/model.py  # User, Society models
+│   │   ├── service/              # ServiceProvider models + point_engine + services
+│   │   ├── booking/domain/       # ServiceBooking, BookingChat, BookingReview models
+│   │   ├── maintenance/domain/   # MaintenanceTask model
+│   │   ├── notification/domain/  # Notification model
+│   │   ├── request/domain/       # ServiceRequest models
+│   │   ├── emergency/domain/     # Emergency models + services
 │   │   └── websockets/
 │   │       └── emergency.py      # Singleton WebSocket connection manager
 │   ├── alembic/versions/         # 13 migration files
@@ -341,6 +348,10 @@ ServiceProvider ───── 1:N ── EmergencyStarAdjustment
 | Document | Purpose |
 | :--- | :--- |
 | `http://localhost:8000/api/v1/docs` | Live Swagger UI (backend running) |
+| [`backend/BACKEND.md`](backend/BACKEND.md) | Backend quick-reference: import rules, router table, patterns |
+| [`docs/BACKEND.md`](docs/BACKEND.md) | Full backend developer guide: structure, models, schemas, migrations |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System architecture, data flow, security, logic flows |
+| [`CLAUDE.md`](CLAUDE.md) | Full project playbook for AI-assisted development |
 
 ---
 
