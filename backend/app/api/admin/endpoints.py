@@ -1,16 +1,17 @@
 import uuid
 from uuid import UUID
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.common import deps
 from app.auth.domain.model import User
 from app.service.domain.model import ServiceProvider
-from app.booking.domain.model import ServiceBooking
+from app.booking.domain.model import ServiceBooking, BookingComplaint
 from app.maintenance.domain.model import MaintenanceTask
 from app.api.auth.schemas import UserResponse
 from app.api.service.schemas import ProviderResponse
-from app.api.admin.schemas import AdminVerifyUpdate
+from app.api.admin.schemas import AdminVerifyUpdate, ComplaintAdminRead, ComplaintAdminUpdate
 from app.core.config import settings
 
 router = APIRouter(tags=["Admin API"])
@@ -520,3 +521,40 @@ def get_revenue_summary(
         "top_categories": top_categories,
         "monthly": monthly_list,
     }
+
+
+@router.get("/complaints", response_model=List[ComplaintAdminRead])
+def list_complaints(
+    status: Optional[str] = None,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(admin_only),
+):
+    """List all booking complaints. Filter by ?status=OPEN|UNDER_REVIEW|RESOLVED"""
+    query = db.query(BookingComplaint)
+    if status:
+        query = query.filter(BookingComplaint.status == status)
+    return query.order_by(BookingComplaint.created_at.desc()).all()
+
+
+@router.patch("/complaints/{complaint_id}", response_model=ComplaintAdminRead)
+def update_complaint(
+    complaint_id: UUID,
+    body: ComplaintAdminUpdate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(admin_only),
+):
+    """Update complaint status and add admin notes."""
+    complaint = db.query(BookingComplaint).filter(BookingComplaint.id == complaint_id).first()
+    if not complaint:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+
+    if body.status is not None:
+        complaint.status = body.status
+        if body.status == "RESOLVED":
+            complaint.resolved_at = datetime.utcnow()
+    if body.admin_notes is not None:
+        complaint.admin_notes = body.admin_notes
+
+    db.commit()
+    db.refresh(complaint)
+    return complaint
