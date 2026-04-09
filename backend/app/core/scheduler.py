@@ -3,8 +3,9 @@ from datetime import datetime, timedelta, date, timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from app.core.database import SessionLocal
-from app.internal.models import MaintenanceTask, Notification
+from app.core.db.session import SessionLocal
+from app.maintenance.domain.model import MaintenanceTask
+from app.notification.domain.model import Notification
 
 logger = logging.getLogger(__name__)
 

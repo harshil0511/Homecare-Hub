@@ -25,7 +25,17 @@ sys.path.append(os.getcwd())
 
 load_dotenv(".env")
 
-from app.internal.models import Base
+from app.core.db.base import Base
+
+# Register all domain models with Base.metadata
+from app.auth.domain import model as _auth  # noqa
+from app.service.domain import model as _service  # noqa
+from app.booking.domain import model as _booking  # noqa
+from app.maintenance.domain import model as _maintenance  # noqa
+from app.notification.domain import model as _notification  # noqa
+from app.request.domain import model as _request  # noqa
+from app.emergency.domain import model as _emergency  # noqa
+
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,

@@ -8,20 +8,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api.auth.endpoint import router as auth_router
-from app.api.user.endpoint import router as user_router
-from app.api.service.endpoint import router as service_router
-from app.api.service.analytics_endpoint import router as analytics_router
-from app.api.task.endpoint import router as task_router
-from app.api.admin.endpoint import router as admin_router
-from app.api.admin.emergency_endpoint import router as admin_emergency_router
-from app.api.booking.endpoint import router as booking_router
-from app.api.ai.endpoint import router as ai_router
-from app.api.notification.endpoint import router as notification_router
-from app.api.secretary.endpoint import router as secretary_router
-from app.api.request.endpoint import router as request_router
-from app.api.emergency.endpoint import router as emergency_router, servicer_router as emergency_servicer_router
-from app.core.database import init_db, SessionLocal
+from app.api.auth.endpoints import router as auth_router
+from app.api.user.endpoints import router as user_router
+from app.api.service.endpoints import router as service_router
+from app.api.service.analytics_endpoints import router as analytics_router
+from app.api.maintenance.endpoints import router as task_router
+from app.api.admin.endpoints import router as admin_router
+from app.api.admin.emergency_endpoints import router as admin_emergency_router
+from app.api.booking.endpoints import router as booking_router
+from app.api.ai.endpoints import router as ai_router
+from app.api.notification.endpoints import router as notification_router
+from app.api.secretary.endpoints import router as secretary_router
+from app.api.request.endpoints import router as request_router
+from app.api.emergency.endpoints import router as emergency_router, servicer_router as emergency_servicer_router
+from app.core.db.session import init_db, SessionLocal
 from app.core.config import settings
 from app.core.scheduler import start_scheduler, stop_scheduler
 from app.websockets.emergency import emergency_manager
@@ -42,7 +42,7 @@ def _seed_penalty_configs() -> None:
     if SessionLocal is None:
         logger.warning("SessionLocal not ready — skipping penalty config seed.")
         return
-    from app.internal.models import EmergencyPenaltyConfig
+    from app.emergency.domain.model import EmergencyPenaltyConfig
     db = SessionLocal()
     try:
         for cfg in DEFAULT_PENALTY_CONFIGS:
@@ -176,7 +176,7 @@ def root():
 
 @app.get("/api/v1/health")
 def health_check():
-    from app.core.database import engine
+    from app.core.db.session import engine
     db_status = "connected" if engine is not None else "unavailable"
     return {
         "status": "healthy",
