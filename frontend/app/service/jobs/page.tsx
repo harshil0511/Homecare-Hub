@@ -37,6 +37,31 @@ interface IncomingRequest {
     is_read: boolean;
     has_responded: boolean;
     status: string;
+    response_id?: string;
+    negotiation_status?: string;
+    current_round?: number;
+}
+
+interface ServicerResponse {
+    id: string;
+    request_id: string;
+    proposed_date: string;
+    proposed_price: number;
+    estimated_hours?: number;
+    status: "PENDING" | "ACCEPTED" | "REJECTED";
+    negotiation_status: "NONE" | "NEGOTIATING" | "AGREED" | "CLOSED";
+    current_round: number;
+}
+
+interface NegotiationOffer {
+    id: string;
+    offered_by: "USER" | "SERVICER";
+    round_number: number;
+    proposed_date: string;
+    proposed_time: string;
+    proposed_price: number;
+    message?: string;
+    status: "PENDING" | "ACCEPTED" | "REJECTED";
 }
 
 type JobTab = "jobs" | "requests" | "emergency";
@@ -71,6 +96,24 @@ export default function ServicerJobsPage() {
     const [compFinalCost, setCompFinalCost] = useState<number | "">("");
     const [compNotes, setCompNotes] = useState("");
     const [submittingCompletion, setSubmittingCompletion] = useState(false);
+
+    const [counterModal, setCounterModal] = useState<{
+        requestId: string;
+        responseId: string;
+        userName: string;
+        currentOffer: { price: number; date: string };
+        currentRound: number;
+    } | null>(null);
+    const [servicerCounterPrice, setServicerCounterPrice] = useState<number | "">("");
+    const [servicerCounterDate, setServicerCounterDate] = useState("");
+    const [servicerCounterTime, setServicerCounterTime] = useState("morning");
+    const [servicerCounterMessage, setServicerCounterMessage] = useState("");
+    const [sendingServicerCounter, setSendingServicerCounter] = useState(false);
+    const [finalCompleteTarget, setFinalCompleteTarget] = useState<Booking | null>(null);
+    const [extraHours, setExtraHours] = useState<number | "">(0);
+    const [finalNotes, setFinalNotes] = useState("");
+    const [submittingFinal, setSubmittingFinal] = useState(false);
+
     const toast = useToast();
 
     const fetchJobs = async () => {
@@ -268,6 +311,77 @@ export default function ServicerJobsPage() {
         }
     };
 
+    const handleAcceptCounter = async (requestId: string, responseId: string) => {
+        try {
+            await apiFetch(`/requests/${requestId}/responses/${responseId}/accept-counter`, { method: "POST" });
+            toast.success("Counter offer accepted! Contract created.");
+            await fetchJobs();
+        } catch (err: any) {
+            toast.error(err.message || "Failed to accept counter offer");
+        }
+    };
+
+    const handleRejectCounter = async (requestId: string, responseId: string) => {
+        try {
+            await apiFetch(`/requests/${requestId}/responses/${responseId}/reject-counter`, { method: "POST" });
+            toast.success("Counter offer rejected");
+            if (counterModal) setCounterModal(null);
+        } catch (err: any) {
+            toast.error(err.message || "Failed to reject counter offer");
+        }
+    };
+
+    const handleServicerSendCounter = async () => {
+        if (!counterModal || servicerCounterPrice === "" || !servicerCounterDate) return;
+        setSendingServicerCounter(true);
+        try {
+            await apiFetch(
+                `/requests/${counterModal.requestId}/responses/${counterModal.responseId}/counter`,
+                {
+                    method: "POST",
+                    body: JSON.stringify({
+                        proposed_date: new Date(servicerCounterDate).toISOString(),
+                        proposed_time: servicerCounterTime,
+                        proposed_price: Number(servicerCounterPrice),
+                        message: servicerCounterMessage || undefined,
+                    }),
+                }
+            );
+            setCounterModal(null);
+            setServicerCounterPrice("");
+            setServicerCounterDate("");
+            setServicerCounterMessage("");
+            toast.success("New offer sent to user");
+        } catch (err: any) {
+            toast.error(err.message || "Failed to send offer");
+        } finally {
+            setSendingServicerCounter(false);
+        }
+    };
+
+    const handleFinalComplete = async () => {
+        if (!finalCompleteTarget) return;
+        setSubmittingFinal(true);
+        try {
+            await apiFetch(`/bookings/${finalCompleteTarget.id}/final-complete`, {
+                method: "POST",
+                body: JSON.stringify({
+                    extra_hours: Number(extraHours) || 0,
+                    notes: finalNotes || undefined,
+                }),
+            });
+            setFinalCompleteTarget(null);
+            setExtraHours(0);
+            setFinalNotes("");
+            toast.success("Job marked as complete. Receipt ready.");
+            await fetchJobs();
+        } catch (err: any) {
+            toast.error(err.message || "Failed to mark complete");
+        } finally {
+            setSubmittingFinal(false);
+        }
+    };
+
     return (
         <div className="space-y-8 pb-12">
             {fetchError && (
@@ -409,6 +523,19 @@ export default function ServicerJobsPage() {
                                                     Mark Completed
                                                 </button>
                                             )}
+                                            {booking.status === "In Progress" && (
+                                                <button
+                                                    onClick={() => {
+                                                        setFinalCompleteTarget(booking);
+                                                        setExtraHours(0);
+                                                        setFinalNotes("");
+                                                    }}
+                                                    className="w-full sm:w-auto px-10 py-3.5 bg-[#064e3b] hover:bg-emerald-800 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-900/10 hover:-translate-y-0.5 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    <CheckCircle className="w-4 h-4" />
+                                                    Final Complete
+                                                </button>
+                                            )}
                                             <Link href={`/dashboard/bookings/${booking.id}`} className="p-3.5 text-slate-300 hover:text-slate-900 bg-slate-50 rounded-xl transition-all">
                                                 <ChevronRight className="w-5 h-5" />
                                             </Link>
@@ -495,6 +622,39 @@ export default function ServicerJobsPage() {
                                             <p className="text-xs text-emerald-600 font-bold flex items-center gap-1">
                                                 <CheckCircle className="w-4 h-4" /> Response submitted
                                             </p>
+                                        )}
+                                        {req.has_responded && req.response_id && req.negotiation_status === "NEGOTIATING" && (req.current_round ?? 0) > 0 && (
+                                            <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-xl">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-yellow-700 mb-2">
+                                                    Counter Offer from User
+                                                </p>
+                                                <div className="flex gap-2 flex-wrap">
+                                                    <button
+                                                        onClick={() => handleAcceptCounter(String(req.id), req.response_id!)}
+                                                        className="px-3 py-1.5 bg-emerald-600 text-white text-[10px] font-black uppercase rounded-lg hover:bg-emerald-700 transition-colors"
+                                                    >
+                                                        Accept Counter
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setCounterModal({
+                                                            requestId: String(req.id),
+                                                            responseId: req.response_id!,
+                                                            userName: req.contact_name,
+                                                            currentOffer: { price: 0, date: new Date().toISOString() },
+                                                            currentRound: req.current_round ?? 0,
+                                                        })}
+                                                        className="px-3 py-1.5 bg-blue-600 text-white text-[10px] font-black uppercase rounded-lg hover:bg-blue-700 transition-colors"
+                                                    >
+                                                        Send New Offer
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleRejectCounter(String(req.id), req.response_id!)}
+                                                        className="px-3 py-1.5 bg-rose-600 text-white text-[10px] font-black uppercase rounded-lg hover:bg-rose-700 transition-colors"
+                                                    >
+                                                        Reject Counter
+                                                    </button>
+                                                </div>
+                                            </div>
                                         )}
                                     </div>
                                 );
@@ -701,6 +861,106 @@ export default function ServicerJobsPage() {
                                     {submittingCompletion ? "Submitting..." : <><FileText className="w-4 h-4" /> Submit Completion</>}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Servicer Counter Offer Modal */}
+            {counterModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-base font-black text-slate-900 uppercase tracking-widest">Send New Offer</h2>
+                            <button onClick={() => setCounterModal(null)} className="text-slate-400 hover:text-slate-600">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <p className="text-xs text-slate-500 mb-4">
+                            To: <span className="font-bold text-slate-700">{counterModal.userName}</span>
+                            <span className="ml-2 text-[10px] text-slate-400 uppercase tracking-widest">Round {counterModal.currentRound + 1} of 3</span>
+                        </p>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Proposed Date</label>
+                                <input type="date" value={servicerCounterDate} onChange={e => setServicerCounterDate(e.target.value)}
+                                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Preferred Time</label>
+                                <select value={servicerCounterTime} onChange={e => setServicerCounterTime(e.target.value)}
+                                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="morning">Morning (8am–12pm)</option>
+                                    <option value="afternoon">Afternoon (12pm–5pm)</option>
+                                    <option value="evening">Evening (5pm–8pm)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Your Price (₹)</label>
+                                <input type="number" min={1} value={servicerCounterPrice}
+                                    onChange={e => setServicerCounterPrice(e.target.value === "" ? "" : Number(e.target.value))}
+                                    placeholder="e.g. 1000"
+                                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Message (optional)</label>
+                                <textarea value={servicerCounterMessage} onChange={e => setServicerCounterMessage(e.target.value)}
+                                    rows={2} placeholder="Add a note..."
+                                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+                            </div>
+                        </div>
+                        <div className="flex gap-3 mt-5">
+                            <button onClick={() => setCounterModal(null)}
+                                className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 text-xs font-black uppercase rounded-xl hover:bg-slate-50">
+                                Cancel
+                            </button>
+                            <button onClick={handleServicerSendCounter} disabled={sendingServicerCounter || servicerCounterPrice === "" || !servicerCounterDate}
+                                className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase rounded-xl disabled:opacity-50">
+                                {sendingServicerCounter ? "Sending..." : "Send Offer"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Final Complete Modal */}
+            {finalCompleteTarget && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-base font-black text-slate-900 uppercase tracking-widest">Mark Job Complete</h2>
+                            <button onClick={() => setFinalCompleteTarget(null)} className="text-slate-400 hover:text-slate-600">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <p className="text-xs text-slate-500 mb-4">{finalCompleteTarget.service_type}</p>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Extra Hours (beyond estimate)</label>
+                                <input type="number" min={0} step={0.5} value={extraHours}
+                                    onChange={e => setExtraHours(e.target.value === "" ? "" : Number(e.target.value))}
+                                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Notes (optional)</label>
+                                <textarea value={finalNotes} onChange={e => setFinalNotes(e.target.value)} rows={2}
+                                    placeholder="Any notes about the completed job..."
+                                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none" />
+                            </div>
+                            <div className="bg-emerald-50 rounded-xl p-3 text-xs text-emerald-800">
+                                Base: ₹{finalCompleteTarget.estimated_cost.toLocaleString()}
+                                {Number(extraHours) > 0 && <span> + extra hours charge</span>}
+                            </div>
+                        </div>
+                        <div className="flex gap-3 mt-5">
+                            <button onClick={() => setFinalCompleteTarget(null)}
+                                className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 text-xs font-black uppercase rounded-xl hover:bg-slate-50">
+                                Cancel
+                            </button>
+                            <button onClick={handleFinalComplete} disabled={submittingFinal}
+                                className="flex-1 px-4 py-2.5 bg-[#064e3b] hover:bg-emerald-800 text-white text-xs font-black uppercase rounded-xl disabled:opacity-50">
+                                {submittingFinal ? "Completing..." : "Mark Complete"}
+                            </button>
                         </div>
                     </div>
                 </div>
