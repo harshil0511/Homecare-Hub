@@ -28,6 +28,18 @@ interface ServiceRequest {
   responses?: ServiceRequestResponse[];
 }
 
+interface NegotiationOffer {
+  id: string;
+  offered_by: "USER" | "SERVICER";
+  round_number: number;
+  proposed_date: string;
+  proposed_time: string;
+  proposed_price: number;
+  message?: string;
+  status: "PENDING" | "ACCEPTED" | "REJECTED";
+  created_at: string;
+}
+
 interface ServiceRequestResponse {
   id: number;
   request_id: number;
@@ -37,6 +49,10 @@ interface ServiceRequestResponse {
   estimated_hours?: number;
   message?: string;
   status: "PENDING" | "ACCEPTED" | "REJECTED";
+  negotiation_status: "NONE" | "NEGOTIATING" | "AGREED" | "CLOSED";
+  agreed_price?: number;
+  agreed_date?: string;
+  current_round: number;
   created_at: string;
   provider?: {
     id: number;
@@ -46,6 +62,7 @@ interface ServiceRequestResponse {
     owner_name?: string;
     rating?: number;
   };
+  negotiation_offers?: NegotiationOffer[];
 }
 
 interface ActiveBooking {
@@ -98,6 +115,19 @@ export default function UserBookingsPage() {
     servicerName: string;
   } | null>(null);
   const [rejecting, setRejecting] = useState(false);
+  const [counterOffer, setCounterOffer] = useState<{
+    requestId: string;
+    responseId: string;
+    servicerName: string;
+    currentPrice: number;
+    currentDate: string;
+    currentRound: number;
+  } | null>(null);
+  const [counterPrice, setCounterPrice] = useState<number | "">("");
+  const [counterDate, setCounterDate] = useState("");
+  const [counterTime, setCounterTime] = useState("morning");
+  const [counterMessage, setCounterMessage] = useState("");
+  const [sendingCounter, setSendingCounter] = useState(false);
   const [cancelling, setCancelling] = useState<number | null>(null);
 
   const loadData = useCallback(async () => {
@@ -177,6 +207,35 @@ export default function UserBookingsPage() {
       toast.error(err.message || "Failed to reject offer");
     } finally {
       setRejecting(false);
+    }
+  };
+
+  const handleSendCounter = async () => {
+    if (!counterOffer || counterPrice === "" || !counterDate) return;
+    setSendingCounter(true);
+    try {
+      await apiFetch(
+        `/requests/${counterOffer.requestId}/responses/${counterOffer.responseId}/counter`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            proposed_date: new Date(counterDate).toISOString(),
+            proposed_time: counterTime,
+            proposed_price: Number(counterPrice),
+            message: counterMessage || undefined,
+          }),
+        }
+      );
+      setCounterOffer(null);
+      setCounterPrice("");
+      setCounterDate("");
+      setCounterMessage("");
+      toast.success("Counter offer sent — waiting for servicer response");
+      await loadData();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send counter offer");
+    } finally {
+      setSendingCounter(false);
     }
   };
 
@@ -322,6 +381,38 @@ export default function UserBookingsPage() {
                           >
                             <CheckCircle className="w-4 h-4" /> Accept
                           </button>
+                          {/* Counter Offer — only for non-Emergency, when it's user's turn and rounds remain */}
+                          {req.urgency !== "Emergency" &&
+                            resp.status === "PENDING" &&
+                            resp.negotiation_status !== "CLOSED" &&
+                            resp.negotiation_status !== "AGREED" &&
+                            !(resp.negotiation_status === "NEGOTIATING" &&
+                              resp.negotiation_offers &&
+                              resp.negotiation_offers.length > 0 &&
+                              resp.negotiation_offers[resp.negotiation_offers.length - 1].offered_by === "USER") &&
+                            resp.current_round < 3 && (
+                            <button
+                              onClick={() => setCounterOffer({
+                                requestId: String(resp.request_id),
+                                responseId: String(resp.id),
+                                servicerName,
+                                currentPrice: resp.agreed_price ?? resp.proposed_price,
+                                currentDate: resp.agreed_date ?? resp.proposed_date,
+                                currentRound: resp.current_round,
+                              })}
+                              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase rounded-xl transition-colors"
+                            >
+                              Counter Offer
+                            </button>
+                          )}
+                          {resp.negotiation_status === "NEGOTIATING" &&
+                            resp.negotiation_offers &&
+                            resp.negotiation_offers.length > 0 &&
+                            resp.negotiation_offers[resp.negotiation_offers.length - 1].offered_by === "USER" && (
+                            <span className="px-3 py-1.5 bg-yellow-100 text-yellow-700 text-[10px] font-black uppercase rounded-full">
+                              Waiting for servicer...
+                            </span>
+                          )}
                           <button
                             onClick={() => setConfirmReject({ requestId: req.id, responseId: resp.id, servicerName })}
                             className="flex items-center gap-1.5 px-4 py-2 border border-rose-200 text-rose-600 text-xs font-black uppercase rounded-xl hover:bg-rose-50 transition-colors"
@@ -475,6 +566,103 @@ export default function UserBookingsPage() {
                 className="flex-1 py-3 bg-[#064e3b] text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-emerald-800 disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {accepting ? "Creating..." : <><CheckCircle className="w-4 h-4" /> Confirm</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Counter Offer Modal */}
+      {counterOffer && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-black text-slate-900 uppercase tracking-widest">
+                Counter Offer
+              </h2>
+              <button onClick={() => setCounterOffer(null)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-xs text-slate-500 mb-1">
+              To: <span className="font-bold text-slate-700">{counterOffer.servicerName}</span>
+            </p>
+            <p className="text-[10px] text-slate-400 mb-4 uppercase tracking-widest">
+              Round {counterOffer.currentRound + 1} of 3
+            </p>
+
+            {/* Their current offer */}
+            <div className="bg-slate-50 rounded-xl p-3 mb-4 text-xs text-slate-600 space-y-1">
+              <p className="font-black text-slate-700 text-[10px] uppercase tracking-widest mb-2">Their Offer</p>
+              <p>Date: {new Date(counterOffer.currentDate).toLocaleDateString()}</p>
+              <p>Price: ₹{counterOffer.currentPrice.toLocaleString()}</p>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1 block">
+                  Your Preferred Date
+                </label>
+                <input
+                  type="date"
+                  value={counterDate}
+                  onChange={e => setCounterDate(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1 block">
+                  Preferred Time
+                </label>
+                <select
+                  value={counterTime}
+                  onChange={e => setCounterTime(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="morning">Morning (8am–12pm)</option>
+                  <option value="afternoon">Afternoon (12pm–5pm)</option>
+                  <option value="evening">Evening (5pm–8pm)</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1 block">
+                  Your Budget (₹)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={counterPrice}
+                  onChange={e => setCounterPrice(e.target.value === "" ? "" : Number(e.target.value))}
+                  placeholder="e.g. 900"
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1 block">
+                  Message (optional)
+                </label>
+                <textarea
+                  value={counterMessage}
+                  onChange={e => setCounterMessage(e.target.value)}
+                  placeholder="Explain your counter offer..."
+                  rows={2}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button
+                onClick={() => setCounterOffer(null)}
+                className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 text-xs font-black uppercase rounded-xl hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSendCounter}
+                disabled={sendingCounter || counterPrice === "" || !counterDate}
+                className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase rounded-xl disabled:opacity-50"
+              >
+                {sendingCounter ? "Sending..." : "Send Counter Offer"}
               </button>
             </div>
           </div>
