@@ -614,6 +614,7 @@ def accept_counter_offer(
     response.negotiation_status = "AGREED"
     response.agreed_price = latest_offer.proposed_price
     response.agreed_date = latest_offer.proposed_date
+    response.status = "ACCEPTED"
 
     chosen_provider = db.query(ServiceProvider).filter(
         ServiceProvider.id == response.provider_id
@@ -642,8 +643,6 @@ def accept_counter_offer(
         status="Accepted",
         notes=f"Contract created from negotiated offer (round {response.current_round}). Agreed price: \u20b9{latest_offer.proposed_price:.0f}",
     ))
-
-    response.status = "ACCEPTED"
 
     others = db.query(ServiceRequestResponse).filter(
         ServiceRequestResponse.request_id == request_id,
@@ -731,7 +730,7 @@ def reject_counter_offer(
         response.negotiation_status = "CLOSED"
         closed = True
     else:
-        response.negotiation_status = "NEGOTIATING"
+        response.negotiation_status = "NONE"  # reset: no active pending counter, new counter can be sent
         closed = False
 
     if latest_offer.offered_by == "USER":
