@@ -10,7 +10,7 @@ from app.common import deps
 from app.common.constants import ALLOWED_CATEGORIES, BOOKING_CONFLICT_WINDOW_HOURS
 from app.auth.domain.model import User
 from app.service.domain.model import ServiceProvider
-from app.booking.domain.model import ServiceBooking, BookingStatusHistory, BookingChat, BookingReview
+from app.booking.domain.model import ServiceBooking, BookingStatusHistory, BookingChat, BookingReview, BookingComplaint
 from app.notification.domain.model import Notification
 from app.service.services import get_provider_display_name
 from app.service.point_engine import award_points
@@ -20,11 +20,24 @@ from app.api.booking.schemas import (
     BookingRead, BookingDetailRead,
     ChatCreate, ChatRead, ReviewCreate, ReviewRead,
     BookingStatusHistoryRead,
+    FinalCompleteCreate, ReceiptRead, ComplaintCreate, ComplaintRead,
 )
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _notify_booking(db: Session, user_id, title: str, message: str,
+                    notification_type: str = "INFO", link: Optional[str] = None) -> None:
+    db.add(Notification(
+        user_id=user_id,
+        title=title,
+        message=message,
+        notification_type=notification_type,
+        link=link,
+    ))
+
 
 @router.post("/create", response_model=BookingRead)
 def create_booking(
@@ -385,49 +398,115 @@ def create_review(
     db.refresh(db_review)
     return db_review
 
-@router.get("/{booking_id}/receipt")
-def get_booking_receipt(
+@router.post("/{booking_id}/final-complete", response_model=ReceiptRead)
+def final_complete_booking(
     booking_id: UUID,
+    body: FinalCompleteCreate,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.get_current_user)
+    current_user: User = Depends(deps.get_current_user),
 ):
-    from app.api.booking.schemas import ReceiptRead
+    """Servicer marks job fully complete. Generates receipt. Booking status → Completed."""
     booking = db.query(ServiceBooking).filter(ServiceBooking.id == booking_id).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
 
-    is_client = booking.user_id == current_user.id
-    profile = db.query(ServiceProvider).filter(ServiceProvider.user_id == current_user.id).first()
-    is_provider = profile and booking.provider_id == profile.id
-
-    if not is_client and not is_provider and current_user.role != "ADMIN":
-        raise HTTPException(status_code=403, detail="Access denied")
-
-    if booking.status != "Completed":
-        raise HTTPException(status_code=400, detail="Receipt is only available for completed bookings")
-
     provider = db.query(ServiceProvider).filter(
-        ServiceProvider.id == booking.provider_id
+        ServiceProvider.user_id == current_user.id
     ).first()
-    provider_name = (
-        (provider.company_name or provider.first_name or provider.owner_name or "Unknown")
-        if provider else "Unknown"
+    if not provider or provider.id != booking.provider_id:
+        raise HTTPException(status_code=403, detail="Only the assigned servicer can mark this complete")
+
+    if booking.status != "In Progress":
+        raise HTTPException(status_code=400, detail=f"Booking is '{booking.status}', must be 'In Progress' to complete")
+
+    base_price = booking.estimated_cost or 0.0
+    estimated_hours = booking.actual_hours if booking.actual_hours and booking.actual_hours > 0 else 1.0
+    hourly_rate = base_price / estimated_hours
+    extra_charge = (body.extra_hours or 0.0) * hourly_rate
+    final_amount = base_price + extra_charge
+
+    booking.status = "Completed"
+    booking.completed_at = datetime.utcnow()
+    booking.actual_hours = body.extra_hours or 0.0
+    booking.final_cost = final_amount
+    booking.completion_notes = body.notes
+
+    db.add(BookingStatusHistory(
+        booking_id=booking.id,
+        status="Completed",
+        notes=f"Marked complete by servicer. Extra hours: {body.extra_hours or 0}. Final: \u20b9{final_amount:.0f}.",
+    ))
+
+    event = "URGENT_COMPLETE" if booking.priority in ("High", "Emergency") else "REGULAR_COMPLETE"
+    try:
+        award_points(db, provider_id=provider.id, event_type=event, source_id=booking.id)
+    except Exception:
+        pass
+
+    provider_name = get_provider_display_name(provider)
+    _notify_booking(
+        db, user_id=booking.user_id,
+        title="Service Completed",
+        message=f"'{booking.service_type}' has been marked complete by {provider_name}. Final: \u20b9{final_amount:.0f}.",
+        notification_type="INFO",
+        link=f"/user/bookings/{booking.id}/receipt",
     )
+
+    db.commit()
 
     return ReceiptRead(
         booking_id=booking.id,
-        service_type=booking.service_type or "",
-        status=booking.status,
-        scheduled_at=booking.scheduled_at,
-        estimated_cost=booking.estimated_cost or 0.0,
-        final_cost=booking.final_cost if booking.final_cost else None,
-        actual_hours=booking.actual_hours,
-        completion_notes=booking.completion_notes,
-        provider_name=provider_name,
-        provider_id=booking.provider_id,
-        user_id=booking.user_id,
-        created_at=booking.created_at,
-        updated_at=booking.updated_at,
+        service_type=booking.service_type,
+        servicer_name=provider_name,
+        base_price=base_price,
+        extra_hours=body.extra_hours or 0.0,
+        hourly_rate=hourly_rate,
+        extra_charge=extra_charge,
+        final_amount=final_amount,
+        completed_at=booking.completed_at,
+        negotiated=(booking.source_type == "negotiated"),
+    )
+
+
+@router.get("/{booking_id}/receipt", response_model=ReceiptRead)
+def get_receipt(
+    booking_id: UUID,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+):
+    """Fetch payment receipt for a completed booking."""
+    booking = db.query(ServiceBooking).filter(ServiceBooking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if booking.status != "Completed":
+        raise HTTPException(status_code=400, detail="Receipt only available for completed bookings")
+
+    provider = db.query(ServiceProvider).filter(ServiceProvider.user_id == current_user.id).first()
+    is_user = booking.user_id == current_user.id
+    is_servicer = provider is not None and provider.id == booking.provider_id
+    if not is_user and not is_servicer:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    booking_provider = db.query(ServiceProvider).filter(ServiceProvider.id == booking.provider_id).first()
+    provider_name = get_provider_display_name(booking_provider) if booking_provider else "Unknown"
+
+    base_price = booking.estimated_cost or 0.0
+    final_amount = booking.final_cost if booking.final_cost else base_price
+    extra_charge = max(0.0, final_amount - base_price)
+    extra_hours = booking.actual_hours or 0.0
+    hourly_rate = (extra_charge / extra_hours) if extra_hours > 0 else 0.0
+
+    return ReceiptRead(
+        booking_id=booking.id,
+        service_type=booking.service_type,
+        servicer_name=provider_name,
+        base_price=base_price,
+        extra_hours=extra_hours,
+        hourly_rate=hourly_rate,
+        extra_charge=extra_charge,
+        final_amount=final_amount,
+        completed_at=booking.completed_at,
+        negotiated=(booking.source_type == "negotiated"),
     )
 
 
@@ -456,3 +535,42 @@ def send_message(
     db.commit()
     db.refresh(db_message)
     return db_message
+
+
+@router.post("/{booking_id}/complaint", response_model=ComplaintRead)
+def file_complaint(
+    booking_id: UUID,
+    body: ComplaintCreate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+):
+    """User files a complaint about a completed booking."""
+    booking = db.query(ServiceBooking).filter(ServiceBooking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if booking.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the booking's user can file a complaint")
+    if booking.status != "Completed":
+        raise HTTPException(status_code=400, detail="Can only file complaints on completed bookings")
+
+    complaint = BookingComplaint(
+        booking_id=booking_id,
+        filed_by=current_user.id,
+        reason=body.reason,
+        status="OPEN",
+    )
+    db.add(complaint)
+    db.flush()
+
+    from app.auth.domain.model import User as UserModel
+    admins = db.query(UserModel).filter(UserModel.role == "ADMIN").all()
+    for admin in admins:
+        _notify_booking(db, user_id=admin.id,
+                        title="New Booking Complaint Filed",
+                        message=f"Complaint filed for booking '{booking.service_type}' (#{str(booking.id)[:8]}). Review required.",
+                        notification_type="WARNING",
+                        link="/admin/complaints")
+
+    db.commit()
+    db.refresh(complaint)
+    return complaint

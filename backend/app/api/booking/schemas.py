@@ -114,20 +114,40 @@ class BookingDetailRead(BookingRead):
         from_attributes = True
 
 
+class FinalCompleteCreate(BaseModel):
+    extra_hours: float = 0.0
+    notes: Optional[str] = None
+
+
 class ReceiptRead(BaseModel):
     booking_id: UUID
     service_type: str
+    servicer_name: str
+    base_price: float
+    extra_hours: float
+    hourly_rate: float
+    extra_charge: float
+    final_amount: float
+    completed_at: Optional[datetime] = None
+    negotiated: bool = False
+
+    class Config:
+        from_attributes = True
+
+
+class ComplaintCreate(BaseModel):
+    reason: str
+
+
+class ComplaintRead(BaseModel):
+    id: UUID
+    booking_id: UUID
+    filed_by: UUID
+    reason: str
     status: str
-    scheduled_at: datetime
-    estimated_cost: float
-    final_cost: Optional[float] = None
-    actual_hours: Optional[float] = None
-    completion_notes: Optional[str] = None
-    provider_name: str
-    provider_id: UUID
-    user_id: UUID
-    created_at: datetime
-    updated_at: datetime
+    admin_notes: Optional[str] = None
+    created_at: Optional[datetime] = None
+    resolved_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
