@@ -86,8 +86,8 @@ class BookingComplaint(Base):
     __tablename__ = "booking_complaints"
 
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    booking_id = Column(PG_UUID(as_uuid=True), ForeignKey("service_bookings.id"), nullable=False)
-    filed_by = Column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    booking_id = Column(PG_UUID(as_uuid=True), ForeignKey("service_bookings.id"), nullable=False, index=True)
+    filed_by = Column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     reason = Column(Text, nullable=False)
     status = Column(String, default="OPEN")   # OPEN | UNDER_REVIEW | RESOLVED
     admin_notes = Column(Text, nullable=True)
