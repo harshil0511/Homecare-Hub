@@ -615,6 +615,7 @@ def accept_counter_offer(
     response.agreed_price = latest_offer.proposed_price
     response.agreed_date = latest_offer.proposed_date
     response.status = "ACCEPTED"
+    req.status = "ACCEPTED"
 
     chosen_provider = db.query(ServiceProvider).filter(
         ServiceProvider.id == response.provider_id
@@ -652,7 +653,6 @@ def accept_counter_offer(
     for other in others:
         other.status = "REJECTED"
 
-    req.status = "ACCEPTED"
     req.resulting_booking_id = booking.id
     chosen_provider.availability_status = "WORKING"
 
