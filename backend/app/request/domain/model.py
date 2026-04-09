@@ -1,6 +1,6 @@
 import uuid
 import datetime
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Text, Float
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Text, Float, Integer
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import relationship
 from app.core.db.base import Base
@@ -55,8 +55,31 @@ class ServiceRequestResponse(Base):
     estimated_hours = Column(Float, nullable=True)
     message = Column(Text, nullable=True)
     status = Column(String, default="PENDING")
+    # Negotiation fields
+    negotiation_status = Column(String, default="NONE")  # NONE | NEGOTIATING | AGREED | CLOSED
+    agreed_price = Column(Float, nullable=True)
+    agreed_date = Column(DateTime, nullable=True)
+    current_round = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
     request = relationship("ServiceRequest", back_populates="responses")
     provider = relationship("ServiceProvider", back_populates="submitted_responses")
+    negotiation_offers = relationship("NegotiationOffer", back_populates="response", cascade="all, delete-orphan")
+
+
+class NegotiationOffer(Base):
+    __tablename__ = "negotiation_offers"
+
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    response_id = Column(PG_UUID(as_uuid=True), ForeignKey("service_request_responses.id", ondelete="CASCADE"), nullable=False)
+    offered_by = Column(String, nullable=False)   # "USER" or "SERVICER"
+    round_number = Column(Integer, nullable=False)
+    proposed_date = Column(DateTime, nullable=False)
+    proposed_time = Column(String(50), nullable=False)  # "morning" | "afternoon" | "evening"
+    proposed_price = Column(Float, nullable=False)
+    message = Column(Text, nullable=True)
+    status = Column(String, default="PENDING")  # PENDING | ACCEPTED | REJECTED
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    response = relationship("ServiceRequestResponse", back_populates="negotiation_offers")

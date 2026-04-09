@@ -27,6 +27,7 @@ class ServiceBooking(Base):
     property_details = Column(Text, nullable=True)
     source_type = Column(String, nullable=True)
     source_id = Column(PG_UUID(as_uuid=True), nullable=True)
+    completed_at = Column(DateTime, nullable=True)  # set when servicer clicks Final Complete
 
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
@@ -36,6 +37,7 @@ class ServiceBooking(Base):
     status_history = relationship("BookingStatusHistory", back_populates="booking")
     chats = relationship("BookingChat", back_populates="booking")
     review = relationship("BookingReview", back_populates="booking", uselist=False)
+    complaints = relationship("BookingComplaint", back_populates="booking", cascade="all, delete-orphan")
 
 
 class BookingStatusHistory(Base):
@@ -78,3 +80,19 @@ class BookingReview(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     booking = relationship("ServiceBooking", back_populates="review")
+
+
+class BookingComplaint(Base):
+    __tablename__ = "booking_complaints"
+
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    booking_id = Column(PG_UUID(as_uuid=True), ForeignKey("service_bookings.id"), nullable=False)
+    filed_by = Column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    reason = Column(Text, nullable=False)
+    status = Column(String, default="OPEN")   # OPEN | UNDER_REVIEW | RESOLVED
+    admin_notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    resolved_at = Column(DateTime, nullable=True)
+
+    booking = relationship("ServiceBooking", back_populates="complaints")
+    user = relationship("User", foreign_keys=[filed_by])
