@@ -68,21 +68,25 @@ ServiceBooking:
 - **Algorithm**: HS256 (configurable via `ALGORITHM` env var)
 - **Password hashing**: PBKDF2 with SHA-256 via `passlib`
 
-### Token Storage (Dual)
+### Token Storage (Role-Segregated)
 
-On login success, the frontend stores the token in two places:
+On login success, the frontend stores the token in role-specific localStorage keys, supporting multiple simultaneous sessions:
 
 ```typescript
-localStorage.setItem("hc_token", token)   // for client-side reads
-localStorage.setItem("hc_role", role)
-document.cookie = `hc_token=${token}; path=/; SameSite=Strict; Max-Age=3600`
-// ↑ for Next.js middleware (server-side edge reads)
+// Role-specific keys: hc_token_ADMIN | hc_token_USER | hc_token_SERVICER | hc_token_SECRETARY
+localStorage.setItem(`hc_token_${role}`, token)
+localStorage.setItem(`hc_username_${role}`, username)
+localStorage.setItem(`hc_uuid_${role}`, user_uuid)
+// Cookie for Next.js middleware (server-side edge reads):
+document.cookie = `hc_token_${role}=${token}; path=/; SameSite=Strict; Max-Age=28800`
 ```
 
-On logout:
+On logout (role-specific):
 ```typescript
-localStorage.clear()
-document.cookie = "hc_token=; path=/; Max-Age=0"
+localStorage.removeItem(`hc_token_${role}`)
+localStorage.removeItem(`hc_username_${role}`)
+localStorage.removeItem(`hc_uuid_${role}`)
+document.cookie = `hc_token_${role}=; path=/; Max-Age=0`
 ```
 
 ### Route Protection — Dual Layer
@@ -195,8 +199,9 @@ React Component
 ### Auth State
 
 ```
-localStorage: { hc_token: string, hc_role: string }
-Cookie:       { hc_token: string }   ← for middleware only
+localStorage: { hc_token_ADMIN, hc_token_USER, hc_token_SERVICER, hc_token_SECRETARY }
+              { hc_username_ROLE, hc_uuid_ROLE }  ← per-role metadata
+Cookie:       { hc_token_ROLE: string }   ← role-specific, for middleware only
 ```
 
 ### Design System: ShigenTech Premium

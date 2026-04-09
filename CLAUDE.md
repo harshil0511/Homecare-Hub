@@ -91,29 +91,42 @@ homecare-hub/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py              # FastAPI app, CORS, routers, lifespan
-│   │   ├── api/                 # Route handlers by domain
-│   │   │   ├── auth/endpoint.py
-│   │   │   ├── user/endpoint.py
-│   │   │   ├── services/endpoint.py
-│   │   │   ├── booking/endpoint.py
-│   │   │   ├── maintenance/endpoint.py
-│   │   │   ├── admin/endpoint.py
-│   │   │   ├── emergency/endpoint.py
-│   │   │   ├── requests/endpoint.py
-│   │   │   ├── secretary/endpoint.py
-│   │   │   └── notifications/endpoint.py
 │   │   ├── core/
 │   │   │   ├── config.py        # Pydantic settings
-│   │   │   ├── database.py      # SQLAlchemy engine, session, auto-seed
 │   │   │   ├── security.py      # JWT creation, password hashing
-│   │   │   └── scheduler.py     # APScheduler background jobs
-│   │   ├── internal/
-│   │   │   ├── models.py        # SQLAlchemy ORM models (22 tables)
-│   │   │   ├── schemas.py       # Pydantic request/response schemas
-│   │   │   ├── deps.py          # FastAPI dependencies (auth, role check)
-│   │   │   └── services.py      # Business logic helpers
+│   │   │   ├── scheduler.py     # APScheduler background jobs
+│   │   │   └── db/
+│   │   │       ├── base.py      # SQLAlchemy declarative Base
+│   │   │       └── session.py   # engine, SessionLocal, init_db, retry
+│   │   ├── common/
+│   │   │   ├── deps.py          # get_db, get_current_user, RoleChecker
+│   │   │   └── constants.py     # ALLOWED_CATEGORIES, BOOKING_CONFLICT_WINDOW_HOURS
+│   │   ├── api/                 # HTTP layer — endpoints + schemas per domain
+│   │   │   ├── auth/endpoints.py + schemas.py
+│   │   │   ├── user/endpoints.py + schemas.py
+│   │   │   ├── service/endpoints.py + analytics_endpoints.py + schemas.py
+│   │   │   ├── booking/endpoints.py + schemas.py
+│   │   │   ├── maintenance/endpoints.py + schemas.py
+│   │   │   ├── admin/endpoints.py + emergency_endpoints.py + schemas.py
+│   │   │   ├── emergency/endpoints.py + schemas.py
+│   │   │   ├── secretary/endpoints.py + schemas.py
+│   │   │   ├── request/endpoints.py + schemas.py
+│   │   │   ├── notification/endpoints.py + schemas.py
+│   │   │   └── ai/endpoints.py + schemas.py
+│   │   ├── auth/domain/model.py     # User, Society, society_trusted_providers
+│   │   ├── service/
+│   │   │   ├── domain/model.py      # ServiceProvider, ServiceCertificate, SocietyRequest, ProviderPoints
+│   │   │   ├── services.py          # find_verified_provider, get_provider_display_name
+│   │   │   └── point_engine.py      # award_points() — only way to mutate provider rating
+│   │   ├── booking/domain/model.py  # ServiceBooking, BookingStatusHistory, BookingChat, BookingReview
+│   │   ├── maintenance/domain/model.py  # MaintenanceTask
+│   │   ├── notification/domain/model.py # Notification
+│   │   ├── request/domain/model.py  # ServiceRequest, ServiceRequestRecipient, ServiceRequestResponse
+│   │   ├── emergency/
+│   │   │   ├── domain/model.py      # EmergencyConfig, EmergencyPenaltyConfig, EmergencyRequest, EmergencyResponse, EmergencyStarAdjustment
+│   │   │   └── services.py          # apply_star_delta, calculate_emergency_bill
 │   │   └── websockets/
-│   │       └── emergency.py     # WebSocket connection manager
+│   │       └── emergency.py         # WebSocket connection manager
 │   ├── alembic/                 # Migration files (13 versions)
 │   └── alembic.ini
 ├── frontend/
@@ -451,7 +464,7 @@ Each event deducts star rating from provider per configured `star_deduction`.
 - **Cascade Deletes**: `ServiceRequest → recipients/responses`, `EmergencyRequest → responses`
 - **Naive UTC Datetimes**: All DB datetimes stored without timezone (`tzinfo=None`)
 - **WebSocket Manager**: Singleton `EmergencyConnectionManager` with two connection dicts
-- **Point Engine**: `app/internal/point_engine.py` — `award_points()` inserts a `ProviderPoints` row, recalculates `ServiceProvider.rating` from total points, and triggers auto-verify. Call this for all job completion, review, and cancellation events — never mutate `rating` directly elsewhere
+- **Point Engine**: `app/service/point_engine.py` — `award_points()` inserts a `ProviderPoints` row, recalculates `ServiceProvider.rating` from total points, and triggers auto-verify. Call this for all job completion, review, and cancellation events — never mutate `rating` directly elsewhere
 
 ### Frontend
 - **API Client**: `apiFetch()` in `lib/api.ts` — handles auth headers, 401 redirect, timeouts, FormData
@@ -461,7 +474,7 @@ Each event deducts star rating from provider per configured `star_deduction`.
 
 ### Database
 - **UUID PKs**: All tables (converted in migration `06_04_2026_uuid_primary_keys.py`)
-- **Superadmin Seeding**: Auto-seeded on first DB connection in `database.py`
+- **Superadmin Seeding**: Auto-seeded on first DB connection in `core/db/session.py`
 - **Connection Retry**: Background thread retries DB connection if unavailable at startup
 - **Pool Settings**: `pool_pre_ping=True`, recycle every 1800 seconds
 
