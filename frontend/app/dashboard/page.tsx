@@ -71,13 +71,13 @@ interface StatCardProps {
 }
 
 const StatCard = ({ title, value, icon: Icon, trend, color, onClick, isActive }: StatCardProps) => (
-    <div 
+    <div
         onClick={onClick}
-        className={`bg-white p-8 rounded-[2rem] border transition-all cursor-pointer group flex flex-col justify-between h-48 ${isActive ? 'border-[#064e3b] shadow-lg ring-2 ring-[#064e3b]/5 shadow-emerald-900/10' : 'border-slate-200 shadow-sm hover:shadow-xl hover:border-emerald-100 hover:-translate-y-1'}`}
+        className={`bg-white p-5 sm:p-8 rounded-[2rem] border transition-all cursor-pointer group flex flex-col justify-between min-h-36 sm:h-48 ${isActive ? 'border-[#064e3b] shadow-lg ring-2 ring-[#064e3b]/5 shadow-emerald-900/10' : 'border-slate-200 shadow-sm hover:shadow-xl hover:border-emerald-100 hover:-translate-y-1'}`}
     >
         <div className="flex items-center justify-between">
-            <div className={`w-14 h-14 rounded-2xl ${color} flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform`}>
-                <Icon className="w-7 h-7 text-white" />
+            <div className={`w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl ${color} flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform`}>
+                <Icon className="w-5 h-5 sm:w-7 sm:h-7 text-white" />
             </div>
             {trend && (
                 <div className="flex items-center space-x-1 text-emerald-600 text-[10px] font-black uppercase tracking-widest">
@@ -87,9 +87,9 @@ const StatCard = ({ title, value, icon: Icon, trend, color, onClick, isActive }:
             )}
         </div>
 
-        <div className="space-y-1 mt-auto">
+        <div className="space-y-1 mt-auto pt-3">
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{title}</p>
-            <h3 className="text-4xl font-black text-slate-900 tracking-tighter">{value}</h3>
+            <h3 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tighter">{value}</h3>
         </div>
     </div>
 );
@@ -303,32 +303,32 @@ export default function DashboardPage() {
     const displayEntries = filteredEntries;
 
     return (
-        <div className="space-y-12 animate-fade-in max-w-7xl mx-auto pb-24 relative">
+        <div className="space-y-6 sm:space-y-12 max-w-7xl mx-auto pb-24 relative">
             {/* Header Architecture */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-12">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 sm:gap-8 mb-6 sm:mb-12">
                 <div className="space-y-4">
                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center shadow-lg">
-                            <LayoutDashboard className="w-6 h-6 text-white" />
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-slate-900 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0">
+                            <LayoutDashboard className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                         </div>
-                        <h1 className="text-5xl font-black text-slate-900 tracking-tighter uppercase leading-[0.8]">Operations Control</h1>
+                        <h1 className="text-2xl sm:text-5xl font-black text-slate-900 tracking-tighter uppercase leading-[0.9] sm:leading-[0.8]">Operations Control</h1>
                     </div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em] ml-1">Unified Infrastructure Monitoring & Resource Management</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em] ml-1 hidden sm:block">Unified Infrastructure Monitoring & Resource Management</p>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
                     <Link
                         href="/dashboard/bookings/emergency"
-                        className="bg-rose-600 text-white px-8 py-5 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] shadow-xl shadow-rose-900/20 hover:bg-rose-700 transition-all active:scale-95 flex items-center gap-3 border border-rose-500/50"
+                        className="bg-rose-600 text-white px-4 sm:px-8 py-3 sm:py-5 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] shadow-xl shadow-rose-900/20 hover:bg-rose-700 transition-all active:scale-95 flex items-center gap-2 border border-rose-500/50"
                     >
-                        <Zap className="w-5 h-5 animate-pulse" />
+                        <Zap className="w-4 h-4 animate-pulse" />
                         Emergency SOS
                     </Link>
                     <button
                         onClick={() => setShowTaskModal(true)}
-                        className="bg-[#064e3b] text-white px-8 py-5 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] shadow-xl shadow-emerald-900/20 hover:bg-emerald-800 transition-all active:scale-95 flex items-center gap-3"
+                        className="bg-[#064e3b] text-white px-4 sm:px-8 py-3 sm:py-5 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] shadow-xl shadow-emerald-900/20 hover:bg-emerald-800 transition-all active:scale-95 flex items-center gap-2"
                     >
-                        <Zap className="w-5 h-5" />
+                        <Zap className="w-4 h-4" />
                         Create Alert
                     </button>
                     
@@ -410,7 +410,7 @@ export default function DashboardPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
                 {/* Ledger Component */}
-                <div className="lg:col-span-2 bg-white border border-slate-200 rounded-[2.5rem] p-10 space-y-10 shadow-sm">
+                <div className="lg:col-span-2 bg-white border border-slate-200 rounded-[2.5rem] p-5 sm:p-10 space-y-6 sm:space-y-10 shadow-sm">
                         <div className="flex items-center gap-6">
                             <h2 className="text-sm font-black text-black uppercase tracking-[0.4em] flex items-center gap-3">
                                 <Activity className="w-5 h-5 text-[#064e3b]" />
@@ -462,39 +462,33 @@ export default function DashboardPage() {
                                         {/* Clickable Row Header */}
                                         <button
                                             onClick={() => toggleEntry(entry)}
-                                            className={`w-full flex items-center justify-between p-6 transition-all group cursor-pointer text-left ${isExpired ? 'bg-rose-50/50 border-rose-100 hover:shadow-md' : 'bg-slate-50 hover:bg-white hover:shadow-lg'} ${isEntryExpanded ? 'border-b border-slate-100' : ''}`}
+                                            className={`w-full flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 sm:p-6 gap-3 sm:gap-0 transition-all group cursor-pointer text-left ${isExpired ? 'bg-rose-50/50 border-rose-100 hover:shadow-md' : 'bg-slate-50 hover:bg-white hover:shadow-lg'} ${isEntryExpanded ? 'border-b border-slate-100' : ''}`}
                                         >
-                                            <div className="flex items-center gap-8">
-                                                <div className={`w-16 h-16 rounded-[1.25rem] flex items-center justify-center shadow-inner relative flex-shrink-0 ${isExpired ? 'bg-rose-500 text-white' : entry.type === 'TASK' ? 'bg-emerald-100 text-emerald-600' : 'bg-[#064e3b] text-white'}`}>
-                                                    {isExpired && <div className="absolute inset-0 bg-rose-500 rounded-[1.25rem] animate-ping opacity-20" />}
-                                                    {entry.type === 'TASK' ? <Activity className="w-7 h-7" /> : <ShieldCheck className="w-7 h-7" />}
+                                            <div className="flex items-center gap-4 sm:gap-8 min-w-0">
+                                                <div className={`w-10 h-10 sm:w-16 sm:h-16 rounded-xl sm:rounded-[1.25rem] flex items-center justify-center shadow-inner relative flex-shrink-0 ${isExpired ? 'bg-rose-500 text-white' : entry.type === 'TASK' ? 'bg-emerald-100 text-emerald-600' : 'bg-[#064e3b] text-white'}`}>
+                                                    {isExpired && <div className="absolute inset-0 bg-rose-500 rounded-xl sm:rounded-[1.25rem] animate-ping opacity-20" />}
+                                                    {entry.type === 'TASK' ? <Activity className="w-5 h-5 sm:w-7 sm:h-7" /> : <ShieldCheck className="w-5 h-5 sm:w-7 sm:h-7" />}
                                                 </div>
 
-                                                <div className="space-y-2">
-                                                    <div className="flex items-center gap-4">
-                                                        <span className={`px-4 py-1 rounded-lg text-[9px] font-black uppercase tracking-[0.2em] ${isExpired ? 'bg-rose-600 text-white' : isUrgent ? 'bg-rose-100 text-rose-600 border border-rose-200' : entry.priority === 'Mandatory' ? 'bg-amber-100 text-amber-600 border border-amber-200' : 'bg-slate-200 text-slate-600 border border-slate-300'}`}>
+                                                <div className="space-y-1.5 min-w-0 flex-1">
+                                                    <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
+                                                        <span className={`px-2.5 py-0.5 sm:px-4 sm:py-1 rounded-lg text-[9px] font-black uppercase tracking-[0.2em] flex-shrink-0 ${isExpired ? 'bg-rose-600 text-white' : isUrgent ? 'bg-rose-100 text-rose-600 border border-rose-200' : entry.priority === 'Mandatory' ? 'bg-amber-100 text-amber-600 border border-amber-200' : 'bg-slate-200 text-slate-600 border border-slate-300'}`}>
                                                             {isExpired ? 'EXPIRED' : entry.priority || 'ROUTINE'}
                                                         </span>
-                                                        <h4 className="text-xl font-black text-black uppercase tracking-tighter leading-none">{entry.title}</h4>
+                                                        <h4 className="text-sm sm:text-xl font-black text-black uppercase tracking-tighter leading-none truncate">{entry.title}</h4>
                                                     </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                                            {entry.provider ? `Provider: ${entry.provider.company_name}` : 'Self-Managed'}
-                                                        </p>
-                                                        <span className="w-1 h-1 rounded-full bg-slate-300" />
-                                                        <p className="text-[10px] font-bold text-slate-400 max-w-xs truncate">
-                                                            {entry.description || entry.issue_description || 'No additional logs provided.'}
-                                                        </p>
-                                                    </div>
+                                                    <p className="text-[10px] font-bold text-slate-400 truncate">
+                                                        {entry.provider ? `Provider: ${entry.provider.company_name}` : 'Self-Managed'}
+                                                    </p>
                                                 </div>
                                             </div>
 
-                                            <div className="flex items-center gap-6">
-                                                <div className="text-right space-y-2">
-                                                    <p className={`text-[11px] font-black uppercase tracking-[0.3em] ${isExpired ? 'text-rose-600' : 'text-slate-400'}`}>
+                                            <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6 pl-14 sm:pl-0">
+                                                <div className="text-left sm:text-right space-y-1">
+                                                    <p className={`text-[10px] font-black uppercase tracking-[0.3em] ${isExpired ? 'text-rose-600' : 'text-slate-400'}`}>
                                                         {entry.date ? new Date(entry.date).toLocaleDateString() : 'No deadline'}
                                                     </p>
-                                                    <p className={`text-lg font-black uppercase tracking-tighter ${statusColor}`}>
+                                                    <p className={`text-sm sm:text-lg font-black uppercase tracking-tighter ${statusColor}`}>
                                                         {statusText}
                                                     </p>
                                                 </div>
@@ -630,7 +624,7 @@ export default function DashboardPage() {
                 {/* Infrastructure Column */}
                 <div className="space-y-12">
                     {userRole === 'SERVICER' ? (
-                        <div className="bg-white border text-center border-slate-200 rounded-[2.5rem] shadow-sm overflow-hidden p-12">
+                        <div className="bg-white border text-center border-slate-200 rounded-[2.5rem] shadow-sm overflow-hidden p-6 sm:p-12">
                             <div className="mb-8 flex items-center justify-center gap-3">
                                 <Users className="w-6 h-6 text-[#064e3b]" />
                                 <h2 className="text-xl font-black text-black uppercase tracking-tighter">Incoming Hub Invitations</h2>
@@ -671,7 +665,7 @@ export default function DashboardPage() {
                             </div>
                         </div>
                     ) : (
-                        <div className="bg-white border border-slate-200 rounded-[2.5rem] shadow-sm overflow-hidden p-10 space-y-8">
+                        <div className="bg-white border border-slate-200 rounded-[2.5rem] shadow-sm overflow-hidden p-5 sm:p-10 space-y-6 sm:space-y-8">
                             <div className="flex items-center justify-between px-2">
                                 <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] flex items-center gap-3">
                                     <BadgeCheck className="w-4 h-4 text-[#064e3b]" />

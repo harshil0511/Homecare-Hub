@@ -439,11 +439,10 @@ function ProvidersContent() {
                 {/* Filters button — opens panel with draft state */}
                 <button
                     onClick={showFilterPanel ? () => setShowFilterPanel(false) : openFilterPanel}
-                    className={`relative flex items-center gap-2 px-5 py-4 rounded-2xl border font-black text-[10px] uppercase tracking-widest transition-all ${
-                        showFilterPanel || activeFilterCount > 0
-                            ? "bg-[#064e3b] text-white border-[#064e3b]"
-                            : "bg-white border-slate-200 text-slate-600 hover:border-[#064e3b] hover:text-[#064e3b]"
-                    }`}
+                    className={`relative flex items-center gap-2 px-5 py-4 rounded-2xl border font-black text-[10px] uppercase tracking-widest transition-all ${showFilterPanel || activeFilterCount > 0
+                        ? "bg-[#064e3b] text-white border-[#064e3b]"
+                        : "bg-white border-slate-200 text-slate-600 hover:border-[#064e3b] hover:text-[#064e3b]"
+                        }`}
                 >
                     <SlidersHorizontal size={15} />
                     Filters
@@ -476,11 +475,10 @@ function ProvidersContent() {
                                     <button
                                         key={r}
                                         onClick={() => setDraftMinRating(r)}
-                                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${
-                                            draftMinRating === r
-                                                ? "bg-amber-500 text-white"
-                                                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                                        }`}
+                                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${draftMinRating === r
+                                            ? "bg-amber-500 text-white"
+                                            : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                                            }`}
                                     >
                                         {r === 0 ? "Any" : r === 10 ? "10 (Verified)" : `${r}+`}
                                     </button>
@@ -496,11 +494,10 @@ function ProvidersContent() {
                                     <button
                                         key={s}
                                         onClick={() => setDraftAvailability(s)}
-                                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${
-                                            draftAvailability === s
-                                                ? "bg-[#064e3b] text-white"
-                                                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                                        }`}
+                                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${draftAvailability === s
+                                            ? "bg-[#064e3b] text-white"
+                                            : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                                            }`}
                                     >
                                         {s === "All" ? "All" : s === "AVAILABLE" ? "Available" : "Working"}
                                     </button>
@@ -516,11 +513,10 @@ function ProvidersContent() {
                                     <button
                                         key={k}
                                         onClick={() => setDraftSortKey(k)}
-                                        className={`flex items-center justify-between px-3 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${
-                                            draftSortKey === k
-                                                ? "bg-[#064e3b] text-white"
-                                                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                                        }`}
+                                        className={`flex items-center justify-between px-3 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${draftSortKey === k
+                                            ? "bg-[#064e3b] text-white"
+                                            : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                                            }`}
                                     >
                                         {SORT_LABELS[k]}
                                         {draftSortKey === k && <Check size={11} />}
@@ -554,11 +550,10 @@ function ProvidersContent() {
                     <button
                         key={cat}
                         onClick={() => { setActiveCategory(cat); setFocusedIndex(-1); }}
-                        className={`flex-shrink-0 px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
-                            activeCategory === cat
-                                ? "bg-[#064e3b] text-white shadow-lg shadow-emerald-900/10 ring-2 ring-[#064e3b]/20 scale-105"
-                                : "bg-white border border-slate-200 text-slate-500 hover:border-[#064e3b] hover:text-[#064e3b]"
-                        }`}
+                        className={`flex-shrink-0 px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeCategory === cat
+                            ? "bg-[#064e3b] text-white shadow-lg shadow-emerald-900/10 ring-2 ring-[#064e3b]/20 scale-105"
+                            : "bg-white border border-slate-200 text-slate-500 hover:border-[#064e3b] hover:text-[#064e3b]"
+                            }`}
                     >
                         {cat}
                     </button>
@@ -624,9 +619,6 @@ function ProvidersContent() {
                         </button>
                     )}
                 </div>
-                        </button>
-                    )}
-                </div>
             ) : (
                 <div className="flex flex-col gap-2">
                     {filteredProviders.map((p, idx) => {
@@ -637,11 +629,10 @@ function ProvidersContent() {
                         return (
                             <div
                                 key={p.id}
-                                className={`flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all ${
-                                    isSelected ? "border-[#064e3b] bg-emerald-50/50"
+                                className={`flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all ${isSelected ? "border-[#064e3b] bg-emerald-50/50"
                                     : isFocused ? "border-slate-300 bg-slate-50"
-                                    : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50"
-                                }`}
+                                        : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50"
+                                    }`}
                             >
                                 <button onClick={() => toggleSelect(p.id)} className="flex-shrink-0 text-slate-300 hover:text-[#064e3b] transition-colors">
                                     {isSelected ? <CheckSquare size={16} className="text-[#064e3b]" /> : <Square size={16} />}
@@ -718,7 +709,7 @@ function ProvidersContent() {
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Problem Details</p>
                                     <select value={reqProblemType} onChange={e => setReqProblemType(e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b] bg-white mb-3">
                                         <option value="">Select Problem Type *</option>
-                                        {["Plumbing","Electrical","Cleaning","Mechanical","Carpentry","Painting","Gardening","HVAC","Pest Control","Appliance Repair","Other"].map(t => (
+                                        {["Plumbing", "Electrical", "Cleaning", "Mechanical", "Carpentry", "Painting", "Gardening", "HVAC", "Pest Control", "Appliance Repair", "Other"].map(t => (
                                             <option key={t} value={t}>{t}</option>
                                         ))}
                                     </select>
@@ -743,11 +734,10 @@ function ProvidersContent() {
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Urgency Level</p>
                                     <div className="flex gap-3">
                                         {(["Normal", "High", "Emergency"] as const).map(u => (
-                                            <button key={u} onClick={() => setReqUrgency(u)} className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-colors ${
-                                                reqUrgency === u
-                                                    ? u === "Emergency" ? "bg-rose-600 text-white" : u === "High" ? "bg-amber-500 text-white" : "bg-[#064e3b] text-white"
-                                                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                                            }`}>
+                                            <button key={u} onClick={() => setReqUrgency(u)} className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-colors ${reqUrgency === u
+                                                ? u === "Emergency" ? "bg-rose-600 text-white" : u === "High" ? "bg-amber-500 text-white" : "bg-[#064e3b] text-white"
+                                                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                                                }`}>
                                                 {u === "High" ? "Urgent" : u}
                                             </button>
                                         ))}

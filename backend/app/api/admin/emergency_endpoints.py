@@ -22,7 +22,7 @@ from app.api.emergency.schemas import (
     EmergencyStarAdjustCreate, EmergencyStarAdjustRead,
     EmergencyRequestRead,
 )
-from app.api.admin.schemas import AdminProviderStatusUpdate
+from app.api.emergency.schemas import AdminProviderStatusUpdate
 
 logger = logging.getLogger(__name__)
 

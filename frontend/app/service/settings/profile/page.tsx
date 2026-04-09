@@ -30,9 +30,6 @@ export default function ServicerProfilePage() {
     // Account state
     const [username, setUsername] = useState("");
     const [email, setEmail] = useState("");
-    const [savingAccount, setSavingAccount] = useState(false);
-    const [accountSuccess, setAccountSuccess] = useState(false);
-    const [accountError, setAccountError] = useState("");
 
     // Provider profile state
     const [firstName, setFirstName] = useState("");
@@ -134,27 +131,14 @@ export default function ServicerProfilePage() {
         setProfileError("");
     };
 
-    const isProfileValid = firstName.trim() && lastName.trim() && phone.trim() && bio.trim() && selectedCategories.length > 0 && hourlyRate !== "" && Number(hourlyRate) > 0;
-
-    const handleSaveAccount = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setSavingAccount(true); setAccountError(""); setAccountSuccess(false);
-        try {
-            await apiFetch("/user/me", { method: "PATCH", body: JSON.stringify({ username }) });
-            setAccountSuccess(true);
-            setTimeout(() => setAccountSuccess(false), 3000);
-        } catch (err: any) {
-            setAccountError(err.message || "Failed to update account");
-        } finally {
-            setSavingAccount(false);
-        }
-    };
+    const isProfileValid = username.trim() && firstName.trim() && lastName.trim() && phone.trim() && bio.trim() && selectedCategories.length > 0 && hourlyRate !== "" && Number(hourlyRate) > 0;
 
     const handleSaveProfile = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!isProfileValid) return;
         setSavingProfile(true); setProfileError(""); setProfileSuccess(false);
         try {
+            await apiFetch("/user/me", { method: "PATCH", body: JSON.stringify({ username }) });
             let finalPhotoUrl = photoUrl;
             if (photoFile) {
                 const fd = new FormData();
@@ -245,31 +229,15 @@ export default function ServicerProfilePage() {
     );
 
     return (
-        <div className="max-w-2xl mx-auto animate-fade-in py-8 space-y-6">
+        <div className="max-w-2xl mx-auto py-8 space-y-6">
 
-            {/* ── Account Details ── */}
+            {/* ── Account Details (read-only info) ── */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-                <div className="flex items-center gap-3 mb-6">
+                <div className="flex items-center gap-3 mb-5">
                     <div className="p-2 bg-emerald-50 rounded-xl"><User className="w-4 h-4 text-emerald-700" /></div>
                     <h2 className="text-sm font-black text-slate-900 uppercase tracking-tight">Account Details</h2>
                 </div>
-                <form onSubmit={handleSaveAccount} className="space-y-4">
-                    {accountSuccess && (
-                        <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 p-3 rounded-xl flex items-center gap-2">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                            <span className="text-xs font-black uppercase tracking-widest">Saved successfully</span>
-                        </div>
-                    )}
-                    {accountError && (
-                        <div className="bg-rose-50 border border-rose-100 text-rose-800 p-3 rounded-xl flex items-center gap-2">
-                            <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
-                            <span className="text-xs font-semibold">{accountError}</span>
-                        </div>
-                    )}
-                    <div>
-                        <label className={labelCls}>Display Name</label>
-                        <input className={inputCls} value={username} onChange={e => setUsername(e.target.value)} required />
-                    </div>
+                <div className="space-y-3">
                     <div>
                         <label className={labelCls}>Email Address</label>
                         <input className={readonlyCls} value={email} readOnly />
@@ -280,10 +248,7 @@ export default function ServicerProfilePage() {
                             <Briefcase className="w-3 h-3" /> SERVICER
                         </span>
                     </div>
-                    <button type="submit" disabled={savingAccount} className="w-full bg-[#064e3b] hover:bg-emerald-950 text-white font-black py-3 rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 uppercase tracking-widest text-xs">
-                        {savingAccount ? "Saving..." : "Save Account"}
-                    </button>
-                </form>
+                </div>
             </div>
 
             {/* ── My Profile ── */}
@@ -306,6 +271,13 @@ export default function ServicerProfilePage() {
                             <span className="text-xs font-semibold">{profileError}</span>
                         </div>
                     )}
+
+                    {/* Display Name */}
+                    <div>
+                        <label className={labelCls}>Display Name <span className="text-rose-500">*</span></label>
+                        <input className={inputCls} value={username} onChange={e => setUsername(e.target.value)} placeholder="e.g. ravi_plumber" required />
+                        <p className="text-[10px] text-slate-400 mt-1">Your app username — shown to other users</p>
+                    </div>
 
                     {/* Photo */}
                     <div>

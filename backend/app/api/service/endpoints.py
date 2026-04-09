@@ -11,7 +11,8 @@ from typing import List, Optional
 from app.common import deps
 from app.common.constants import ALLOWED_CATEGORIES
 from app.auth.domain.model import User, Society
-from app.service.domain.model import ServiceProvider, ServiceCertificate, SocietyRequest, society_trusted_providers
+from app.auth.domain.model import society_trusted_providers
+from app.service.domain.model import ServiceProvider, ServiceCertificate, SocietyRequest
 from app.booking.domain.model import ServiceBooking, BookingReview
 from app.api.service.schemas import (
     SocietyCreate, SocietyResponse, SocietyUpdate,

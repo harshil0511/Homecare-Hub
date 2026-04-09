@@ -26,7 +26,7 @@ export default function ServicerAccountPage() {
     };
 
     return (
-        <div className="max-w-2xl mx-auto animate-fade-in py-12">
+        <div className="max-w-2xl mx-auto py-12">
             <div className="bg-white border border-slate-200 rounded-[2rem] p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
                 <div className="flex items-center gap-3 mb-8">
                     <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-100">

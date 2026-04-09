@@ -18,6 +18,7 @@ from app.emergency.domain.model import (
 from app.notification.domain.model import Notification
 from app.websockets.emergency import emergency_manager
 from app.api.emergency.schemas import (
+    EmergencyConfigRead,
     EmergencyRequestCreate, EmergencyRequestRead,
     EmergencyResponseCreate, EmergencyResponseRead,
     IncomingEmergencyRead,
