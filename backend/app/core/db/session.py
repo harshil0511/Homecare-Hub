@@ -15,6 +15,7 @@ _retry_thread: threading.Thread | None = None
 
 
 def _build_engine():
+    """Try to build the SQLAlchemy engine. Returns engine or None on failure."""
     urls_to_try = [
         settings.DATABASE_URL,
         settings.DATABASE_URL.replace("postgresql+psycopg://", "postgresql+psycopg2://"),
@@ -47,6 +48,7 @@ def _build_engine():
 
 
 def _apply_engine(eng):
+    """Set globals and run table creation + seed once a connection is established."""
     global engine, SessionLocal
     engine = eng
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -91,6 +93,7 @@ def _apply_engine(eng):
 
 
 def _retry_loop():
+    """Background thread: keep retrying DB connection every 5 seconds until success."""
     global engine
     attempt = 0
     while True:
@@ -109,6 +112,7 @@ def _retry_loop():
 
 
 def init_db() -> bool:
+    """Called on app startup. If DB is ready: connects immediately. If not: starts background retry thread."""
     global _retry_thread
     eng = _build_engine()
     if eng is not None:
