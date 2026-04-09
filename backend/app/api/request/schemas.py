@@ -60,6 +60,44 @@ class ServiceRequestRecipientRead(BaseModel):
         from_attributes = True
 
 
+class NegotiationOfferRead(BaseModel):
+    id: UUID
+    response_id: UUID
+    offered_by: str
+    round_number: int
+    proposed_date: datetime
+    proposed_time: str
+    proposed_price: float
+    message: Optional[str] = None
+    status: str
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class NegotiationOfferCreate(BaseModel):
+    proposed_date: datetime
+    proposed_time: str          # "morning" | "afternoon" | "evening"
+    proposed_price: float
+    message: Optional[str] = None
+
+    @field_validator("proposed_price")
+    @classmethod
+    def validate_price(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError("proposed_price must be greater than 0")
+        return v
+
+    @field_validator("proposed_time")
+    @classmethod
+    def validate_time(cls, v: str) -> str:
+        allowed = {"morning", "afternoon", "evening"}
+        if v not in allowed:
+            raise ValueError(f"proposed_time must be one of: {', '.join(sorted(allowed))}")
+        return v
+
+
 class ServiceRequestResponseRead(BaseModel):
     id: UUID
     request_id: UUID
@@ -69,8 +107,13 @@ class ServiceRequestResponseRead(BaseModel):
     estimated_hours: Optional[float] = None
     message: Optional[str] = None
     status: str
+    negotiation_status: str = "NONE"
+    agreed_price: Optional[float] = None
+    agreed_date: Optional[datetime] = None
+    current_round: int = 0
     created_at: Optional[datetime] = None
     provider: Optional[ProviderResponse] = None
+    negotiation_offers: List[NegotiationOfferRead] = []
 
     class Config:
         from_attributes = True
@@ -130,6 +173,9 @@ class IncomingServiceRequestRead(BaseModel):
     created_at: Optional[datetime] = None
     is_read: bool = False
     has_responded: bool = False
+    response_id: Optional[UUID] = None
+    negotiation_status: Optional[str] = None
+    current_round: int = 0
 
     @field_validator("photos", "preferred_dates", mode="before")
     @classmethod

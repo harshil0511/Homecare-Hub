@@ -10,13 +10,14 @@ from sqlalchemy.orm import Session
 from app.common import deps
 from app.auth.domain.model import User
 from app.service.domain.model import ServiceProvider
-from app.request.domain.model import ServiceRequest, ServiceRequestRecipient, ServiceRequestResponse
+from app.request.domain.model import ServiceRequest, ServiceRequestRecipient, ServiceRequestResponse, NegotiationOffer
 from app.booking.domain.model import ServiceBooking, BookingStatusHistory
 from app.notification.domain.model import Notification
 from app.api.request.schemas import (
     ServiceRequestCreate, ServiceRequestResponseCreate,
     ServiceRequestRead, ServiceRequestDetailRead,
     ServiceRequestResponseRead, IncomingServiceRequestRead,
+    NegotiationOfferCreate,
 )
 from app.api.booking.schemas import BookingRead
 
@@ -79,7 +80,8 @@ def list_incoming_requests(
         if req.status != "OPEN":
             continue
 
-        has_responded = any(r.provider_id == provider.id for r in req.responses)
+        my_response = next((r for r in req.responses if r.provider_id == provider.id), None)
+        has_responded = my_response is not None
 
         result.append(IncomingServiceRequestRead(
             id=req.id,
@@ -95,6 +97,9 @@ def list_incoming_requests(
             created_at=req.created_at,
             is_read=rec.is_read,
             has_responded=has_responded,
+            response_id=my_response.id if my_response else None,
+            negotiation_status=my_response.negotiation_status if my_response else None,
+            current_round=my_response.current_round if my_response else 0,
         ))
 
     if changed:
@@ -467,6 +472,286 @@ def reject_response(
 
     db.commit()
     return {"detail": "Response rejected"}
+
+
+@router.post("/{request_id}/responses/{response_id}/counter", status_code=200)
+def send_counter_offer(
+    request_id: UUID,
+    response_id: UUID,
+    offer_in: NegotiationOfferCreate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+):
+    """User or servicer sends a counter-offer. Max 3 rounds."""
+    req = db.query(ServiceRequest).filter(ServiceRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+
+    if req.urgency == "Emergency":
+        raise HTTPException(status_code=400, detail="Emergency requests cannot be negotiated")
+
+    _mark_expired_if_needed(req)
+    if req.status != "OPEN":
+        raise HTTPException(status_code=400, detail=f"Request is {req.status}")
+
+    response = db.query(ServiceRequestResponse).filter(
+        ServiceRequestResponse.id == response_id,
+        ServiceRequestResponse.request_id == request_id,
+    ).first()
+    if not response:
+        raise HTTPException(status_code=404, detail="Response not found")
+    if response.status not in ("PENDING",):
+        raise HTTPException(status_code=400, detail=f"Response is already {response.status}")
+    if response.negotiation_status == "CLOSED":
+        raise HTTPException(status_code=400, detail="Negotiation is closed for this response")
+
+    provider = db.query(ServiceProvider).filter(
+        ServiceProvider.user_id == current_user.id
+    ).first()
+    is_servicer = provider is not None and provider.id == response.provider_id
+    is_user = req.user_id == current_user.id
+
+    if not is_servicer and not is_user:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    caller_role = "SERVICER" if is_servicer else "USER"
+
+    # Turn enforcement
+    if response.current_round == 0:
+        expected_role = "USER"
+    else:
+        last_offer = db.query(NegotiationOffer).filter(
+            NegotiationOffer.response_id == response_id
+        ).order_by(NegotiationOffer.round_number.desc()).first()
+        expected_role = "USER" if last_offer and last_offer.offered_by == "SERVICER" else "SERVICER"
+
+    if caller_role != expected_role:
+        raise HTTPException(status_code=400, detail=f"It is {expected_role}'s turn to respond")
+
+    if response.current_round >= 3:
+        raise HTTPException(status_code=400, detail="Maximum negotiation rounds (3) reached")
+
+    new_round = response.current_round + 1
+
+    offer = NegotiationOffer(
+        response_id=response_id,
+        offered_by=caller_role,
+        round_number=new_round,
+        proposed_date=offer_in.proposed_date,
+        proposed_time=offer_in.proposed_time,
+        proposed_price=offer_in.proposed_price,
+        message=offer_in.message,
+        status="PENDING",
+    )
+    db.add(offer)
+    response.negotiation_status = "NEGOTIATING"
+    response.current_round = new_round
+
+    if caller_role == "USER":
+        target_provider = db.query(ServiceProvider).filter(
+            ServiceProvider.id == response.provider_id
+        ).first()
+        if target_provider and target_provider.user_id:
+            _notify(db, user_id=target_provider.user_id,
+                    title="Counter Offer Received",
+                    message=f"Counter offer from user for '{req.device_or_issue}': \u20b9{offer_in.proposed_price:.0f}.",
+                    notification_type="INFO", link="/service/jobs")
+    else:
+        _notify(db, user_id=req.user_id,
+                title="Servicer Sent New Offer",
+                message=f"Servicer updated their offer for '{req.device_or_issue}': \u20b9{offer_in.proposed_price:.0f}.",
+                notification_type="INFO", link="/user/bookings")
+
+    db.commit()
+    db.refresh(offer)
+    return {"detail": "Counter offer sent", "round_number": new_round}
+
+
+@router.post("/{request_id}/responses/{response_id}/accept-counter", status_code=200)
+def accept_counter_offer(
+    request_id: UUID,
+    response_id: UUID,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+):
+    """Accept the latest counter-offer. Creates booking with agreed price."""
+    req = db.query(ServiceRequest).filter(ServiceRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+
+    _mark_expired_if_needed(req)
+    if req.status != "OPEN":
+        raise HTTPException(status_code=400, detail=f"Request is {req.status}")
+
+    response = db.query(ServiceRequestResponse).filter(
+        ServiceRequestResponse.id == response_id,
+        ServiceRequestResponse.request_id == request_id,
+    ).first()
+    if not response:
+        raise HTTPException(status_code=404, detail="Response not found")
+    if response.negotiation_status != "NEGOTIATING":
+        raise HTTPException(status_code=400, detail="No active negotiation to accept")
+
+    provider = db.query(ServiceProvider).filter(
+        ServiceProvider.user_id == current_user.id
+    ).first()
+    is_servicer = provider is not None and provider.id == response.provider_id
+    is_user = req.user_id == current_user.id
+
+    latest_offer = db.query(NegotiationOffer).filter(
+        NegotiationOffer.response_id == response_id,
+        NegotiationOffer.status == "PENDING",
+    ).order_by(NegotiationOffer.round_number.desc()).first()
+    if not latest_offer:
+        raise HTTPException(status_code=404, detail="No pending counter offer found")
+
+    if latest_offer.offered_by == "SERVICER" and not is_user:
+        raise HTTPException(status_code=403, detail="Only the user can accept this offer")
+    if latest_offer.offered_by == "USER" and not is_servicer:
+        raise HTTPException(status_code=403, detail="Only the servicer can accept this offer")
+
+    latest_offer.status = "ACCEPTED"
+    response.negotiation_status = "AGREED"
+    response.agreed_price = latest_offer.proposed_price
+    response.agreed_date = latest_offer.proposed_date
+
+    chosen_provider = db.query(ServiceProvider).filter(
+        ServiceProvider.id == response.provider_id
+    ).first()
+    if not chosen_provider:
+        raise HTTPException(status_code=404, detail="Provider not found")
+
+    booking = ServiceBooking(
+        user_id=req.user_id,
+        provider_id=response.provider_id,
+        service_type=req.device_or_issue,
+        scheduled_at=latest_offer.proposed_date,
+        priority=req.urgency,
+        issue_description=req.description,
+        property_details=req.location,
+        estimated_cost=latest_offer.proposed_price,
+        photos=req.photos,
+        status="Accepted",
+        source_type="negotiated",
+    )
+    db.add(booking)
+    db.flush()
+
+    db.add(BookingStatusHistory(
+        booking_id=booking.id,
+        status="Accepted",
+        notes=f"Contract created from negotiated offer (round {response.current_round}). Agreed price: \u20b9{latest_offer.proposed_price:.0f}",
+    ))
+
+    response.status = "ACCEPTED"
+
+    others = db.query(ServiceRequestResponse).filter(
+        ServiceRequestResponse.request_id == request_id,
+        ServiceRequestResponse.id != response_id,
+        ServiceRequestResponse.status == "PENDING",
+    ).all()
+    for other in others:
+        other.status = "REJECTED"
+
+    req.status = "ACCEPTED"
+    req.resulting_booking_id = booking.id
+    chosen_provider.availability_status = "WORKING"
+
+    if chosen_provider.user_id:
+        _notify(db, user_id=chosen_provider.user_id,
+                title="Negotiated Offer Accepted \u2014 Contract Created",
+                message=f"Counter offer accepted for '{req.device_or_issue}'. Agreed: \u20b9{latest_offer.proposed_price:.0f}.",
+                notification_type="INFO", link="/service/jobs")
+
+    _notify(db, user_id=req.user_id,
+            title="Contract Created (Negotiated)",
+            message=f"Contract created for '{req.device_or_issue}'. Agreed cost: \u20b9{latest_offer.proposed_price:.0f}.",
+            notification_type="INFO", link=f"/user/bookings/{booking.id}")
+
+    rejected_ids = {r.provider_id for r in others}
+    if rejected_ids:
+        rejected_providers = db.query(ServiceProvider).filter(ServiceProvider.id.in_(rejected_ids)).all()
+        for rp in rejected_providers:
+            if rp.user_id:
+                _notify(db, user_id=rp.user_id, title="Offer Not Selected",
+                        message=f"The client selected another provider for '{req.device_or_issue}'.",
+                        notification_type="INFO", link="/service/jobs")
+
+    db.commit()
+    db.refresh(booking)
+    return {"detail": "Counter offer accepted. Contract created.", "booking_id": str(booking.id)}
+
+
+@router.post("/{request_id}/responses/{response_id}/reject-counter", status_code=200)
+def reject_counter_offer(
+    request_id: UUID,
+    response_id: UUID,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+):
+    """Reject the latest counter-offer."""
+    req = db.query(ServiceRequest).filter(ServiceRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+
+    _mark_expired_if_needed(req)
+    if req.status != "OPEN":
+        raise HTTPException(status_code=400, detail=f"Request is {req.status}")
+
+    response = db.query(ServiceRequestResponse).filter(
+        ServiceRequestResponse.id == response_id,
+        ServiceRequestResponse.request_id == request_id,
+    ).first()
+    if not response:
+        raise HTTPException(status_code=404, detail="Response not found")
+    if response.negotiation_status != "NEGOTIATING":
+        raise HTTPException(status_code=400, detail="No active negotiation to reject")
+
+    provider = db.query(ServiceProvider).filter(
+        ServiceProvider.user_id == current_user.id
+    ).first()
+    is_servicer = provider is not None and provider.id == response.provider_id
+    is_user = req.user_id == current_user.id
+
+    latest_offer = db.query(NegotiationOffer).filter(
+        NegotiationOffer.response_id == response_id,
+        NegotiationOffer.status == "PENDING",
+    ).order_by(NegotiationOffer.round_number.desc()).first()
+    if not latest_offer:
+        raise HTTPException(status_code=404, detail="No pending counter offer found")
+
+    if latest_offer.offered_by == "SERVICER" and not is_user:
+        raise HTTPException(status_code=403, detail="Only the user can reject this offer")
+    if latest_offer.offered_by == "USER" and not is_servicer:
+        raise HTTPException(status_code=403, detail="Only the servicer can reject this offer")
+
+    latest_offer.status = "REJECTED"
+
+    if response.current_round >= 3:
+        response.negotiation_status = "CLOSED"
+        closed = True
+    else:
+        response.negotiation_status = "NEGOTIATING"
+        closed = False
+
+    if latest_offer.offered_by == "USER":
+        _notify(db, user_id=req.user_id,
+                title="Counter Offer Rejected",
+                message=f"Servicer rejected your counter offer for '{req.device_or_issue}'.",
+                notification_type="INFO", link="/user/bookings")
+    else:
+        target_provider = db.query(ServiceProvider).filter(
+            ServiceProvider.id == response.provider_id
+        ).first()
+        if target_provider and target_provider.user_id:
+            _notify(db, user_id=target_provider.user_id,
+                    title="Counter Offer Rejected",
+                    message=f"User rejected your counter offer for '{req.device_or_issue}'.",
+                    notification_type="INFO", link="/service/jobs")
+
+    db.commit()
+    msg = "Negotiation closed \u2014 max rounds reached" if closed else "Counter offer rejected"
+    return {"detail": msg, "negotiation_closed": closed}
 
 
 @router.delete("/{request_id}", status_code=200)
