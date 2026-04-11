@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-    Search, MapPin, ShieldCheck, DollarSign,
-    Filter, WifiOff, RefreshCw, Award, AlertTriangle,
+    Search, ShieldCheck,
+    WifiOff, RefreshCw, AlertTriangle,
     CheckSquare, Square, Send, Users, X, SlidersHorizontal,
     Check,
 } from "lucide-react";
@@ -61,7 +61,7 @@ function matchesSearch(p: Provider, q: string): boolean {
     return name.includes(lower) || location.includes(lower) || cats.includes(lower);
 }
 
-function ProviderDetailModal({ provider, onClose }: { provider: Provider; onClose: () => void }) {
+function ProviderDetailModal({ provider, onClose, onSOS }: { provider: Provider; onClose: () => void; onSOS: (provider: Provider) => void }) {
     const photoUrl = provider.profile_photo_url
         ? provider.profile_photo_url.startsWith("/")
             ? `${process.env.NEXT_PUBLIC_API_URL}${provider.profile_photo_url}`
@@ -83,6 +83,7 @@ function ProviderDetailModal({ provider, onClose }: { provider: Provider; onClos
                 <div className="flex items-start gap-4 mb-6">
                     <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 flex-shrink-0 flex items-center justify-center">
                         {photoUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
                             <img src={photoUrl} alt={name} className="w-full h-full object-cover" />
                         ) : (
                             <span className="text-2xl font-black text-slate-300">{name.charAt(0).toUpperCase()}</span>
@@ -153,6 +154,23 @@ function ProviderDetailModal({ provider, onClose }: { provider: Provider; onClos
                         </div>
                     )}
                 </div>
+
+                {/* Action buttons */}
+                <div className="flex flex-col gap-2 mt-5 pt-5 border-t border-slate-100">
+                    {provider.availability_status === "AVAILABLE" && (
+                        <button
+                            onClick={() => onSOS(provider)}
+                            className="w-full py-3 bg-rose-600 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-rose-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                        >
+                            <AlertTriangle size={14} /> Send Emergency SOS
+                        </button>
+                    )}
+                    {provider.availability_status !== "AVAILABLE" && (
+                        <p className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest py-2">
+                            Currently {provider.availability_status.toLowerCase()} — not available for SOS
+                        </p>
+                    )}
+                </div>
             </div>
         </div>
     );
@@ -215,8 +233,8 @@ function ProvidersContent() {
         try {
             const data = await apiFetch("/services/providers");
             setAllProviders(data ?? []);
-        } catch (err: any) {
-            const msg = err?.message || "";
+        } catch (err) {
+            const msg = (err as Error).message ||"";
             if (
                 msg.toLowerCase().includes("failed to fetch") ||
                 msg.toLowerCase().includes("network") ||
@@ -306,7 +324,7 @@ function ProvidersContent() {
     const toggleSelect = (id: string) => {
         setSelectedIds(prev => {
             const next = new Set(prev);
-            next.has(id) ? next.delete(id) : next.add(id);
+            if (next.has(id)) { next.delete(id); } else { next.add(id); }
             return next;
         });
     };
@@ -639,6 +657,7 @@ function ProvidersContent() {
                                 </button>
                                 <div className="w-9 h-9 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex-shrink-0 flex items-center justify-center">
                                     {photoUrl ? (
+                                        // eslint-disable-next-line @next/next/no-img-element
                                         <img src={photoUrl} alt={name} className="w-full h-full object-cover" />
                                     ) : (
                                         <span className="text-sm font-black text-slate-300">{name.charAt(0).toUpperCase()}</span>
@@ -779,6 +798,10 @@ function ProvidersContent() {
                 <ProviderDetailModal
                     provider={selectedProvider}
                     onClose={() => setSelectedProvider(null)}
+                    onSOS={(p) => {
+                        setSelectedProvider(null);
+                        router.push(`/user/bookings/emergency?provider_id=${p.id}&category=${encodeURIComponent(p.category || p.categories?.[0] || "")}`);
+                    }}
                 />
             )}
         </div>

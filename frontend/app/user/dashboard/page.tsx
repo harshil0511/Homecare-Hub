@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
     ShieldCheck,
+    ShieldAlert,
     Clock,
     LayoutDashboard,
     AlertCircle,
@@ -18,7 +19,7 @@ import {
     Search,
     Calendar,
 } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, emergencyApi, EmergencyRequestRead } from "@/lib/api";
 import { page, card, stat, btn, form, modal, badge, iconBox } from "@/lib/ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -100,6 +101,7 @@ export default function DashboardPage() {
     const [tasks, setTasks] = useState<MaintenanceTask[]>([]);
     const [bookings, setBookings] = useState<ActiveBooking[]>([]);
     const [loading, setLoading] = useState(true);
+    const [activeEmergency, setActiveEmergency] = useState<EmergencyRequestRead | null>(null);
     const [showTaskModal, setShowTaskModal] = useState(false);
     const [newTask, setNewTask] = useState({ title: "", description: "", due_date: "", priority: "Routine", category: "" });
     const [findingServicer, setFindingServicer] = useState<number | null>(null);
@@ -117,7 +119,12 @@ export default function DashboardPage() {
         }
     };
 
-    useEffect(() => { fetchData(); }, []);
+    useEffect(() => {
+        fetchData();
+        emergencyApi.getActive()
+            .then(em => setActiveEmergency(em))
+            .catch(() => setActiveEmergency(null));
+    }, []);
 
     const handleCreateTask = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -126,8 +133,8 @@ export default function DashboardPage() {
             setShowTaskModal(false);
             setNewTask({ title: "", description: "", due_date: "", priority: "Routine", category: "" });
             fetchData();
-        } catch (err: any) {
-            alert(err.message || "Failed to create alert");
+        } catch (err) {
+            alert((err as Error).message || "Failed to create alert");
         }
     };
 
@@ -215,6 +222,23 @@ export default function DashboardPage() {
                     </button>
                 </div>
             </div>
+
+            {/* ── Active Emergency Banner ── */}
+            {activeEmergency && (
+                <Link
+                    href="/user/bookings/emergency"
+                    className="flex items-center justify-between bg-rose-600 text-white rounded-2xl px-5 py-4 shadow-lg shadow-rose-600/25 hover:bg-rose-700 transition-all animate-in fade-in duration-300"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                        <div>
+                            <p className="text-xs font-black uppercase tracking-widest">SOS Active — {activeEmergency.category}</p>
+                            <p className="text-[10px] text-rose-200 mt-0.5">Waiting for expert response · Tap to view</p>
+                        </div>
+                    </div>
+                    <ShieldAlert size={20} className="shrink-0" />
+                </Link>
+            )}
 
             {/* Stat Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import {
-    ShieldAlert, Settings, AlertTriangle, Star, Users,
-    ChevronDown, ChevronUp, Check, X, Loader2, Edit3,
+    ShieldAlert, AlertTriangle, Star,
+    ChevronDown, ChevronUp, Check, Loader2, Edit3,
 } from "lucide-react";
 import Spinner from "@/components/ui/Spinner";
 import EmptyState from "@/components/ui/EmptyState";
@@ -12,7 +12,6 @@ import {
     EmergencyConfig,
     EmergencyPenaltyConfig,
     EmergencyRequestRead,
-    EmergencyStarAdjustCreate,
 } from "@/lib/api";
 import { useToast } from "@/lib/toast-context";
 
@@ -55,7 +54,7 @@ export default function AdminEmergencyPage() {
     const [requests, setRequests] = useState<EmergencyRequestRead[]>([]);
     const [requestsLoading, setRequestsLoading] = useState(false);
     const [statusFilter, setStatusFilter] = useState("");
-    const [expandedRequest, setExpandedRequest] = useState<number | null>(null);
+    const [expandedRequest, setExpandedRequest] = useState<string | null>(null);
 
     // ── Star adjust state ──────────────────────────────────────────────────────
     const [starProviderId, setStarProviderId] = useState("");
@@ -72,7 +71,7 @@ export default function AdminEmergencyPage() {
                 .catch(() => showError("Failed to load pricing configs."))
                 .finally(() => setConfigsLoading(false));
         }
-    }, [activeTab]);
+    }, [activeTab, showError]);
 
     useEffect(() => {
         if (activeTab === "penalties") {
@@ -82,7 +81,7 @@ export default function AdminEmergencyPage() {
                 .catch(() => showError("Failed to load penalty configs."))
                 .finally(() => setPenaltiesLoading(false));
         }
-    }, [activeTab]);
+    }, [activeTab, showError]);
 
     useEffect(() => {
         if (activeTab === "requests") {
@@ -92,7 +91,7 @@ export default function AdminEmergencyPage() {
                 .catch(() => showError("Failed to load emergency requests."))
                 .finally(() => setRequestsLoading(false));
         }
-    }, [activeTab, statusFilter]);
+    }, [activeTab, statusFilter, showError]);
 
     // ── Handlers ───────────────────────────────────────────────────────────────
     const handleSaveConfig = async () => {
@@ -106,8 +105,8 @@ export default function AdminEmergencyPage() {
             setConfigs(prev => prev.map(c => c.id === updated.id ? updated : c));
             setEditingConfig(null);
             success("Pricing updated.");
-        } catch (err: any) {
-            showError(err.message || "Failed to update config.");
+        } catch (err) {
+            showError((err as Error).message ||"Failed to update config.");
         } finally {
             setSavingConfig(false);
         }
@@ -125,8 +124,8 @@ export default function AdminEmergencyPage() {
             setConfigs(prev => [...prev, created]);
             setNewCategory(""); setNewCallout(""); setNewHourly("");
             success("Config created.");
-        } catch (err: any) {
-            showError(err.message || "Failed to create config.");
+        } catch (err) {
+            showError((err as Error).message ||"Failed to create config.");
         } finally {
             setCreatingConfig(false);
         }
@@ -140,15 +139,15 @@ export default function AdminEmergencyPage() {
             setPenalties(prev => prev.map(p => p.event_type === updated.event_type ? updated : p));
             setEditingPenalty(null);
             success("Penalty rate updated.");
-        } catch (err: any) {
-            showError(err.message || "Failed to update penalty.");
+        } catch (err) {
+            showError((err as Error).message ||"Failed to update penalty.");
         } finally {
             setSavingPenalty(false);
         }
     };
 
     const handleStarAdjust = async () => {
-        const pid = parseInt(starProviderId);
+        const pid = starProviderId.trim();
         const delta = parseFloat(starDelta);
         if (!pid || isNaN(delta) || !starReason.trim()) {
             showError("Fill provider ID, delta, and reason.");
@@ -158,9 +157,9 @@ export default function AdminEmergencyPage() {
         try {
             await adminEmergencyApi.starAdjust(pid, { delta, reason: starReason });
             setStarProviderId(""); setStarDelta(""); setStarReason("");
-            success(`Star rating adjusted by ${delta > 0 ? "+" : ""}${delta} for provider #${pid}.`);
-        } catch (err: any) {
-            showError(err.message || "Failed to adjust stars.");
+            success(`Star rating adjusted by ${delta > 0 ? "+" : ""}${delta} for provider ${pid}.`);
+        } catch (err) {
+            showError((err as Error).message ||"Failed to adjust stars.");
         } finally {
             setSubmittingStar(false);
         }
@@ -393,8 +392,8 @@ export default function AdminEmergencyPage() {
 
                     <div className="bg-white border border-slate-100 rounded-2xl p-6 space-y-4">
                         <div>
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Provider ID *</label>
-                            <input type="number" min="1" value={starProviderId} onChange={e => setStarProviderId(e.target.value)} placeholder="e.g. 12" className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-rose-400" />
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Provider UUID *</label>
+                            <input type="text" value={starProviderId} onChange={e => setStarProviderId(e.target.value)} placeholder="e.g. 550e8400-e29b-41d4-a716-446655440000" className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-rose-400 font-mono" />
                         </div>
                         <div>
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Delta (±5.0) *</label>

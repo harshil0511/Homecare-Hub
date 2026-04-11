@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-
 import {
-    ArrowRight, Check, ChevronLeft,
-    Clock, Loader2, ShieldAlert, Star, Users, X, Zap
+    ArrowRight, Check, ChevronLeft, Clock, Loader2,
+    ShieldAlert, Users, X, Zap,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -22,10 +21,9 @@ const CATEGORIES = [
     "Appliance Failure", "Structural", "Pest", "Other",
 ];
 
-// ── Step type ─────────────────────────────────────────────────────────────────
 type Step = "category" | "details" | "providers" | "waiting" | "done";
 
-interface FormData {
+interface SOSFormData {
     category: string;
     society_name: string;
     building_name: string;
@@ -38,7 +36,6 @@ interface FormData {
     contact_phone: string;
 }
 
-// ── Countdown hook ─────────────────────────────────────────────────────────────
 function useCountdown(expiresAt: string | null) {
     const [remaining, setRemaining] = useState(0);
     useEffect(() => {
@@ -54,14 +51,15 @@ function useCountdown(expiresAt: string | null) {
     return remaining;
 }
 
-export default function EmergencySOSPage() {
+function EmergencySOSContent() {
     const { success, error: showError } = useToast();
 
     const [step, setStep] = useState<Step>("category");
     const [loading, setLoading] = useState(false);
+    const [checkingActive, setCheckingActive] = useState(true);
     const [configs, setConfigs] = useState<EmergencyConfig[]>([]);
 
-    const [form, setForm] = useState<FormData>({
+    const [form, setForm] = useState<SOSFormData>({
         category: "",
         society_name: "", building_name: "", flat_no: "",
         landmark: "", full_address: "", description: "",
@@ -69,25 +67,50 @@ export default function EmergencySOSPage() {
     });
 
     const [providers, setProviders] = useState<ProviderBasic[]>([]);
-    const [selectedProviderIds, setSelectedProviderIds] = useState<number[]>([]);
+    const [providersLoading, setProvidersLoading] = useState(false);
+    const [selectedProviderIds, setSelectedProviderIds] = useState<string[]>([]);
 
     const [emergencyRequest, setEmergencyRequest] = useState<EmergencyRequestRead | null>(null);
     const [responses, setResponses] = useState<EmergencyResponseRead[]>([]);
-    const [resultingBookingId, setResultingBookingId] = useState<number | null>(null);
+    const [resultingBookingId, setResultingBookingId] = useState<string | null>(null);
 
     const wsRef = useRef<WebSocket | null>(null);
     const countdown = useCountdown(emergencyRequest?.expires_at ?? null);
 
-    // Load configs on mount
+    // On mount: load configs + check for existing active emergency + handle pre-selected provider from Find Expert
     useEffect(() => {
         emergencyApi.getConfigs().then(setConfigs).catch(() => {});
+
+        // Read URL params directly (safe in "use client" — runs client-side only)
+        const params = new URLSearchParams(window.location.search);
+        const preProviderId = params.get("provider_id");
+        const preCategory = params.get("category") || "";
+
+        emergencyApi.getActive()
+            .then(existing => {
+                setEmergencyRequest(existing);
+                setForm(f => ({ ...f, category: existing.category }));
+                const pendingResponses = (existing.responses || []).filter(r => r.status === "PENDING");
+                setResponses(pendingResponses);
+                setStep("waiting");
+            })
+            .catch(() => {
+                // No active emergency — check if coming from Find Expert page
+                if (preProviderId && preCategory) {
+                    setForm(f => ({ ...f, category: preCategory }));
+                    setSelectedProviderIds([preProviderId]);
+                    setStep("details");
+                }
+            })
+            .finally(() => setCheckingActive(false));
     }, []);
 
-    // WebSocket setup when waiting
+    // WebSocket — only depends on the request ID string, not the whole object
+    const emergencyRequestId = emergencyRequest?.id ?? null;
     useEffect(() => {
-        if (step !== "waiting" || !emergencyRequest) return;
+        if (step !== "waiting" || !emergencyRequestId) return;
 
-        const ws = createUserEmergencySocket(emergencyRequest.id);
+        const ws = createUserEmergencySocket(emergencyRequestId);
         wsRef.current = ws;
 
         ws.onmessage = (evt) => {
@@ -98,7 +121,7 @@ export default function EmergencySOSPage() {
                         if (prev.find(r => r.id === msg.response_id)) return prev;
                         return [...prev, {
                             id: msg.response_id,
-                            request_id: emergencyRequest.id,
+                            request_id: emergencyRequestId,
                             provider_id: msg.provider_id,
                             arrival_time: msg.arrival_time,
                             status: "PENDING",
@@ -115,6 +138,8 @@ export default function EmergencySOSPage() {
                     setResultingBookingId(msg.booking_id);
                     setStep("done");
                 } else if (msg.event === "request_cancelled") {
+                    setEmergencyRequest(null);
+                    setResponses([]);
                     setStep("category");
                 }
             } catch { /* ignore malformed frames */ }
@@ -124,37 +149,33 @@ export default function EmergencySOSPage() {
             ws.close();
             wsRef.current = null;
         };
-    }, [step, emergencyRequest]);
+    }, [step, emergencyRequestId]);
 
-    // Also poll for responses every 10s as fallback
+    // Poll for responses every 10s as fallback
     useEffect(() => {
-        if (step !== "waiting" || !emergencyRequest) return;
+        if (step !== "waiting" || !emergencyRequestId) return;
         const id = setInterval(async () => {
             try {
-                const data = await emergencyApi.getRequest(emergencyRequest.id);
+                const data = await emergencyApi.getRequest(emergencyRequestId);
                 if (data.responses) setResponses(data.responses.filter(r => r.status === "PENDING"));
                 if (data.status === "BOOKED" && data.resulting_booking_id) {
                     setResultingBookingId(data.resulting_booking_id);
                     setStep("done");
                 }
+                if (data.status === "EXPIRED" || data.status === "CANCELLED") {
+                    setEmergencyRequest(null);
+                    setResponses([]);
+                    setStep("category");
+                }
             } catch { /* silent */ }
         }, 10000);
         return () => clearInterval(id);
-    }, [step, emergencyRequest]);
+    }, [step, emergencyRequestId]);
 
     const configFor = (cat: string) => configs.find(c => c.category === cat);
 
-    const handleCategorySelect = async (cat: string) => {
+    const handleCategorySelect = (cat: string) => {
         setForm(f => ({ ...f, category: cat }));
-        setLoading(true);
-        try {
-            const prov = await emergencyApi.getProviders(cat);
-            setProviders(prov);
-        } catch {
-            showError("Failed to load providers. Try again.");
-        } finally {
-            setLoading(false);
-        }
         setStep("details");
     };
 
@@ -164,47 +185,83 @@ export default function EmergencySOSPage() {
             showError("Please fill all required fields.");
             return;
         }
+        // Always show provider selection — keep any pre-selected provider from Find Expert
+        setProvidersLoading(true);
+        setProviders([]);
+        emergencyApi.getProviders(form.category)
+            .then(list => setProviders(list || []))
+            .catch(() => setProviders([]))
+            .finally(() => setProvidersLoading(false));
         setStep("providers");
     };
 
-    const toggleProvider = (id: number) => {
+    const toggleProvider = (id: string) => {
         setSelectedProviderIds(prev =>
             prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
         );
     };
 
+    const selectAll = () => {
+        setSelectedProviderIds(providers.map(p => String(p.id)));
+    };
+
     const handleSubmit = async () => {
-        if (selectedProviderIds.length === 0) {
-            showError("Select at least one provider to broadcast to.");
-            return;
-        }
         setLoading(true);
         try {
             const em = await emergencyApi.create({
-                ...form,
-                provider_ids: selectedProviderIds,
+                society_name: form.society_name,
+                building_name: form.building_name,
+                flat_no: form.flat_no,
+                landmark: form.landmark,
+                full_address: form.full_address,
+                category: form.category,
+                description: form.description,
+                device_name: form.device_name || undefined,
+                contact_name: form.contact_name,
+                contact_phone: form.contact_phone,
+                // Send selected providers (UUIDs), or omit = broadcast to all available
+                provider_ids: selectedProviderIds.length > 0
+                    ? selectedProviderIds
+                    : undefined,
             });
             setEmergencyRequest(em);
             setResponses([]);
             setStep("waiting");
-            success("SOS broadcast sent to selected providers.");
-        } catch (err: any) {
-            showError(err.message || "Failed to create emergency request.");
+            const target = selectedProviderIds.length > 0
+                ? `${selectedProviderIds.length} expert(s)`
+                : "all available experts";
+            success(`SOS broadcast sent to ${target}.`);
+        } catch (err) {
+            if ((err as Error).message?.includes("already have an active")) {
+                try {
+                    const existing = await emergencyApi.getActive();
+                    setEmergencyRequest(existing);
+                    setForm(f => ({ ...f, category: existing.category }));
+                    const pendingResponses = (existing.responses || []).filter(r => r.status === "PENDING");
+                    setResponses(pendingResponses);
+                    setStep("waiting");
+                    success("Resumed your active SOS request.");
+                } catch {
+                    showError("You already have an active emergency. Check your active SOS.");
+                }
+            } else {
+                showError((err as Error).message ||"Failed to create emergency request.");
+            }
         } finally {
             setLoading(false);
         }
     };
 
-    const handleAccept = async (responseId: number) => {
+    const handleAccept = async (responseId: string) => {
         if (!emergencyRequest) return;
         setLoading(true);
         try {
-            const booking: any = await emergencyApi.accept(emergencyRequest.id, responseId);
+            const booking = await emergencyApi.accept(emergencyRequest.id, responseId) as { id?: string };
             setResultingBookingId(booking?.id ?? null);
             setStep("done");
-            success("Provider accepted. Booking created.");
-        } catch (err: any) {
-            showError(err.message || "Failed to accept response.");
+            success("Expert accepted. On the way!");
+        } catch (err) {
+            showError((err as Error).message ||"Failed to accept response.");
         } finally {
             setLoading(false);
         }
@@ -215,16 +272,18 @@ export default function EmergencySOSPage() {
         setLoading(true);
         try {
             await emergencyApi.cancel(emergencyRequest.id);
+            setEmergencyRequest(null);
+            setResponses([]);
             setStep("category");
             success("Emergency request cancelled.");
-        } catch (err: any) {
-            showError(err.message || "Failed to cancel.");
+        } catch (err) {
+            showError((err as Error).message ||"Failed to cancel.");
         } finally {
             setLoading(false);
         }
     };
 
-    const field = (key: keyof FormData, label: string, placeholder: string, type: "input" | "textarea" = "input") => (
+    const field = (key: keyof SOSFormData, label: string, placeholder: string, type: "input" | "textarea" = "input") => (
         <div className="space-y-2">
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</label>
             {type === "textarea" ? (
@@ -247,9 +306,16 @@ export default function EmergencySOSPage() {
     );
 
     const providerName = (p: ProviderBasic) =>
-        p.first_name || p.company_name || p.owner_name || `Provider #${p.id}`;
+        p.first_name || p.company_name || p.owner_name || `Expert #${String(p.id).slice(0, 8)}`;
 
-    // ── Render ─────────────────────────────────────────────────────────────────
+    // ── Loading while checking active emergency ───────────────────────────────
+    if (checkingActive) {
+        return (
+            <div className="flex justify-center items-center py-32">
+                <Loader2 className="animate-spin text-rose-500" size={32} />
+            </div>
+        );
+    }
 
     return (
         <div className="max-w-2xl mx-auto pb-24 px-4 pt-6">
@@ -274,8 +340,7 @@ export default function EmergencySOSPage() {
                                 <button
                                     key={cat}
                                     onClick={() => handleCategorySelect(cat)}
-                                    disabled={loading}
-                                    className="group p-5 rounded-3xl border-2 border-slate-100 bg-white text-left hover:border-rose-200 hover:bg-rose-50 transition-all duration-200 disabled:opacity-50"
+                                    className="group p-5 rounded-3xl border-2 border-slate-100 bg-white text-left hover:border-rose-200 hover:bg-rose-50 transition-all duration-200"
                                 >
                                     <div className="flex items-start gap-3">
                                         <div className="w-9 h-9 rounded-xl bg-rose-50 flex items-center justify-center text-rose-500 shrink-0 group-hover:bg-rose-100">
@@ -294,12 +359,6 @@ export default function EmergencySOSPage() {
                             );
                         })}
                     </div>
-
-                    {loading && (
-                        <div className="flex justify-center">
-                            <Loader2 className="animate-spin text-rose-500" size={24} />
-                        </div>
-                    )}
                 </div>
             )}
 
@@ -312,9 +371,18 @@ export default function EmergencySOSPage() {
                         </button>
                         <div>
                             <h2 className="text-lg font-black text-slate-900 uppercase">{form.category} — Location & Contact</h2>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Required before broadcasting</p>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Fill details before selecting expert</p>
                         </div>
                     </div>
+
+                    {configFor(form.category) && (
+                        <div className="bg-rose-50 border border-rose-100 rounded-2xl px-5 py-4 flex items-center justify-between">
+                            <span className="text-xs font-black text-rose-700 uppercase tracking-wide">Emergency Rates</span>
+                            <span className="text-xs font-bold text-rose-600">
+                                Callout ₹{configFor(form.category)!.callout_fee} + ₹{configFor(form.category)!.hourly_rate}/hr
+                            </span>
+                        </div>
+                    )}
 
                     <div className="bg-white border border-slate-100 rounded-3xl p-6 space-y-4">
                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50 pb-3">Location</p>
@@ -345,7 +413,7 @@ export default function EmergencySOSPage() {
                         onClick={handleDetailsNext}
                         className="w-full bg-rose-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-rose-600/20 hover:bg-rose-700 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
                     >
-                        Next: Select Providers <ArrowRight size={18} />
+                        Find Expert <ArrowRight size={18} />
                     </button>
                 </div>
             )}
@@ -358,125 +426,161 @@ export default function EmergencySOSPage() {
                             <ChevronLeft size={18} />
                         </button>
                         <div>
-                            <h2 className="text-lg font-black text-slate-900 uppercase">Select Providers</h2>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">SOS will be broadcast to selected providers</p>
+                            <h2 className="text-lg font-black text-slate-900 uppercase">Select Experts</h2>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{form.category} · SOS broadcast to selected</p>
                         </div>
                     </div>
 
-                    {providers.length === 0 ? (
-                        <div className="bg-amber-50 border border-amber-200 rounded-3xl p-8 text-center space-y-3">
+                    {providersLoading ? (
+                        <div className="flex justify-center py-12">
+                            <Loader2 className="animate-spin text-rose-500" size={28} />
+                        </div>
+                    ) : providers.length === 0 ? (
+                        <div className="bg-amber-50 border border-amber-200 rounded-3xl p-8 text-center space-y-4">
                             <Users size={32} className="text-amber-500 mx-auto" />
-                            <p className="font-black text-amber-800 text-sm uppercase">No providers available</p>
-                            <p className="text-xs text-amber-600">No verified providers are available for {form.category} right now.</p>
+                            <div>
+                                <p className="font-black text-amber-800 text-sm uppercase">No Experts Available Right Now</p>
+                                <p className="text-xs text-amber-600 mt-1">No experts are currently available for {form.category}.</p>
+                            </div>
+                            <button
+                                onClick={handleSubmit}
+                                disabled={loading}
+                                className="w-full bg-rose-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-rose-600/20 hover:bg-rose-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                                {loading ? <Loader2 className="animate-spin" size={16} /> : <><ShieldAlert size={16} /> Broadcast to All Anyway</>}
+                            </button>
+                            <Link href="/user/providers" className="block text-xs font-bold text-rose-600 hover:underline">
+                                View all providers →
+                            </Link>
                         </div>
                     ) : (
-                        <div className="space-y-3">
-                            {providers.map(p => {
-                                const selected = selectedProviderIds.includes(p.id);
-                                return (
-                                    <button
-                                        key={p.id}
-                                        onClick={() => toggleProvider(p.id)}
-                                        className={`w-full p-4 rounded-2xl border-2 text-left transition-all duration-200 ${
-                                            selected
-                                                ? "border-rose-500 bg-rose-50"
-                                                : "border-slate-100 bg-white hover:border-rose-200"
-                                        }`}
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <p className="font-black text-slate-900 text-sm">{providerName(p)}</p>
-                                                <p className="text-[10px] text-slate-400 font-semibold uppercase mt-0.5">{p.category}</p>
-                                            </div>
-                                            <div className="flex items-center gap-3">
-                                                {p.rating != null && (
-                                                    <span className="flex items-center gap-1 text-xs font-bold text-amber-600">
-                                                        <Star size={12} fill="currentColor" /> {p.rating.toFixed(1)}
-                                                    </span>
-                                                )}
-                                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selected ? "border-rose-500 bg-rose-500" : "border-slate-300"}`}>
-                                                    {selected && <Check size={12} className="text-white" />}
+                        <>
+                            <div className="flex items-center justify-between">
+                                <p className="text-xs font-bold text-slate-500">
+                                    {selectedProviderIds.length > 0
+                                        ? `${selectedProviderIds.length} selected`
+                                        : "Select experts to notify"}
+                                </p>
+                                <button
+                                    onClick={selectedProviderIds.length === providers.length ? () => setSelectedProviderIds([]) : selectAll}
+                                    className="text-[10px] font-black uppercase tracking-widest text-rose-600 hover:text-rose-700"
+                                >
+                                    {selectedProviderIds.length === providers.length ? "Deselect All" : "Select All"}
+                                </button>
+                            </div>
+
+                            <div className="space-y-2">
+                                {providers.map(p => {
+                                    const id = String(p.id);
+                                    const selected = selectedProviderIds.includes(id);
+                                    return (
+                                        <button
+                                            key={id}
+                                            onClick={() => toggleProvider(id)}
+                                            className={`w-full p-4 rounded-2xl border-2 text-left transition-all duration-200 ${
+                                                selected
+                                                    ? "border-rose-500 bg-rose-50"
+                                                    : "border-slate-100 bg-white hover:border-rose-200"
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <p className="font-black text-slate-900 text-sm">{providerName(p)}</p>
+                                                    <p className="text-[10px] text-slate-400 font-semibold uppercase mt-0.5">{p.category}</p>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    {p.rating != null && (
+                                                        <span className="text-xs font-bold text-amber-600">
+                                                            {p.rating > 0 ? `★ ${p.rating.toFixed(1)}` : "★ New"}
+                                                        </span>
+                                                    )}
+                                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${selected ? "border-rose-500 bg-rose-500" : "border-slate-300"}`}>
+                                                        {selected && <Check size={12} className="text-white" />}
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    </button>
-                                );
-                            })}
-                        </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            <button
+                                onClick={handleSubmit}
+                                disabled={loading}
+                                className="w-full bg-rose-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-rose-600/20 hover:bg-rose-700 active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {loading ? <Loader2 className="animate-spin" size={20} /> : (
+                                    <><ShieldAlert size={18} />
+                                        {selectedProviderIds.length > 0
+                                            ? `Broadcast SOS to ${selectedProviderIds.length} Expert${selectedProviderIds.length > 1 ? "s" : ""}`
+                                            : "Broadcast SOS to All Experts"
+                                        }
+                                    </>
+                                )}
+                            </button>
+                        </>
                     )}
-
-                    <p className="text-center text-[10px] font-bold text-slate-400 uppercase">
-                        {selectedProviderIds.length} provider{selectedProviderIds.length !== 1 ? "s" : ""} selected
-                    </p>
-
-                    <button
-                        onClick={handleSubmit}
-                        disabled={loading || selectedProviderIds.length === 0}
-                        className="w-full bg-rose-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-rose-600/20 hover:bg-rose-700 active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {loading ? <Loader2 className="animate-spin" size={20} /> : (
-                            <><ShieldAlert size={18} /> Broadcast SOS Now</>
-                        )}
-                    </button>
                 </div>
             )}
 
             {/* ── Step: Waiting ──────────────────────────────────────────── */}
             {step === "waiting" && emergencyRequest && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    {/* Header */}
                     <div className="bg-rose-600 rounded-3xl p-6 text-white space-y-3">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
                                 <span className="text-xs font-black uppercase tracking-widest">SOS Active</span>
                             </div>
-                            <span className="text-xs font-bold bg-white/20 px-3 py-1 rounded-full">{form.category}</span>
+                            <span className="text-xs font-bold bg-white/20 px-3 py-1 rounded-full">{emergencyRequest.category}</span>
                         </div>
                         <div className="flex items-center gap-2 text-2xl font-black">
                             <Clock size={20} />
                             {countdown > 0
                                 ? `${Math.floor(countdown / 60)}:${String(countdown % 60).padStart(2, "0")} remaining`
-                                : "Window closed"
+                                : "Response window closed"
                             }
                         </div>
-                        <p className="text-xs text-rose-100">
-                            Broadcast sent to {selectedProviderIds.length} provider(s). Waiting for responses…
-                        </p>
+                        <p className="text-xs text-rose-100">Waiting for experts to respond with their arrival time…</p>
                     </div>
 
-                    {/* Responses */}
                     <div className="space-y-3">
                         <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            Incoming Responses ({responses.length})
+                            Expert Responses ({responses.length})
                         </h3>
 
                         {responses.length === 0 && (
                             <div className="bg-slate-50 rounded-2xl p-8 text-center space-y-2">
                                 <Loader2 className="animate-spin text-slate-400 mx-auto" size={24} />
-                                <p className="text-xs font-bold text-slate-400 uppercase">Waiting for providers…</p>
+                                <p className="text-xs font-bold text-slate-400 uppercase">Waiting for experts…</p>
+                                <p className="text-[10px] text-slate-300">Notified experts are reviewing your request</p>
                             </div>
                         )}
 
                         {responses.map(r => {
-                            const cfg = configFor(form.category);
-                            const arrivalLabel = new Date(r.arrival_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                            const cfg = configFor(emergencyRequest.category);
+                            const arrivalDate = new Date(r.arrival_time);
+                            const etaMinutes = Math.round((arrivalDate.getTime() - Date.now()) / 60000);
+                            const arrivalLabel = arrivalDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
                             return (
                                 <div key={r.id} className="bg-white border border-slate-100 rounded-2xl p-5 space-y-3">
                                     <div className="flex items-start justify-between">
                                         <div>
                                             <p className="font-black text-slate-900 text-sm">
-                                                {r.provider?.first_name || r.provider?.company_name || `Provider #${r.provider_id}`}
+                                                {r.provider?.first_name || r.provider?.company_name || `Expert #${r.provider_id.slice(0, 8)}`}
                                             </p>
                                             {r.provider?.rating != null && (
-                                                <span className="flex items-center gap-1 text-xs font-bold text-amber-500 mt-0.5">
-                                                    <Star size={11} fill="currentColor" /> {r.provider.rating.toFixed(1)}
+                                                <span className="text-xs font-bold text-amber-500 mt-0.5 block">
+                                                    {r.provider.rating > 0 ? `★ ${r.provider.rating.toFixed(1)}` : "★ New"}
                                                 </span>
                                             )}
                                         </div>
-                                        <div className="text-right text-xs font-bold text-slate-500">
-                                            <div className="flex items-center gap-1"><Clock size={12} /> ETA {arrivalLabel}</div>
-                                            {cfg && <div className="text-[10px] text-slate-400 mt-1">Callout ₹{cfg.callout_fee} + ₹{cfg.hourly_rate}/hr</div>}
+                                        <div className="text-right">
+                                            <div className="flex items-center gap-1 text-sm font-black text-emerald-600 justify-end">
+                                                <Clock size={14} />
+                                                {etaMinutes > 0 ? `~${etaMinutes} min away` : `Arriving at ${arrivalLabel}`}
+                                            </div>
+                                            {cfg && <div className="text-[10px] text-slate-400 mt-1">₹{cfg.callout_fee} callout + ₹{cfg.hourly_rate}/hr</div>}
                                         </div>
                                     </div>
                                     <button
@@ -484,7 +588,7 @@ export default function EmergencySOSPage() {
                                         disabled={loading}
                                         className="w-full bg-emerald-600 text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-emerald-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                     >
-                                        {loading ? <Loader2 className="animate-spin" size={16} /> : <><Check size={14} /> Accept This Provider</>}
+                                        {loading ? <Loader2 className="animate-spin" size={16} /> : <><Check size={14} /> Accept — Expert On the Way</>}
                                     </button>
                                 </div>
                             );
@@ -510,8 +614,8 @@ export default function EmergencySOSPage() {
                         </div>
                     </div>
                     <div className="space-y-2">
-                        <h1 className="text-3xl font-black text-slate-900 uppercase">Booking Confirmed</h1>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Your emergency provider is on the way</p>
+                        <h1 className="text-3xl font-black text-slate-900 uppercase">Expert On the Way</h1>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Your emergency expert is heading to your location</p>
                     </div>
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
                         {resultingBookingId && (
@@ -534,3 +638,5 @@ export default function EmergencySOSPage() {
         </div>
     );
 }
+
+export default EmergencySOSContent;

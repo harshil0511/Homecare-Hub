@@ -112,25 +112,25 @@ export async function apiFetch(endpoint: string, options: ApiOptions = {}) {
 // ── Emergency SOS API Helpers ──────────────────────────────────────────────────
 
 export interface EmergencyConfig {
-    id: number;
+    id: string;
     category: string;
     callout_fee: number;
     hourly_rate: number;
-    updated_by?: number | null;
+    updated_by?: string | null;
     created_at?: string | null;
     updated_at?: string | null;
 }
 
 export interface EmergencyPenaltyConfig {
-    id: number;
+    id: string;
     event_type: string;
     star_deduction: number;
-    updated_by?: number | null;
+    updated_by?: string | null;
     updated_at?: string | null;
 }
 
 export interface ProviderBasic {
-    id: number;
+    id: string;
     first_name?: string | null;
     company_name?: string | null;
     owner_name?: string | null;
@@ -141,9 +141,9 @@ export interface ProviderBasic {
 }
 
 export interface EmergencyResponseRead {
-    id: number;
-    request_id: number;
-    provider_id: number;
+    id: string;
+    request_id: string;
+    provider_id: string;
     arrival_time: string;
     status: string;
     penalty_count: number;
@@ -153,8 +153,8 @@ export interface EmergencyResponseRead {
 }
 
 export interface EmergencyRequestRead {
-    id: number;
-    user_id: number;
+    id: string;
+    user_id: string;
     society_name: string;
     building_name: string;
     flat_no: string;
@@ -167,9 +167,9 @@ export interface EmergencyRequestRead {
     contact_name: string;
     contact_phone: string;
     status: string;
-    config_id?: number | null;
+    config_id?: string | null;
     expires_at: string;
-    resulting_booking_id?: number | null;
+    resulting_booking_id?: string | null;
     created_at?: string | null;
     updated_at?: string | null;
     responses?: EmergencyResponseRead[];
@@ -177,7 +177,7 @@ export interface EmergencyRequestRead {
 }
 
 export interface IncomingEmergencyRead {
-    id: number;
+    id: string;
     society_name: string;
     building_name: string;
     flat_no: string;
@@ -208,7 +208,7 @@ export interface EmergencyRequestCreate {
     photos?: string[];
     contact_name: string;
     contact_phone: string;
-    provider_ids: number[];
+    provider_ids?: string[];
 }
 
 export interface EmergencyStarAdjustCreate {
@@ -217,13 +217,13 @@ export interface EmergencyStarAdjustCreate {
 }
 
 export interface EmergencyStarAdjustRead {
-    id: number;
-    provider_id: number;
-    adjusted_by: number;
+    id: string;
+    provider_id: string;
+    adjusted_by: string;
     delta: number;
     reason: string;
     event_type: string;
-    emergency_request_id?: number | null;
+    emergency_request_id?: string | null;
     created_at?: string | null;
 }
 
@@ -238,25 +238,28 @@ export const emergencyApi = {
     create: (body: EmergencyRequestCreate): Promise<EmergencyRequestRead> =>
         apiFetch("/emergency/", { method: "POST", body: JSON.stringify(body) }),
 
-    getRequest: (id: number): Promise<EmergencyRequestRead> =>
+    getRequest: (id: string): Promise<EmergencyRequestRead> =>
         apiFetch(`/emergency/${id}`),
 
-    accept: (requestId: number, responseId: number): Promise<unknown> =>
+    getActive: (): Promise<EmergencyRequestRead> =>
+        apiFetch("/emergency/me/active"),
+
+    accept: (requestId: string, responseId: string): Promise<unknown> =>
         apiFetch(`/emergency/${requestId}/accept/${responseId}`, { method: "POST" }),
 
-    cancel: (requestId: number): Promise<{ detail: string }> =>
+    cancel: (requestId: string): Promise<{ detail: string }> =>
         apiFetch(`/emergency/${requestId}/cancel`, { method: "POST" }),
 
     getIncoming: (): Promise<IncomingEmergencyRead[]> =>
         apiFetch("/emergency/incoming-servicer"),
 
-    respond: (requestId: number, arrival_time: string): Promise<EmergencyResponseRead> =>
+    respond: (requestId: string, arrival_time: string): Promise<EmergencyResponseRead> =>
         apiFetch(`/emergency/${requestId}/respond`, {
             method: "POST",
             body: JSON.stringify({ arrival_time }),
         }),
 
-    ignore: (requestId: number): Promise<{ detail: string }> =>
+    ignore: (requestId: string): Promise<{ detail: string }> =>
         apiFetch(`/emergency/${requestId}/ignore`, { method: "POST" }),
 };
 
@@ -268,7 +271,7 @@ export const adminEmergencyApi = {
     createConfig: (body: { category: string; callout_fee: number; hourly_rate: number }): Promise<EmergencyConfig> =>
         apiFetch("/admin/emergency/config", { method: "POST", body: JSON.stringify(body) }),
 
-    updateConfig: (id: number, body: { callout_fee?: number; hourly_rate?: number }): Promise<EmergencyConfig> =>
+    updateConfig: (id: string, body: { callout_fee?: number; hourly_rate?: number }): Promise<EmergencyConfig> =>
         apiFetch(`/admin/emergency/config/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
 
     getPenalties: (): Promise<EmergencyPenaltyConfig[]> =>
@@ -283,19 +286,19 @@ export const adminEmergencyApi = {
     getRequests: (status?: string): Promise<EmergencyRequestRead[]> =>
         apiFetch(`/admin/emergency/requests${status ? `?status=${encodeURIComponent(status)}` : ""}`),
 
-    getRequest: (id: number): Promise<EmergencyRequestRead> =>
+    getRequest: (id: string): Promise<EmergencyRequestRead> =>
         apiFetch(`/admin/emergency/requests/${id}`),
 
-    starAdjust: (providerId: number, body: EmergencyStarAdjustCreate): Promise<EmergencyStarAdjustRead> =>
+    starAdjust: (providerId: string, body: EmergencyStarAdjustCreate): Promise<EmergencyStarAdjustRead> =>
         apiFetch(`/admin/emergency/star-adjust/${providerId}`, {
             method: "POST",
             body: JSON.stringify(body),
         }),
 
-    getStarAdjustments: (providerId: number): Promise<EmergencyStarAdjustRead[]> =>
+    getStarAdjustments: (providerId: string): Promise<EmergencyStarAdjustRead[]> =>
         apiFetch(`/admin/emergency/star-adjust/${providerId}`),
 
-    updateProviderStatus: (providerId: number, is_active: boolean, reason?: string): Promise<{ detail: string }> =>
+    updateProviderStatus: (providerId: string, is_active: boolean, reason?: string): Promise<{ detail: string }> =>
         apiFetch(`/admin/emergency/provider/${providerId}/status`, {
             method: "PATCH",
             body: JSON.stringify({ is_active, reason }),
@@ -307,10 +310,10 @@ const WS_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000")
     .replace(/\/$/, "")
     .replace(/^http/, "ws");
 
-export function createUserEmergencySocket(requestId: number): WebSocket {
+export function createUserEmergencySocket(requestId: string): WebSocket {
     return new WebSocket(`${WS_BASE}/ws/emergency/${requestId}`);
 }
 
-export function createServicerAlertSocket(providerId: number): WebSocket {
+export function createServicerAlertSocket(providerId: string): WebSocket {
     return new WebSocket(`${WS_BASE}/ws/servicer/alerts?provider_id=${providerId}`);
 }
