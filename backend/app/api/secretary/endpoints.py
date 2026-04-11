@@ -1,13 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from uuid import UUID
+from typing import List
 from app.common import deps
 from app.auth.domain.model import User, Society
 from app.maintenance.domain.model import MaintenanceTask
 from app.service.domain.model import ServiceProvider, SocietyRequest
+from app.secretary.domain.model import SecretaryComplaint
+from app.notification.domain.model import Notification
 from app.api.auth.schemas import UserResponse
 from app.api.service.schemas import SocietyResponse, SocietyUpdate, ProviderResponse, SocietyRequestResponse, SocietyRequestAction
-from app.api.secretary.schemas import HomeAssign
+from app.api.secretary.schemas import HomeAssign, SecretaryComplaintCreate, SecretaryComplaintRead
 
 
 router = APIRouter(tags=["Secretary API"])
@@ -149,3 +152,51 @@ def assign_home_to_member(
         "home_number": member.home_number,
         "resident_name": member.resident_name,
     }
+
+
+@router.post("/complaints", response_model=SecretaryComplaintRead)
+def file_secretary_complaint(
+    body: SecretaryComplaintCreate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(secretary_only),
+):
+    """Secretary files a general complaint to admin."""
+    society = get_secretary_society(current_user, db)
+
+    complaint = SecretaryComplaint(
+        society_id=society.id,
+        filed_by=current_user.id,
+        subject=body.subject,
+        description=body.description,
+        status="OPEN",
+    )
+    db.add(complaint)
+    db.flush()
+
+    admins = db.query(User).filter(User.role == "ADMIN").all()
+    for admin in admins:
+        db.add(Notification(
+            user_id=admin.id,
+            title="Secretary Report Filed",
+            message=f"Secretary complaint: {body.subject}",
+            notification_type="WARNING",
+            link="/admin/bookings?tab=secretary-reports",
+        ))
+
+    db.commit()
+    db.refresh(complaint)
+    return complaint
+
+
+@router.get("/complaints", response_model=List[SecretaryComplaintRead])
+def list_secretary_complaints(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(secretary_only),
+):
+    """Secretary lists their own filed complaints."""
+    return (
+        db.query(SecretaryComplaint)
+        .filter(SecretaryComplaint.filed_by == current_user.id)
+        .order_by(SecretaryComplaint.created_at.desc())
+        .all()
+    )
