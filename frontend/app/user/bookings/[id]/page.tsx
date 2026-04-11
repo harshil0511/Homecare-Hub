@@ -8,7 +8,7 @@ import {
     Clock as ClockIcon, Calendar,
     ChevronLeft, Settings, AlertTriangle,
     ShieldCheck, Send, Phone, MapPin,
-    X, FileText, Star, CheckCircle2
+    X, FileText, Star, CheckCircle2, IndianRupee
 } from "lucide-react";
 import BookingStatusTimeline from "@/components/bookings/BookingStatusTimeline";
 
@@ -35,8 +35,11 @@ export default function BookingDetailsPage() {
     const [punctualityRating, setPunctualityRating] = useState(0);
     const [professionalismRating, setProfessionalismRating] = useState(0);
     const [submittingReview, setSubmittingReview] = useState(false);
-    const [completing, setCompleting] = useState(false);
     const [receipt, setReceipt] = useState<any>(null);
+    const [confirming, setConfirming] = useState(false);
+    const [showDispute, setShowDispute] = useState(false);
+    const [disputeReason, setDisputeReason] = useState("");
+    const [filingDispute, setFilingDispute] = useState(false);
 
     const fetchData = async () => {
         try {
@@ -47,7 +50,7 @@ export default function BookingDetailsPage() {
             setBooking(data);
             setMessages(data.chats || []);
             setUserRole(me.role);
-            if (data.status === "Completed") {
+            if (data.status === "Completed" || data.status === "Pending Confirmation") {
                 apiFetch(`/bookings/${id}/receipt`).then(setReceipt).catch((e) => console.error("Receipt fetch failed:", e));
             }
         } catch (err) {
@@ -68,19 +71,34 @@ export default function BookingDetailsPage() {
         }
     }, [loading, booking, userRole]);
 
-    const handleMarkComplete = async () => {
-        setCompleting(true);
+    const handleConfirm = async () => {
+        setConfirming(true);
         try {
-            await apiFetch(`/bookings/${id}/status`, {
-                method: "PATCH",
-                body: JSON.stringify({ status: "Completed" })
-            });
-            toast.success("Booking marked as completed");
+            await apiFetch(`/bookings/${id}/confirm`, { method: "POST" });
+            toast.success("Payment confirmed — job complete!");
             await fetchData();
         } catch (err: any) {
-            toast.error(err.message || "Failed to mark as completed");
+            toast.error(err.message || "Failed to confirm");
         } finally {
-            setCompleting(false);
+            setConfirming(false);
+        }
+    };
+
+    const handleDispute = async () => {
+        if (!disputeReason.trim()) return;
+        setFilingDispute(true);
+        try {
+            await apiFetch(`/bookings/${id}/complaint`, {
+                method: "POST",
+                body: JSON.stringify({ reason: disputeReason }),
+            });
+            setShowDispute(false);
+            toast.success("Dispute filed — admin will review");
+            await fetchData();
+        } catch (err: any) {
+            toast.error(err.message || "Failed to file dispute");
+        } finally {
+            setFilingDispute(false);
         }
     };
 
@@ -196,15 +214,6 @@ export default function BookingDetailsPage() {
                             <Star size={14} /> Give Feedback
                         </button>
                     )}
-                    {(booking.status === "Accepted" || booking.status === "In Progress") && userRole === "SERVICER" && (
-                        <button
-                            onClick={handleMarkComplete}
-                            disabled={completing}
-                            className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-widest px-6 py-3 rounded-xl transition-all shadow-sm ${completing ? "bg-slate-300 text-slate-500 cursor-not-allowed" : "bg-[#064e3b] text-white hover:bg-emerald-800 active:scale-95 shadow-emerald-900/20"}`}
-                        >
-                            <CheckCircle2 size={14} /> {completing ? "Completing..." : "Mark Complete"}
-                        </button>
-                    )}
                     <button
                         onClick={() => setShowReschedule(true)}
                         className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest bg-white border border-slate-200 px-6 py-3 rounded-xl hover:bg-slate-50 transition-all text-slate-600 shadow-sm"
@@ -258,6 +267,70 @@ export default function BookingDetailsPage() {
                         </div>
 
                         <BookingStatusTimeline currentStatus={booking.status} history={booking.status_history} />
+
+                        {booking.status === "Pending Confirmation" && userRole === "USER" && receipt && (
+                            <div className="bg-amber-50 border border-amber-200 rounded-[2rem] p-8 mt-8">
+                                <h3 className="text-[10px] font-black text-amber-700 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                    <IndianRupee size={12} /> Receipt — Awaiting Your Confirmation
+                                </h3>
+                                <div className="space-y-2 mb-6 text-sm text-slate-700">
+                                    <div className="flex justify-between">
+                                        <span>Base Price</span>
+                                        <span className="font-bold">₹{Number(receipt.base_price).toLocaleString("en-IN")}</span>
+                                    </div>
+                                    {receipt.extra_hours > 0 && (
+                                        <div className="flex justify-between">
+                                            <span>Extra ({receipt.extra_hours}h × ₹{receipt.hourly_rate?.toFixed(0)}/h)</span>
+                                            <span className="font-bold">₹{Number(receipt.extra_charge).toLocaleString("en-IN")}</span>
+                                        </div>
+                                    )}
+                                    <div className="border-t border-amber-200 pt-2 flex justify-between font-black text-base">
+                                        <span>Total</span>
+                                        <span className="text-emerald-700">₹{Number(receipt.final_amount).toLocaleString("en-IN")}</span>
+                                    </div>
+                                </div>
+
+                                {!showDispute ? (
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={() => setShowDispute(true)}
+                                            className="flex-1 py-3 border border-rose-200 text-rose-600 rounded-2xl text-sm font-black uppercase hover:bg-rose-50"
+                                        >
+                                            Dispute
+                                        </button>
+                                        <button
+                                            onClick={handleConfirm}
+                                            disabled={confirming}
+                                            className="flex-1 py-3 bg-[#064e3b] text-white rounded-2xl text-sm font-black uppercase hover:bg-emerald-800 disabled:opacity-50"
+                                        >
+                                            {confirming ? "Confirming..." : "Confirm Payment"}
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        <textarea
+                                            value={disputeReason}
+                                            onChange={e => setDisputeReason(e.target.value)}
+                                            placeholder="Describe the issue with this bill..."
+                                            rows={3}
+                                            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none"
+                                        />
+                                        <div className="flex gap-3">
+                                            <button onClick={() => setShowDispute(false)} className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm font-black uppercase text-slate-500">
+                                                Back
+                                            </button>
+                                            <button
+                                                onClick={handleDispute}
+                                                disabled={filingDispute || !disputeReason.trim()}
+                                                className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl text-sm font-black uppercase disabled:opacity-50"
+                                            >
+                                                {filingDispute ? "Submitting..." : "File Dispute"}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-16 pb-12 border-b border-slate-100">
                             <div className="space-y-4">
