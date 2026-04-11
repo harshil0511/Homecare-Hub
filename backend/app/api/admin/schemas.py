@@ -43,6 +43,8 @@ class ComplaintAdminRead(BaseModel):
 class ComplaintAdminUpdate(BaseModel):
     status: Optional[str] = None
     admin_notes: Optional[str] = None
+    action: Optional[str] = None          # "cancel_bill" | "override_amount"
+    override_amount: Optional[float] = None
 
 
 class SecretaryComplaintRead(BaseModel):

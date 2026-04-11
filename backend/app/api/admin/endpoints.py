@@ -544,17 +544,97 @@ def update_complaint(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(admin_only),
 ):
-    """Update complaint status and add admin notes."""
+    """Update complaint status/notes and optionally cancel bill or override amount."""
+    from app.notification.domain.model import Notification as NotificationModel
+    from app.service.point_engine import award_points
+
     complaint = db.query(BookingComplaint).filter(BookingComplaint.id == complaint_id).first()
     if not complaint:
         raise HTTPException(status_code=404, detail="Complaint not found")
 
-    if body.status is not None:
-        complaint.status = body.status
-        if body.status == "RESOLVED":
-            complaint.resolved_at = datetime.utcnow()
-    if body.admin_notes is not None:
-        complaint.admin_notes = body.admin_notes
+    booking = db.query(ServiceBooking).filter(ServiceBooking.id == complaint.booking_id).first()
+
+    if body.action == "cancel_bill":
+        if not booking or booking.status != "Pending Confirmation":
+            raise HTTPException(status_code=400, detail="Booking must be in 'Pending Confirmation' to cancel bill")
+        # Revert to In Progress so servicer re-submits
+        booking.status = "In Progress"
+        booking.final_cost = None
+        booking.actual_hours = None
+        booking.completion_notes = None
+        from app.booking.domain.model import BookingStatusHistory
+        db.add(BookingStatusHistory(
+            booking_id=booking.id,
+            status="In Progress",
+            notes="Admin cancelled bill after complaint. Servicer must re-submit completion.",
+        ))
+        complaint.status = "UNDER_REVIEW"
+        if body.admin_notes:
+            complaint.admin_notes = body.admin_notes
+        # Notify servicer
+        from app.service.domain.model import ServiceProvider as SP
+        provider = db.query(SP).filter(SP.id == booking.provider_id).first()
+        if provider:
+            db.add(NotificationModel(
+                user_id=provider.user_id,
+                title="Bill Cancelled by Admin",
+                message=f"Admin cancelled your bill for '{booking.service_type}'. Please re-submit with correct hours.",
+                notification_type="WARNING",
+                link="/service/jobs",
+            ))
+
+    elif body.action == "override_amount":
+        if body.override_amount is None:
+            raise HTTPException(status_code=400, detail="override_amount is required for override_amount action")
+        if not booking or booking.status != "Pending Confirmation":
+            raise HTTPException(status_code=400, detail="Booking must be in 'Pending Confirmation' to override amount")
+        booking.status = "Completed"
+        booking.final_cost = body.override_amount
+        booking.completed_at = datetime.utcnow()
+        from app.booking.domain.model import BookingStatusHistory
+        db.add(BookingStatusHistory(
+            booking_id=booking.id,
+            status="Completed",
+            notes=f"Admin resolved dispute. Final amount overridden to \u20b9{body.override_amount:.0f}.",
+        ))
+        complaint.status = "RESOLVED"
+        complaint.resolved_at = datetime.utcnow()
+        if body.admin_notes:
+            complaint.admin_notes = body.admin_notes
+        # Notify both parties
+        msg = f"Admin resolved the dispute — final amount: \u20b9{body.override_amount:.0f}"
+        db.add(NotificationModel(
+            user_id=booking.user_id,
+            title="Dispute Resolved",
+            message=msg,
+            notification_type="SUCCESS",
+            link=f"/user/bookings/{booking.id}",
+        ))
+        from app.service.domain.model import ServiceProvider as SP
+        provider = db.query(SP).filter(SP.id == booking.provider_id).first()
+        if provider:
+            db.add(NotificationModel(
+                user_id=provider.user_id,
+                title="Dispute Resolved",
+                message=msg,
+                notification_type="SUCCESS",
+                link="/service/jobs",
+            ))
+        # Award points now that booking is completed
+        try:
+            event = "URGENT_COMPLETE" if booking.priority in ("High", "Emergency") else "REGULAR_COMPLETE"
+            award_points(db, provider_id=booking.provider_id, event_type=event, source_id=booking.id)
+        except Exception:
+            pass
+
+    else:
+        # Normal status/notes update
+        if body.status is not None:
+            complaint.status = body.status
+            if body.status == "RESOLVED":
+                complaint.resolved_at = datetime.utcnow()
+        if body.admin_notes is not None:
+            complaint.admin_notes = body.admin_notes
 
     db.commit()
     db.refresh(complaint)
