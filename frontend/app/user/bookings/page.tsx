@@ -71,11 +71,25 @@ interface ActiveBooking {
   status: string;
   scheduled_at?: string;
   estimated_cost?: number;
+  final_cost?: number;
   provider?: {
     first_name?: string;
     last_name?: string;
     company_name?: string;
   };
+}
+
+interface Receipt {
+  booking_id: string;
+  service_type: string;
+  servicer_name: string;
+  base_price: number;
+  extra_hours: number;
+  hourly_rate: number;
+  extra_charge: number;
+  final_amount: number;
+  completed_at: string | null;
+  negotiated: boolean;
 }
 
 type Tab = "active" | "responses" | "contracts" | "history";
@@ -129,6 +143,11 @@ export default function UserBookingsPage() {
   const [counterMessage, setCounterMessage] = useState("");
   const [sendingCounter, setSendingCounter] = useState(false);
   const [cancelling, setCancelling] = useState<number | null>(null);
+  const [receiptModal, setReceiptModal] = useState<{ booking: ActiveBooking; receipt: Receipt } | null>(null);
+  const [confirmingPayment, setConfirmingPayment] = useState(false);
+  const [disputeMode, setDisputeMode] = useState(false);
+  const [disputeReason, setDisputeReason] = useState("");
+  const [filingDispute, setFilingDispute] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -163,7 +182,9 @@ export default function UserBookingsPage() {
   const allResponses = requests
     .filter(r => r.status === "OPEN" && r.responses && r.responses.length > 0)
     .flatMap(r => (r.responses || []).filter(resp => resp.status === "PENDING").map(resp => ({ ...resp, request: r })));
-  const activeContracts = bookings.filter(b => b.status === "Accepted" || b.status === "In Progress");
+  const activeContracts = bookings.filter(b =>
+    b.status === "Accepted" || b.status === "In Progress" || b.status === "Pending Confirmation"
+  );
 
   const handleAccept = async () => {
     if (!confirmAccept) return;
@@ -192,6 +213,50 @@ export default function UserBookingsPage() {
       toast.error(err.message || "Failed to cancel request");
     } finally {
       setCancelling(null);
+    }
+  };
+
+  const handleOpenReceipt = async (booking: ActiveBooking) => {
+    try {
+      const receipt = await apiFetch(`/bookings/${booking.id}/receipt`);
+      setReceiptModal({ booking, receipt });
+      setDisputeMode(false);
+      setDisputeReason("");
+    } catch {
+      toast.error("Failed to load receipt");
+    }
+  };
+
+  const handleConfirmPayment = async () => {
+    if (!receiptModal) return;
+    setConfirmingPayment(true);
+    try {
+      await apiFetch(`/bookings/${receiptModal.booking.id}/confirm`, { method: "POST" });
+      setReceiptModal(null);
+      toast.success("Payment confirmed — job complete!");
+      await loadData();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to confirm payment");
+    } finally {
+      setConfirmingPayment(false);
+    }
+  };
+
+  const handleFileDispute = async () => {
+    if (!receiptModal || !disputeReason.trim()) return;
+    setFilingDispute(true);
+    try {
+      await apiFetch(`/bookings/${receiptModal.booking.id}/complaint`, {
+        method: "POST",
+        body: JSON.stringify({ reason: disputeReason }),
+      });
+      setReceiptModal(null);
+      toast.success("Dispute submitted — admin will review");
+      await loadData();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to file dispute");
+    } finally {
+      setFilingDispute(false);
     }
   };
 
@@ -460,7 +525,9 @@ export default function UserBookingsPage() {
                 <EmptyState icon={CheckCircle} title="No active contracts" description="Accept a servicer offer to create a contract" />
               ) : (
                 activeContracts.map(b => (
-                  <div key={b.id} className="bg-white border border-slate-200 rounded-2xl p-6 flex items-center gap-4">
+                  <div key={b.id} className={`bg-white border rounded-2xl p-6 flex items-center gap-4 ${
+                    b.status === "Pending Confirmation" ? "border-amber-300 border-l-4 border-l-amber-500" : "border-slate-200"
+                  }`}>
                     <div className="flex-1 min-w-0">
                       <p className="font-black text-slate-900 text-sm">{b.service_type}</p>
                       <p className="text-xs text-slate-500 mt-0.5">{getProviderName(b.provider)}</p>
@@ -472,12 +539,23 @@ export default function UserBookingsPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-3">
-                      {b.estimated_cost && (
-                        <span className="text-sm font-black text-slate-700">₹{b.estimated_cost.toLocaleString("en-IN")}</span>
+                      {(b.final_cost || b.estimated_cost) && (
+                        <span className="text-sm font-black text-slate-700">
+                          ₹{(b.final_cost || b.estimated_cost || 0).toLocaleString("en-IN")}
+                        </span>
                       )}
-                      <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase ${
-                        b.status === "Accepted" ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700"
-                      }`}>{b.status}</span>
+                      {b.status === "Pending Confirmation" ? (
+                        <button
+                          onClick={() => handleOpenReceipt(b)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 text-white rounded-lg text-[10px] font-black uppercase hover:bg-amber-600 transition-colors animate-pulse"
+                        >
+                          <IndianRupee className="w-3 h-3" /> Confirm Receipt
+                        </button>
+                      ) : (
+                        <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase ${
+                          b.status === "Accepted" ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700"
+                        }`}>{b.status}</span>
+                      )}
                       <button onClick={() => router.push(`/user/bookings/${b.id}`)} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
                         <ChevronRight className="w-4 h-4 text-slate-400" />
                       </button>
@@ -518,6 +596,81 @@ export default function UserBookingsPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* Receipt Confirmation Modal */}
+      {receiptModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-lg font-black text-slate-900 uppercase tracking-widest">Confirm Receipt</h2>
+                <p className="text-xs text-slate-500 mt-1">{receiptModal.receipt.servicer_name} · {receiptModal.receipt.service_type}</p>
+              </div>
+              <button onClick={() => setReceiptModal(null)} className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-slate-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              <div className="flex justify-between text-sm text-slate-600">
+                <span>Base Price</span>
+                <span className="font-bold">₹{receiptModal.receipt.base_price.toLocaleString("en-IN")}</span>
+              </div>
+              {receiptModal.receipt.extra_hours > 0 && (
+                <div className="flex justify-between text-sm text-slate-600">
+                  <span>Extra ({receiptModal.receipt.extra_hours}h × ₹{receiptModal.receipt.hourly_rate.toFixed(0)}/h)</span>
+                  <span className="font-bold">₹{receiptModal.receipt.extra_charge.toLocaleString("en-IN")}</span>
+                </div>
+              )}
+              <div className="border-t border-slate-200 pt-3 flex justify-between font-black text-slate-900 text-base">
+                <span>Total</span>
+                <span className="text-emerald-700">₹{receiptModal.receipt.final_amount.toLocaleString("en-IN")}</span>
+              </div>
+            </div>
+
+            {!disputeMode ? (
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDisputeMode(true)}
+                  className="flex-1 py-3 border border-rose-200 text-rose-600 rounded-2xl text-sm font-black uppercase hover:bg-rose-50"
+                >
+                  Dispute
+                </button>
+                <button
+                  onClick={handleConfirmPayment}
+                  disabled={confirmingPayment}
+                  className="flex-1 py-3 bg-[#064e3b] text-white rounded-2xl text-sm font-black uppercase hover:bg-emerald-800 disabled:opacity-50"
+                >
+                  {confirmingPayment ? "Confirming..." : "Confirm Payment"}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-xs text-slate-500">Describe the issue with this bill:</p>
+                <textarea
+                  value={disputeReason}
+                  onChange={e => setDisputeReason(e.target.value)}
+                  placeholder="e.g. Extra hours are incorrect — job took 1h not 3h"
+                  rows={3}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none"
+                />
+                <div className="flex gap-3">
+                  <button onClick={() => setDisputeMode(false)} className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm font-black uppercase text-slate-500 hover:bg-slate-50">
+                    Back
+                  </button>
+                  <button
+                    onClick={handleFileDispute}
+                    disabled={filingDispute || !disputeReason.trim()}
+                    className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl text-sm font-black uppercase disabled:opacity-50 hover:bg-rose-700"
+                  >
+                    {filingDispute ? "Submitting..." : "File Dispute"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Reject Confirmation Dialog */}
