@@ -288,9 +288,9 @@ async def accept_emergency_response(
     if not resp:
         raise HTTPException(status_code=404, detail="Response not found or already processed")
 
-    # Create ServiceBooking
+    # Create ServiceBooking — emergency billing is hours × hourly_rate at job close,
+    # so estimated_cost starts at 0.0 (the admin-set hourly_rate is fetched at final-complete time).
     config = em.config
-    estimated_cost = config.callout_fee if config else 0.0
 
     booking = ServiceBooking(
         user_id=current_user.id,
@@ -300,8 +300,9 @@ async def accept_emergency_response(
         priority="Emergency",
         issue_description=em.description,
         property_details=f"{em.society_name}, {em.building_name}, {em.flat_no}",
-        estimated_cost=estimated_cost,
+        estimated_cost=0.0,
         status="Accepted",  # servicer already committed by responding to SOS
+        source_type="emergency",
     )
     db.add(booking)
     db.flush()  # get booking.id

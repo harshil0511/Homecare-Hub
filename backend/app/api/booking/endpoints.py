@@ -14,6 +14,7 @@ from app.booking.domain.model import ServiceBooking, BookingStatusHistory, Booki
 from app.notification.domain.model import Notification
 from app.service.services import get_provider_display_name
 from app.service.point_engine import award_points
+from app.emergency.domain.model import EmergencyConfig
 from app.api.booking.schemas import (
     BookingCreate, BookingUpdate, BookingStatusUpdate,
     BookingReschedule, BookingCancel,
@@ -447,11 +448,22 @@ def final_complete_booking(
     if booking.status not in ("In Progress", "Accepted"):
         raise HTTPException(status_code=400, detail=f"Booking is '{booking.status}', must be 'Accepted' or 'In Progress' to complete")
 
-    base_price = booking.estimated_cost or 0.0
-    estimated_hours = booking.actual_hours if booking.actual_hours and booking.actual_hours > 0 else 1.0
-    hourly_rate = base_price / estimated_hours
-    extra_charge = (body.extra_hours or 0.0) * hourly_rate
-    final_amount = base_price + extra_charge
+    if booking.priority == "Emergency":
+        # Emergency billing: total_hours × admin-set hourly_rate (no callout_fee)
+        em_config = db.query(EmergencyConfig).filter(
+            EmergencyConfig.category == booking.service_type
+        ).first()
+        hourly_rate = em_config.hourly_rate if em_config else 0.0
+        total_hours = body.extra_hours or 0.0
+        base_price = 0.0
+        extra_charge = round(total_hours * hourly_rate, 2)
+        final_amount = extra_charge
+    else:
+        base_price = booking.estimated_cost or 0.0
+        estimated_hours = booking.actual_hours if booking.actual_hours and booking.actual_hours > 0 else 1.0
+        hourly_rate = base_price / estimated_hours
+        extra_charge = (body.extra_hours or 0.0) * hourly_rate
+        final_amount = base_price + extra_charge
 
     booking.status = "Pending Confirmation"
     booking.actual_hours = body.extra_hours or 0.0
