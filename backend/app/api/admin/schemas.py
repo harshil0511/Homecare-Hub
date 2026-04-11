@@ -43,3 +43,23 @@ class ComplaintAdminRead(BaseModel):
 class ComplaintAdminUpdate(BaseModel):
     status: Optional[str] = None
     admin_notes: Optional[str] = None
+
+
+class SecretaryComplaintRead(BaseModel):
+    id: UUID
+    society_id: UUID
+    filed_by: UUID
+    subject: str
+    description: str
+    status: str
+    admin_notes: Optional[str] = None
+    created_at: Optional[datetime] = None
+    resolved_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SecretaryComplaintAdminUpdate(BaseModel):
+    status: Optional[str] = None
+    admin_notes: Optional[str] = None

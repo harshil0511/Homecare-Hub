@@ -11,7 +11,8 @@ from app.booking.domain.model import ServiceBooking, BookingComplaint
 from app.maintenance.domain.model import MaintenanceTask
 from app.api.auth.schemas import UserResponse
 from app.api.service.schemas import ProviderResponse
-from app.api.admin.schemas import AdminVerifyUpdate, ComplaintAdminRead, ComplaintAdminUpdate
+from app.api.admin.schemas import AdminVerifyUpdate, ComplaintAdminRead, ComplaintAdminUpdate, SecretaryComplaintRead, SecretaryComplaintAdminUpdate
+from app.secretary.domain.model import SecretaryComplaint
 from app.core.config import settings
 
 router = APIRouter(tags=["Admin API"])
@@ -555,6 +556,41 @@ def update_complaint(
     if body.admin_notes is not None:
         complaint.admin_notes = body.admin_notes
 
+    db.commit()
+    db.refresh(complaint)
+    return complaint
+
+
+@router.get("/secretary-complaints", response_model=List[SecretaryComplaintRead])
+def list_secretary_complaints(
+    db: Session = Depends(deps.get_db),
+    _: User = Depends(admin_only),
+):
+    """Admin: list all secretary complaints."""
+    return (
+        db.query(SecretaryComplaint)
+        .order_by(SecretaryComplaint.created_at.desc())
+        .all()
+    )
+
+
+@router.patch("/secretary-complaints/{complaint_id}", response_model=SecretaryComplaintRead)
+def update_secretary_complaint(
+    complaint_id: UUID,
+    body: SecretaryComplaintAdminUpdate,
+    db: Session = Depends(deps.get_db),
+    _: User = Depends(admin_only),
+):
+    """Admin: update secretary complaint status/notes."""
+    complaint = db.query(SecretaryComplaint).filter(SecretaryComplaint.id == complaint_id).first()
+    if not complaint:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+    if body.status is not None:
+        complaint.status = body.status
+        if body.status == "RESOLVED":
+            complaint.resolved_at = datetime.utcnow()
+    if body.admin_notes is not None:
+        complaint.admin_notes = body.admin_notes
     db.commit()
     db.refresh(complaint)
     return complaint
