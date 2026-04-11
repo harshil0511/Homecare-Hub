@@ -17,7 +17,7 @@ from app.service.point_engine import award_points
 from app.api.booking.schemas import (
     BookingCreate, BookingUpdate, BookingStatusUpdate,
     BookingReschedule, BookingCancel,
-    BookingRead, BookingDetailRead,
+    BookingRead, BookingDetailRead, BookingWithUserRead,
     ChatCreate, ChatRead, ReviewCreate, ReviewRead,
     BookingStatusHistoryRead,
     FinalCompleteCreate, ReceiptRead, ComplaintCreate, ComplaintRead,
@@ -108,7 +108,7 @@ def create_booking(
         title="Booking Request Placed",
         message=f"Your request for {db_booking.service_type} has been initialized.",
         notification_type="INFO",
-        link=f"/dashboard/bookings/{db_booking.id}"
+        link=f"/user/bookings/{db_booking.id}"
     )
     db.add(user_notif)
 
@@ -119,7 +119,7 @@ def create_booking(
             title="Action Required: New Request",
             message=f"New {db_booking.service_type} request from {current_user.username}.",
             notification_type="URGENT",
-            link=f"/dashboard/bookings/{db_booking.id}"
+            link="/service/jobs"
         )
         db.add(provider_notif)
 
@@ -153,10 +153,30 @@ def get_incoming_bookings(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
+    """Active jobs for the servicer — excludes completed/cancelled."""
     provider = db.query(ServiceProvider).filter(ServiceProvider.user_id == current_user.id).first()
     if not provider:
         raise HTTPException(status_code=404, detail="Provider profile not found")
-    return db.query(ServiceBooking).filter(ServiceBooking.provider_id == provider.id).all()
+    return db.query(ServiceBooking).filter(
+        ServiceBooking.provider_id == provider.id,
+        ServiceBooking.status.notin_(["Completed", "Cancelled"]),
+    ).order_by(ServiceBooking.created_at.desc()).all()
+
+
+@router.get("/completed-provider", response_model=List[BookingWithUserRead])
+def get_completed_bookings_for_provider(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
+):
+    """Completed jobs for the servicer — includes user details and review via ORM relationships."""
+    provider = db.query(ServiceProvider).filter(ServiceProvider.user_id == current_user.id).first()
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider profile not found")
+
+    return db.query(ServiceBooking).filter(
+        ServiceBooking.provider_id == provider.id,
+        ServiceBooking.status == "Completed",
+    ).order_by(ServiceBooking.created_at.desc()).all()
 
 @router.patch("/{booking_id}/status", response_model=BookingRead)
 def update_booking_status(
@@ -294,7 +314,7 @@ def reschedule_booking(
             title="Schedule Updated & Re-opened",
             message=f"A booking for {booking.service_type} has been rescheduled to {reschedule_in.new_date} and is now active again.",
             notification_type="WARNING",
-            link=f"/dashboard/bookings/{booking.id}"
+            link="/service/jobs"
         )
         db.add(notif)
 
@@ -342,12 +362,14 @@ def cancel_booking(
     target_user_id = provider.user_id if booking.user_id == current_user.id else booking.user_id
 
     if target_user_id:
+        # Link destination depends on who is being notified
+        cancel_link = "/service/jobs" if booking.user_id == current_user.id else f"/user/bookings/{booking.id}"
         notif = Notification(
             user_id=target_user_id,
             title="Booking Cancelled",
             message=f"The booking for {booking.service_type} has been cancelled by the other party.",
             notification_type="URGENT",
-            link="/dashboard/bookings"
+            link=cancel_link
         )
         db.add(notif)
 
@@ -425,31 +447,24 @@ def final_complete_booking(
     extra_charge = (body.extra_hours or 0.0) * hourly_rate
     final_amount = base_price + extra_charge
 
-    booking.status = "Completed"
-    booking.completed_at = datetime.utcnow()
+    booking.status = "Pending Confirmation"
     booking.actual_hours = body.extra_hours or 0.0
     booking.final_cost = final_amount
     booking.completion_notes = body.notes
 
     db.add(BookingStatusHistory(
         booking_id=booking.id,
-        status="Completed",
-        notes=f"Marked complete by servicer. Extra hours: {body.extra_hours or 0}. Final: \u20b9{final_amount:.0f}.",
+        status="Pending Confirmation",
+        notes=f"Servicer submitted completion. Extra hours: {body.extra_hours or 0}. Final: \u20b9{final_amount:.0f}. Awaiting user confirmation.",
     ))
-
-    event = "URGENT_COMPLETE" if booking.priority in ("High", "Emergency") else "REGULAR_COMPLETE"
-    try:
-        award_points(db, provider_id=provider.id, event_type=event, source_id=booking.id)
-    except Exception:
-        pass
 
     provider_name = get_provider_display_name(provider)
     _notify_booking(
         db, user_id=booking.user_id,
-        title="Service Completed",
-        message=f"'{booking.service_type}' has been marked complete by {provider_name}. Final: \u20b9{final_amount:.0f}.",
+        title="Work Complete \u2014 Please Confirm",
+        message=f"'{booking.service_type}' work is done. Review the receipt and confirm payment of \u20b9{final_amount:.0f}.",
         notification_type="INFO",
-        link=f"/user/bookings/{booking.id}/receipt",
+        link=f"/user/bookings/{booking.id}",
     )
 
     db.commit()
@@ -468,6 +483,51 @@ def final_complete_booking(
     )
 
 
+@router.post("/{booking_id}/confirm", response_model=BookingRead)
+def confirm_booking_complete(
+    booking_id: UUID,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+):
+    """User confirms the receipt — booking moves to Completed and points are awarded."""
+    booking = db.query(ServiceBooking).filter(ServiceBooking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if booking.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the booking's user can confirm")
+    if booking.status != "Pending Confirmation":
+        raise HTTPException(status_code=400, detail=f"Booking is '{booking.status}', must be 'Pending Confirmation' to confirm")
+
+    booking.status = "Completed"
+    booking.completed_at = datetime.utcnow()
+
+    db.add(BookingStatusHistory(
+        booking_id=booking.id,
+        status="Completed",
+        notes="User confirmed receipt and payment.",
+    ))
+
+    provider = db.query(ServiceProvider).filter(ServiceProvider.id == booking.provider_id).first()
+    if provider:
+        event = "URGENT_COMPLETE" if booking.priority in ("High", "Emergency") else "REGULAR_COMPLETE"
+        try:
+            award_points(db, provider_id=provider.id, event_type=event, source_id=booking.id)
+        except Exception:
+            pass
+
+        _notify_booking(
+            db, user_id=provider.user_id,
+            title="Payment Confirmed",
+            message=f"User confirmed your receipt for '{booking.service_type}'. Job complete!",
+            notification_type="SUCCESS",
+            link="/service/jobs",
+        )
+
+    db.commit()
+    db.refresh(booking)
+    return booking
+
+
 @router.get("/{booking_id}/receipt", response_model=ReceiptRead)
 def get_receipt(
     booking_id: UUID,
@@ -478,8 +538,8 @@ def get_receipt(
     booking = db.query(ServiceBooking).filter(ServiceBooking.id == booking_id).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
-    if booking.status != "Completed":
-        raise HTTPException(status_code=400, detail="Receipt only available for completed bookings")
+    if booking.status not in ("Completed", "Pending Confirmation"):
+        raise HTTPException(status_code=400, detail="Receipt only available for completed or pending-confirmation bookings")
 
     provider = db.query(ServiceProvider).filter(ServiceProvider.user_id == current_user.id).first()
     is_user = booking.user_id == current_user.id
@@ -548,10 +608,13 @@ def file_complaint(
     booking = db.query(ServiceBooking).filter(ServiceBooking.id == booking_id).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
-    if booking.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Only the booking's user can file a complaint")
-    if booking.status != "Completed":
-        raise HTTPException(status_code=400, detail="Can only file complaints on completed bookings")
+    provider = db.query(ServiceProvider).filter(ServiceProvider.user_id == current_user.id).first()
+    is_user = booking.user_id == current_user.id
+    is_servicer = provider is not None and provider.id == booking.provider_id
+    if not is_user and not is_servicer:
+        raise HTTPException(status_code=403, detail="Only the booking's user or assigned servicer can file a complaint")
+    if booking.status not in ("Completed", "Pending Confirmation"):
+        raise HTTPException(status_code=400, detail="Can only file complaints on completed or pending-confirmation bookings")
 
     complaint = BookingComplaint(
         booking_id=booking_id,
