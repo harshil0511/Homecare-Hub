@@ -1,11 +1,12 @@
 "use client";
 
-import { Check, Clock, Play, CheckCircle2, XCircle } from "lucide-react";
+import { Check, Clock, Play, CheckCircle2, XCircle, Hourglass } from "lucide-react";
 
 const STAGES = [
     { id: "Pending", label: "Requested", icon: Clock },
     { id: "Accepted", label: "Accepted", icon: Check },
     { id: "In Progress", label: "In Progress", icon: Play },
+    { id: "Pending Confirmation", label: "Awaiting Confirm", icon: Hourglass },
     { id: "Completed", label: "Completed", icon: CheckCircle2 },
 ];
 
