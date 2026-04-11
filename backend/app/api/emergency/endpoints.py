@@ -31,10 +31,10 @@ router = APIRouter(tags=["Emergency SOS"])
 user_or_secretary = deps.RoleChecker(["USER", "SECRETARY"])
 servicer_only = deps.RoleChecker(["SERVICER"])
 
-EMERGENCY_WINDOW_MINUTES = 5
+EMERGENCY_WINDOW_MINUTES = 30
 
 
-def _notify(db: Session, user_id: int, title: str, message: str,
+def _notify(db: Session, user_id: UUID, title: str, message: str,
             notification_type: str = "INFO", link: Optional[str] = None) -> None:
     """Stage a Notification row. Caller is responsible for committing."""
     db.add(Notification(
@@ -54,16 +54,29 @@ def get_emergency_configs(
     return db.query(EmergencyConfig).order_by(EmergencyConfig.category).all()
 
 
+@router.get("/me/active", response_model=EmergencyRequestRead)
+def get_active_emergency(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(user_or_secretary),
+):
+    """Get the current user's active (PENDING/ACTIVE) emergency request, if any."""
+    em = db.query(EmergencyRequest).filter(
+        EmergencyRequest.user_id == current_user.id,
+        EmergencyRequest.status.in_(["PENDING", "ACTIVE"]),
+    ).order_by(EmergencyRequest.created_at.desc()).first()
+    if not em:
+        raise HTTPException(status_code=404, detail="No active emergency request")
+    return em
+
+
 @router.get("/providers")
 def get_available_providers(
     category: Optional[str] = None,
     db: Session = Depends(deps.get_db),
     _: User = Depends(user_or_secretary),
 ):
-    """List verified + available providers for manual selection."""
-    from app.api.service.schemas import ProviderResponse
+    """List all available providers for emergency SOS selection (no verification required)."""
     query = db.query(ServiceProvider).filter(
-        ServiceProvider.is_verified == True,
         ServiceProvider.availability_status == "AVAILABLE",
     )
     if category:
@@ -93,19 +106,22 @@ async def create_emergency_request(
             detail="You already have an active emergency request. Cancel it before creating a new one."
         )
 
-    # Validate providers exist and are available
-    providers = db.query(ServiceProvider).filter(
-        ServiceProvider.id.in_(request_in.provider_ids),
-        ServiceProvider.is_verified == True,
-        ServiceProvider.availability_status == "AVAILABLE",
-    ).all()
-    found_ids = {p.id for p in providers}
-    missing = set(request_in.provider_ids) - found_ids
-    if missing:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Provider IDs not found or unavailable: {list(missing)}"
+    # Find providers to broadcast to: specific list if provided, otherwise all available for the category
+    if request_in.provider_ids:
+        providers = db.query(ServiceProvider).filter(
+            ServiceProvider.id.in_(request_in.provider_ids),
+            ServiceProvider.availability_status == "AVAILABLE",
+        ).all()
+    else:
+        query = db.query(ServiceProvider).filter(
+            ServiceProvider.availability_status == "AVAILABLE",
         )
+        if request_in.category:
+            query = query.filter(
+                (ServiceProvider.category == request_in.category) |
+                (ServiceProvider.categories.like(f"%{request_in.category}%"))
+            )
+        providers = query.all()
 
     # Look up config for the category
     config = db.query(EmergencyConfig).filter(
@@ -137,7 +153,7 @@ async def create_emergency_request(
     # Notify selected providers via notification + WebSocket
     alert_payload = {
         "event": "emergency_alert",
-        "request_id": emergency.id,
+        "request_id": str(emergency.id),
         "category": emergency.category,
         "description": emergency.description,
         "society_name": emergency.society_name,
@@ -285,14 +301,15 @@ async def accept_emergency_response(
         issue_description=em.description,
         property_details=f"{em.society_name}, {em.building_name}, {em.flat_no}",
         estimated_cost=estimated_cost,
+        status="Accepted",  # servicer already committed by responding to SOS
     )
     db.add(booking)
     db.flush()  # get booking.id
 
     db.add(BookingStatusHistory(
         booking_id=booking.id,
-        status="Pending",
-        notes="Emergency SOS booking created",
+        status="Accepted",
+        notes="Emergency SOS booking — servicer committed arrival time, auto-accepted",
     ))
 
     em.resulting_booking_id = booking.id
@@ -325,10 +342,17 @@ async def accept_emergency_response(
 
     db.refresh(booking)
 
-    await emergency_manager.send_to_user(request_id, {
+    await emergency_manager.send_to_user(str(request_id), {
         "event": "request_accepted",
-        "booking_id": booking.id,
-        "provider_id": resp.provider_id,
+        "booking_id": str(booking.id),
+        "provider_id": str(resp.provider_id),
+    })
+
+    # Notify the accepted servicer in real-time — they should see the new booking in their Jobs tab
+    await emergency_manager.send_to_servicer(str(resp.provider_id), {
+        "event": "response_accepted",
+        "booking_id": str(booking.id),
+        "category": em.category,
     })
 
     return booking
@@ -379,10 +403,10 @@ async def cancel_emergency_request(
 
     background_tasks.add_task(
         emergency_manager.broadcast_alert_to_servicers,
-        cancelled_provider_ids,
-        {"event": "request_cancelled", "request_id": request_id},
+        [str(pid) for pid in cancelled_provider_ids],
+        {"event": "request_cancelled", "request_id": str(request_id)},
     )
-    await emergency_manager.send_to_user(request_id, {"event": "request_cancelled"})
+    await emergency_manager.send_to_user(str(request_id), {"event": "request_cancelled"})
     return {"detail": "Emergency request cancelled"}
 
 
@@ -437,10 +461,10 @@ async def respond_to_emergency(
 
     config = em.config
 
-    await emergency_manager.send_to_user(request_id, {
+    await emergency_manager.send_to_user(str(request_id), {
         "event": "new_response",
-        "response_id": response.id,
-        "provider_id": provider.id,
+        "response_id": str(response.id),
+        "provider_id": str(provider.id),
         "provider_name": provider.first_name or provider.company_name or provider.owner_name,
         "rating": provider.rating,
         "arrival_time": response_in.arrival_time.isoformat(),
@@ -458,7 +482,9 @@ def ignore_emergency(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(servicer_only),
 ):
-    """Servicer explicitly ignores an emergency — no penalty, records dismissal."""
+    """Servicer explicitly ignores an emergency — records dismissal and deducts points."""
+    from app.service.point_engine import award_points
+
     provider = db.query(ServiceProvider).filter(
         ServiceProvider.user_id == current_user.id
     ).first()
@@ -478,5 +504,17 @@ def ignore_emergency(
             arrival_time=far_future,
             status="IGNORED",
         ))
+        db.commit()
+        award_points(
+            db, provider.id,
+            event_type="EMERGENCY_CANCEL",
+            source_id=request_id,
+            note="Emergency SOS ignored",
+        )
+        if provider.user_id:
+            _notify(db, provider.user_id,
+                    title="Emergency SOS Ignored — Points Deducted",
+                    message="You ignored an emergency SOS request. 20 points have been deducted from your rating.",
+                    notification_type="WARNING")
         db.commit()
     return {"detail": "Emergency request ignored"}

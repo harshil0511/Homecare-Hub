@@ -6,6 +6,16 @@ from datetime import datetime
 from app.api.service.schemas import ProviderResponse
 
 
+class UserBasicRead(BaseModel):
+    id: UUID
+    username: str
+    email: str
+    home_number: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 class BookingBase(BaseModel):
     provider_id: UUID
     service_type: str
@@ -109,6 +119,14 @@ class BookingDetailRead(BookingRead):
     chats: List[ChatRead] = []
     review: Optional[ReviewRead] = None
     provider: ProviderResponse
+
+    class Config:
+        from_attributes = True
+
+
+class BookingWithUserRead(BookingDetailRead):
+    """BookingDetailRead extended with the booking's user info — for servicer's completed jobs view."""
+    user: Optional[UserBasicRead] = None
 
     class Config:
         from_attributes = True

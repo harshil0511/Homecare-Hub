@@ -91,7 +91,7 @@ class EmergencyRequestCreate(BaseModel):
     photos: Optional[List[str]] = []
     contact_name: str
     contact_phone: str
-    provider_ids: List[UUID]
+    provider_ids: Optional[List[UUID]] = None
 
     @field_validator("category")
     @classmethod
@@ -114,15 +114,6 @@ class EmergencyRequestCreate(BaseModel):
     def validate_photos(cls, v: Optional[List[str]]) -> Optional[List[str]]:
         if v and len(v) > 3:
             raise ValueError("Maximum 3 photos allowed")
-        return v
-
-    @field_validator("provider_ids")
-    @classmethod
-    def validate_providers(cls, v: List[UUID]) -> List[UUID]:
-        if not v:
-            raise ValueError("At least one provider must be selected")
-        if len(v) != len(set(v)):
-            raise ValueError("Duplicate provider IDs are not allowed")
         return v
 
 

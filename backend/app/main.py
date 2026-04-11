@@ -147,7 +147,7 @@ app.include_router(admin_emergency_router,  prefix="/api/v1/admin/emergency")
 # ── WebSocket endpoints ────────────────────────────────────────────────────────
 
 @app.websocket("/ws/emergency/{request_id}")
-async def ws_user_emergency(websocket: WebSocket, request_id: int):
+async def ws_user_emergency(websocket: WebSocket, request_id: str):
     """User watches their SOS request for real-time servicer responses."""
     await emergency_manager.connect_user(request_id, websocket)
     try:
@@ -158,7 +158,7 @@ async def ws_user_emergency(websocket: WebSocket, request_id: int):
 
 
 @app.websocket("/ws/servicer/alerts")
-async def ws_servicer_alerts(websocket: WebSocket, provider_id: int):
+async def ws_servicer_alerts(websocket: WebSocket, provider_id: str):
     """Servicer listens for incoming emergency alert broadcasts."""
     await emergency_manager.connect_servicer(provider_id, websocket)
     try:

@@ -15,7 +15,7 @@ from app.emergency.domain.model import (
     EmergencyConfig, EmergencyPenaltyConfig,
     EmergencyRequest, EmergencyResponse, EmergencyStarAdjustment,
 )
-from app.emergency.services import apply_star_delta
+from app.service.point_engine import award_points
 from app.api.emergency.schemas import (
     EmergencyConfigCreate, EmergencyConfigUpdate, EmergencyConfigRead,
     EmergencyPenaltyConfigUpdate, EmergencyPenaltyConfigRead,
@@ -176,8 +176,18 @@ def manual_star_adjustment(
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
 
-    apply_star_delta(provider, payload.delta)
+    # Use the point engine so the delta is recorded in provider_points and
+    # persists correctly through future award_points() recalculations.
+    # payload.delta is in stars; 100 pts = 1 star.
+    award_points(
+        db,
+        provider_id=provider_id,
+        event_type="ADMIN_ADJUSTMENT",
+        custom_delta=payload.delta * 100.0,
+        note=payload.reason,
+    )
 
+    # Log the star adjustment record (for audit history).
     adjustment = EmergencyStarAdjustment(
         provider_id=provider_id,
         adjusted_by=current_user.id,

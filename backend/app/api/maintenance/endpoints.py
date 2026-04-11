@@ -123,7 +123,7 @@ def create_routine_task(
             else f"Routine request for '{db_task.title}' created. No verified expert found — use Find Expert to search."
         ),
         notification_type="INFO",
-        link="/dashboard/routine"
+        link="/user/routine"
     )
     db.add(notif)
 
@@ -271,7 +271,7 @@ def assign_routine_provider(
         title="Request Sent",
         message=f"Service request for '{task.title}' sent to '{provider_name}'. Awaiting their response.",
         notification_type="INFO",
-        link=f"/dashboard/bookings/{booking.id}"
+        link=f"/user/bookings/{booking.id}"
     )
     db.add(user_notif)
 
@@ -282,7 +282,7 @@ def assign_routine_provider(
             title="New Service Request",
             message=f"New {task.category} request from {current_user.username} scheduled for {scheduled.strftime('%d %b %Y at %H:%M')}. Accept or reject.",
             notification_type="URGENT",
-            link=f"/dashboard/bookings/{booking.id}"
+            link="/service/jobs"
         )
         db.add(provider_notif)
 
