@@ -30,6 +30,18 @@ interface Complaint {
     resolved_at?: string;
 }
 
+interface SecretaryComplaint {
+    id: string;
+    society_id: string;
+    filed_by: string;
+    subject: string;
+    description: string;
+    status: "OPEN" | "UNDER_REVIEW" | "RESOLVED";
+    admin_notes?: string;
+    created_at: string;
+    resolved_at?: string;
+}
+
 const STATUS_STYLE: Record<string, string> = {
     PENDING:     "bg-amber-50 text-amber-700 border-amber-100",
     ACCEPTED:    "bg-blue-50 text-blue-700 border-blue-100",
@@ -70,7 +82,7 @@ function BRow({ label, value }: { label: string; value: string }) {
 export default function AdminBookingsPage() {
     const toast = useToast();
 
-    const [activeTab, setActiveTab] = useState<"bookings" | "complaints">("bookings");
+    const [activeTab, setActiveTab] = useState<"bookings" | "complaints" | "secretary-reports">("bookings");
 
     const [bookings, setBookings] = useState<Booking[]>([]);
     const [loading, setLoading] = useState(true);
@@ -81,6 +93,10 @@ export default function AdminBookingsPage() {
     const [detailLoading, setDetailLoading] = useState(false);
 
     const [complaints, setComplaints] = useState<Complaint[]>([]);
+    const [secretaryComplaints, setSecretaryComplaints] = useState<SecretaryComplaint[]>([]);
+    const [overrideTarget, setOverrideTarget] = useState<string | null>(null);
+    const [overrideAmount, setOverrideAmount] = useState<number | "">("");
+    const [applyingAction, setApplyingAction] = useState<string | null>(null);
 
     const fetchComplaints = async () => {
         const data = await apiFetch("/admin/complaints").catch(() => []);
@@ -97,6 +113,36 @@ export default function AdminBookingsPage() {
             fetchComplaints();
         } catch (err: any) {
             toast.error(err.message || "Failed to resolve complaint");
+        }
+    };
+
+    const fetchSecretaryComplaints = async () => {
+        const data = await apiFetch("/admin/secretary-complaints").catch(() => []);
+        setSecretaryComplaints(Array.isArray(data) ? data : []);
+    };
+
+    const handleComplaintAction = async (
+        complaintId: string,
+        action: "cancel_bill" | "override_amount",
+        amount?: number
+    ) => {
+        setApplyingAction(complaintId + action);
+        try {
+            await apiFetch(`/admin/complaints/${complaintId}`, {
+                method: "PATCH",
+                body: JSON.stringify({
+                    action,
+                    ...(action === "override_amount" && amount !== undefined ? { override_amount: amount } : {}),
+                }),
+            });
+            toast.success(action === "cancel_bill" ? "Bill cancelled — servicer notified" : "Amount overridden — booking completed");
+            fetchComplaints();
+        } catch (err: any) {
+            toast.error(err.message || "Action failed");
+        } finally {
+            setApplyingAction(null);
+            setOverrideTarget(null);
+            setOverrideAmount("");
         }
     };
 
@@ -122,9 +168,8 @@ export default function AdminBookingsPage() {
     }, []);
 
     useEffect(() => {
-        if (activeTab === "complaints") {
-            fetchComplaints();
-        }
+        if (activeTab === "complaints") fetchComplaints();
+        if (activeTab === "secretary-reports") fetchSecretaryComplaints();
     }, [activeTab]);
 
     const filtered = bookings.filter((b) => {
@@ -142,10 +187,12 @@ export default function AdminBookingsPage() {
     }, {} as Record<string, number>);
 
     const openComplaintCount = complaints.filter(c => c.status === "OPEN").length;
+    const openSecretaryCount = secretaryComplaints.filter(c => c.status === "OPEN").length;
 
-    const tabs: { key: "bookings" | "complaints"; label: string; count?: number }[] = [
+    const tabs: { key: "bookings" | "complaints" | "secretary-reports"; label: string; count?: number }[] = [
         { key: "bookings", label: "Bookings" },
         { key: "complaints", label: "Complaints", count: openComplaintCount },
+        { key: "secretary-reports", label: "Secretary Reports", count: openSecretaryCount || undefined },
     ];
 
     return (
@@ -321,27 +368,117 @@ export default function AdminBookingsPage() {
                                     Filed: {new Date(c.created_at).toLocaleString()}
                                 </p>
                                 {c.status !== "RESOLVED" && (
-                                    <div className="flex gap-2">
+                                    <div className="flex gap-2 flex-wrap">
+                                        {c.status === "OPEN" && (
+                                            <button
+                                                onClick={() => apiFetch(`/admin/complaints/${c.id}`, {
+                                                    method: "PATCH",
+                                                    body: JSON.stringify({ status: "UNDER_REVIEW" }),
+                                                }).then(fetchComplaints).catch(() => toast.error("Failed"))}
+                                                className="px-3 py-1.5 bg-blue-50 text-blue-700 text-[10px] font-black uppercase rounded-lg hover:bg-blue-100"
+                                            >
+                                                Mark Under Review
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => handleComplaintAction(c.id, "cancel_bill")}
+                                            disabled={applyingAction === c.id + "cancel_bill"}
+                                            className="px-3 py-1.5 bg-rose-50 text-rose-700 text-[10px] font-black uppercase rounded-lg hover:bg-rose-100 disabled:opacity-50"
+                                        >
+                                            {applyingAction === c.id + "cancel_bill" ? "Cancelling..." : "Cancel Bill"}
+                                        </button>
+                                        {overrideTarget === c.id ? (
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="number"
+                                                    value={overrideAmount}
+                                                    onChange={e => setOverrideAmount(e.target.value ? Number(e.target.value) : "")}
+                                                    placeholder="New amount ₹"
+                                                    className="border border-slate-200 rounded-lg px-2 py-1 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                                />
+                                                <button
+                                                    onClick={() => overrideAmount !== "" && handleComplaintAction(c.id, "override_amount", Number(overrideAmount))}
+                                                    disabled={overrideAmount === "" || applyingAction === c.id + "override_amount"}
+                                                    className="px-3 py-1.5 bg-emerald-600 text-white text-[10px] font-black uppercase rounded-lg disabled:opacity-50"
+                                                >
+                                                    {applyingAction === c.id + "override_amount" ? "Applying..." : "Apply"}
+                                                </button>
+                                                <button onClick={() => setOverrideTarget(null)} className="text-slate-400 hover:text-slate-700">
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={() => { setOverrideTarget(c.id); setOverrideAmount(""); }}
+                                                className="px-3 py-1.5 bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase rounded-lg hover:bg-emerald-100"
+                                            >
+                                                Override Amount
+                                            </button>
+                                        )}
                                         <button
                                             onClick={() => {
                                                 const notes = window.prompt("Add admin notes (optional):") ?? "";
                                                 handleResolveComplaint(c.id, notes);
                                             }}
-                                            className="px-4 py-2 bg-[#064e3b] text-white text-xs font-black uppercase rounded-xl hover:bg-emerald-800 transition-colors"
+                                            className="px-3 py-1.5 bg-[#064e3b] text-white text-[10px] font-black uppercase rounded-lg hover:bg-emerald-800"
                                         >
                                             Resolve
                                         </button>
+                                    </div>
+                                )}
+                            </div>
+                        ))
+                    )}
+                </div>
+            )}
+
+            {activeTab === "secretary-reports" && (
+                <div className="space-y-4">
+                    <h2 className="text-sm font-black text-slate-700 uppercase tracking-widest">Secretary Reports</h2>
+                    {secretaryComplaints.length === 0 ? (
+                        <div className="text-center py-12 text-slate-400 text-sm">No secretary reports filed</div>
+                    ) : (
+                        secretaryComplaints.map(c => (
+                            <div key={c.id} className={`bg-white border rounded-2xl p-5 border-l-4 ${
+                                c.status === "OPEN" ? "border-l-rose-500" :
+                                c.status === "UNDER_REVIEW" ? "border-l-amber-500" : "border-l-emerald-500"
+                            }`}>
+                                <div className="flex items-start justify-between mb-2">
+                                    <div>
+                                        <p className="font-black text-slate-900 text-sm">{c.subject}</p>
+                                        <p className="text-xs text-slate-500 mt-1">{c.description}</p>
+                                    </div>
+                                    <span className={`text-[10px] font-black px-2 py-1 rounded-lg uppercase ${
+                                        c.status === "OPEN" ? "bg-rose-50 text-rose-700" :
+                                        c.status === "UNDER_REVIEW" ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"
+                                    }`}>{c.status.replace("_", " ")}</span>
+                                </div>
+                                <p className="text-[10px] text-slate-400 mb-3">{new Date(c.created_at).toLocaleDateString("en-IN")}</p>
+                                {c.admin_notes && (
+                                    <p className="text-xs text-slate-600 italic border-l-2 border-slate-200 pl-3 mb-3">{c.admin_notes}</p>
+                                )}
+                                {c.status !== "RESOLVED" && (
+                                    <div className="flex gap-2">
                                         {c.status === "OPEN" && (
                                             <button
-                                                onClick={() => apiFetch(`/admin/complaints/${c.id}`, {
+                                                onClick={() => apiFetch(`/admin/secretary-complaints/${c.id}`, {
                                                     method: "PATCH",
-                                                    body: JSON.stringify({ status: "UNDER_REVIEW" })
-                                                }).then(() => fetchComplaints()).catch(() => {})}
-                                                className="px-4 py-2 border border-amber-300 text-amber-700 text-xs font-black uppercase rounded-xl hover:bg-amber-50 transition-colors"
+                                                    body: JSON.stringify({ status: "UNDER_REVIEW" }),
+                                                }).then(fetchSecretaryComplaints).catch(() => toast.error("Failed"))}
+                                                className="px-3 py-1.5 bg-amber-50 text-amber-700 text-[10px] font-black uppercase rounded-lg hover:bg-amber-100"
                                             >
-                                                Under Review
+                                                Mark Under Review
                                             </button>
                                         )}
+                                        <button
+                                            onClick={() => apiFetch(`/admin/secretary-complaints/${c.id}`, {
+                                                method: "PATCH",
+                                                body: JSON.stringify({ status: "RESOLVED" }),
+                                            }).then(fetchSecretaryComplaints).catch(() => toast.error("Failed"))}
+                                            className="px-3 py-1.5 bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase rounded-lg hover:bg-emerald-100"
+                                        >
+                                            Resolve
+                                        </button>
                                     </div>
                                 )}
                             </div>
