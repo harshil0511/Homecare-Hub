@@ -142,7 +142,7 @@ def list_bookings(
 
     # Status filter: "contracted" = Accepted/In Progress/Completed, "pending" = Pending only
     if status == "contracted":
-        query = query.filter(ServiceBooking.status.in_(["Accepted", "In Progress", "Completed"]))
+        query = query.filter(ServiceBooking.status.in_(["Accepted", "In Progress", "Pending Confirmation", "Completed"]))
     elif status == "pending":
         query = query.filter(ServiceBooking.status == "Pending")
 
@@ -200,6 +200,12 @@ def update_booking_status(
     new_status = booking_update.status
 
     if new_status != old_status:
+        # Guard: Pending Confirmation transitions must go through dedicated endpoints
+        if new_status == "Pending Confirmation":
+            raise HTTPException(status_code=400, detail="Use the /final-complete endpoint to submit completion")
+        if new_status == "Completed" and booking.status == "Pending Confirmation":
+            raise HTTPException(status_code=400, detail="Use the /confirm endpoint to confirm completion")
+
         booking.status = new_status
 
         # Capture completion data when provider marks job complete
@@ -427,7 +433,7 @@ def final_complete_booking(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
 ):
-    """Servicer marks job fully complete. Generates receipt. Booking status → Completed."""
+    """Servicer marks job fully complete. Generates receipt. Booking status → Pending Confirmation (awaiting user confirmation)."""
     booking = db.query(ServiceBooking).filter(ServiceBooking.id == booking_id).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
@@ -512,8 +518,8 @@ def confirm_booking_complete(
         event = "URGENT_COMPLETE" if booking.priority in ("High", "Emergency") else "REGULAR_COMPLETE"
         try:
             award_points(db, provider_id=provider.id, event_type=event, source_id=booking.id)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("award_points failed for booking %s: %s", booking.id, exc)
 
         _notify_booking(
             db, user_id=provider.user_id,
