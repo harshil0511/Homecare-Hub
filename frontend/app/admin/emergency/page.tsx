@@ -356,7 +356,7 @@ export default function AdminEmergencyPage() {
                                                 <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg uppercase ${statusClass}`}>{req.status}</span>
                                                 <div>
                                                     <p className="font-black text-slate-900 text-sm">{req.category} — {req.building_name}, {req.flat_no}</p>
-                                                    <p className="text-xs text-slate-400">{req.created_at ? new Date(req.created_at).toLocaleString() : ""}</p>
+                                                    <p className="text-xs text-slate-400">{req.created_at ? new Date(req.created_at.endsWith("Z") || req.created_at.includes("+") ? req.created_at : req.created_at + "Z").toLocaleString() : ""}</p>
                                                 </div>
                                             </div>
                                             {expanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
@@ -367,7 +367,7 @@ export default function AdminEmergencyPage() {
                                                 <div><span className="font-black text-slate-400 uppercase text-[10px] block">Society</span>{req.society_name}</div>
                                                 <div><span className="font-black text-slate-400 uppercase text-[10px] block">Contact</span>{req.contact_name} · {req.contact_phone}</div>
                                                 <div className="col-span-2"><span className="font-black text-slate-400 uppercase text-[10px] block">Description</span>{req.description}</div>
-                                                <div><span className="font-black text-slate-400 uppercase text-[10px] block">Expires</span>{new Date(req.expires_at).toLocaleTimeString()}</div>
+                                                <div><span className="font-black text-slate-400 uppercase text-[10px] block">Expires</span>{new Date(req.expires_at.endsWith("Z") || req.expires_at.includes("+") ? req.expires_at : req.expires_at + "Z").toLocaleTimeString()}</div>
                                                 <div><span className="font-black text-slate-400 uppercase text-[10px] block">Responses</span>{req.responses?.length ?? 0}</div>
                                                 {req.resulting_booking_id && (
                                                     <div><span className="font-black text-slate-400 uppercase text-[10px] block">Booking ID</span>BK-{req.resulting_booking_id}</div>

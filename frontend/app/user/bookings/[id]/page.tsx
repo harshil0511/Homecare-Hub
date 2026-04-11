@@ -214,18 +214,22 @@ export default function BookingDetailsPage() {
                             <Star size={14} /> Give Feedback
                         </button>
                     )}
-                    <button
-                        onClick={() => setShowReschedule(true)}
-                        className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest bg-white border border-slate-200 px-6 py-3 rounded-xl hover:bg-slate-50 transition-all text-slate-600 shadow-sm"
-                    >
-                        <Calendar size={14} /> Reschedule
-                    </button>
-                    <button
-                        onClick={() => setShowCancel(true)}
-                        className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest bg-rose-50 border border-rose-100 px-6 py-3 rounded-xl hover:bg-rose-100 transition-all text-rose-600"
-                    >
-                        <AlertTriangle size={14} /> Cancel Request
-                    </button>
+                    {!["Completed", "Cancelled", "Pending Confirmation"].includes(booking.status) && (
+                        <>
+                            <button
+                                onClick={() => setShowReschedule(true)}
+                                className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest bg-white border border-slate-200 px-6 py-3 rounded-xl hover:bg-slate-50 transition-all text-slate-600 shadow-sm"
+                            >
+                                <Calendar size={14} /> Reschedule
+                            </button>
+                            <button
+                                onClick={() => setShowCancel(true)}
+                                className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest bg-rose-50 border border-rose-100 px-6 py-3 rounded-xl hover:bg-rose-100 transition-all text-rose-600"
+                            >
+                                <AlertTriangle size={14} /> Cancel Request
+                            </button>
+                        </>
+                    )}
                 </div>
             </div>
 

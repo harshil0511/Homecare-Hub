@@ -69,6 +69,7 @@ interface ActiveBooking {
   id: number;
   service_type: string;
   status: string;
+  priority?: string;
   scheduled_at?: string;
   estimated_cost?: number;
   final_cost?: number;
@@ -613,15 +614,28 @@ export default function UserBookingsPage() {
             </div>
 
             <div className="space-y-3 mb-6">
-              <div className="flex justify-between text-sm text-slate-600">
-                <span>Base Price</span>
-                <span className="font-bold">₹{receiptModal.receipt.base_price.toLocaleString("en-IN")}</span>
-              </div>
-              {receiptModal.receipt.extra_hours > 0 && (
-                <div className="flex justify-between text-sm text-slate-600">
-                  <span>Extra ({receiptModal.receipt.extra_hours}h × ₹{receiptModal.receipt.hourly_rate.toFixed(0)}/h)</span>
-                  <span className="font-bold">₹{receiptModal.receipt.extra_charge.toLocaleString("en-IN")}</span>
-                </div>
+              {receiptModal.booking.priority === "Emergency" ? (
+                /* Emergency billing: hours × rate, no base price */
+                <>
+                  <div className="flex justify-between text-sm text-slate-600">
+                    <span>Hours Worked ({receiptModal.receipt.extra_hours}h × ₹{receiptModal.receipt.hourly_rate.toFixed(0)}/h)</span>
+                    <span className="font-bold">₹{receiptModal.receipt.final_amount.toLocaleString("en-IN")}</span>
+                  </div>
+                </>
+              ) : (
+                /* Regular billing: base + extra hours */
+                <>
+                  <div className="flex justify-between text-sm text-slate-600">
+                    <span>Base Price</span>
+                    <span className="font-bold">₹{receiptModal.receipt.base_price.toLocaleString("en-IN")}</span>
+                  </div>
+                  {receiptModal.receipt.extra_hours > 0 && (
+                    <div className="flex justify-between text-sm text-slate-600">
+                      <span>Extra ({receiptModal.receipt.extra_hours}h × ₹{receiptModal.receipt.hourly_rate.toFixed(0)}/h)</span>
+                      <span className="font-bold">₹{receiptModal.receipt.extra_charge.toLocaleString("en-IN")}</span>
+                    </div>
+                  )}
+                </>
               )}
               <div className="border-t border-slate-200 pt-3 flex justify-between font-black text-slate-900 text-base">
                 <span>Total</span>

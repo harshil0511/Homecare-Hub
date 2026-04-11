@@ -40,8 +40,12 @@ function useCountdown(expiresAt: string | null) {
     const [remaining, setRemaining] = useState(0);
     useEffect(() => {
         if (!expiresAt) return;
+        // expires_at from the server is a naive UTC datetime string (no Z / no offset).
+        // JS new Date() without a timezone treats the string as LOCAL time, which makes
+        // the countdown appear negative for UTC+ users. Append "Z" to force UTC parsing.
+        const utcExpires = expiresAt.endsWith("Z") || expiresAt.includes("+") ? expiresAt : expiresAt + "Z";
         const tick = () => {
-            const diff = Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000));
+            const diff = Math.max(0, Math.floor((new Date(utcExpires).getTime() - Date.now()) / 1000));
             setRemaining(diff);
         };
         tick();
@@ -350,7 +354,7 @@ function EmergencySOSContent() {
                                             <p className="font-black text-slate-800 text-xs uppercase tracking-wide leading-tight">{cat}</p>
                                             {cfg && (
                                                 <p className="text-[10px] text-slate-400 font-semibold mt-1">
-                                                    Callout ₹{cfg.callout_fee}
+                                                    ₹{cfg.hourly_rate}/hr
                                                 </p>
                                             )}
                                         </div>
@@ -379,7 +383,7 @@ function EmergencySOSContent() {
                         <div className="bg-rose-50 border border-rose-100 rounded-2xl px-5 py-4 flex items-center justify-between">
                             <span className="text-xs font-black text-rose-700 uppercase tracking-wide">Emergency Rates</span>
                             <span className="text-xs font-bold text-rose-600">
-                                Callout ₹{configFor(form.category)!.callout_fee} + ₹{configFor(form.category)!.hourly_rate}/hr
+                                ₹{configFor(form.category)!.hourly_rate}/hr
                             </span>
                         </div>
                     )}
@@ -580,7 +584,7 @@ function EmergencySOSContent() {
                                                 <Clock size={14} />
                                                 {etaMinutes > 0 ? `~${etaMinutes} min away` : `Arriving at ${arrivalLabel}`}
                                             </div>
-                                            {cfg && <div className="text-[10px] text-slate-400 mt-1">₹{cfg.callout_fee} callout + ₹{cfg.hourly_rate}/hr</div>}
+                                            {cfg && <div className="text-[10px] text-slate-400 mt-1">₹{cfg.hourly_rate}/hr</div>}
                                         </div>
                                     </div>
                                     <button

@@ -65,8 +65,8 @@ export const form = {
 
 // ─── Modal ───────────────────────────────────────────────────────────────────
 export const modal = {
-    overlay:   "fixed inset-0 z-50 flex items-end sm:items-center sm:p-4",
-    backdrop:  "absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] animate-in fade-in duration-300",
+    overlay:   "fixed inset-0 z-[1100] flex items-end justify-center sm:items-center sm:p-4",
+    backdrop:  "fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] animate-in fade-in duration-300",
     box:       "relative bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto sm:max-h-none",
     pad:       "p-6 space-y-5",
     title:     "text-lg font-black text-slate-900 tracking-tight uppercase",
