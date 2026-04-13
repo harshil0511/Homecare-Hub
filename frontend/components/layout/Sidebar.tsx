@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Wrench, Bell, Settings,
   LogOut, Briefcase, Star, Users, ShieldCheck, ShieldAlert,
   BarChart3, ClipboardList, UserCheck, ChevronRight,
-  User, Lock, BellRing, Search, Home, TrendingUp,
+  User, Lock, BellRing, Search, TrendingUp,
   PanelLeftClose, PanelLeftOpen,
 } from "lucide-react";
 import { logout, getRole, getUsername } from "@/lib/auth";
@@ -44,7 +44,6 @@ const USER_NAV = [
     { name: "Dashboard", icon: LayoutDashboard, path: "/user/dashboard" },
     { name: "My Requests", icon: ClipboardList, path: "/user/bookings" },
     { name: "Find Experts", icon: Search, path: "/user/providers" },
-    { name: "Home Service", icon: Home, path: "/user/routine" },
     { name: "Alerts", icon: Bell, path: "/user/alerts" },
     { name: "Settings", icon: Settings, path: "/user/settings" },
 ];
@@ -72,6 +71,7 @@ const SECRETARY_NAV = [
   { name: "Members", icon: Users, path: "/secretary/members" },
   { name: "Alerts", icon: Bell, path: "/secretary/alerts" },
   { name: "Providers", icon: Wrench, path: "/secretary/providers" },
+  { name: "Contracts", icon: Briefcase, path: "/secretary/contracts" },
   { name: "Settings", icon: Settings, path: "/secretary/settings" },
 ];
 
