@@ -17,6 +17,7 @@ interface Booking {
     scheduled_at: string | null;
     estimated_cost: number | null;
     created_at: string | null;
+    is_flagged?: boolean;
 }
 
 interface Complaint {
@@ -68,6 +69,10 @@ interface BookingDetail {
     property_details: string | null;
     user: { username: string; email: string } | null;
     provider: { name: string; category: string; is_verified: boolean } | null;
+    actual_hours?: number | null;
+    final_cost?: number | null;
+    completion_notes?: string | null;
+    is_flagged?: boolean;
 }
 
 function BRow({ label, value }: { label: string; value: string }) {
@@ -301,9 +306,17 @@ export default function AdminBookingsPage() {
                                                     <p className="text-sm font-black text-[#000000] uppercase tracking-tight">{b.service_type || "—"}</p>
                                                 </td>
                                                 <td className="px-8 py-5">
-                                                    <span className={`text-[9px] font-black px-2.5 py-1 rounded-md uppercase tracking-widest border ${STATUS_STYLE[b.status] ?? "bg-slate-50 text-slate-500 border-slate-200"}`}>
-                                                        {b.status}
-                                                    </span>
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className={`text-[9px] font-black px-2.5 py-1 rounded-md uppercase tracking-widest border ${STATUS_STYLE[b.status] ?? "bg-slate-50 text-slate-500 border-slate-200"}`}>
+                                                            {b.status}
+                                                        </span>
+                                                        {b.is_flagged && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-100 text-red-700 text-[9px] font-black uppercase tracking-widest">
+                                                                <AlertTriangle className="w-2.5 h-2.5" />
+                                                                Flagged
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-8 py-5">
                                                     <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase ${PRIORITY_STYLE[b.priority ?? "NORMAL"] ?? "text-slate-400 bg-slate-50"}`}>
@@ -526,6 +539,29 @@ export default function AdminBookingsPage() {
                                         <div className="pt-3 border-t border-slate-100 mt-1">
                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Issue</p>
                                             <p className="text-xs text-slate-600">{bookingDetail.issue_description}</p>
+                                        </div>
+                                    )}
+                                    {(bookingDetail.actual_hours != null || bookingDetail.final_cost != null) && (
+                                        <div className="mt-4 pt-4 border-t border-slate-100">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Charge Details</p>
+                                            {bookingDetail.actual_hours != null && (
+                                                <BRow label="Hours Worked" value={`${bookingDetail.actual_hours}h`} />
+                                            )}
+                                            {bookingDetail.final_cost != null && (
+                                                <BRow label="Final Charge" value={`₹${bookingDetail.final_cost.toLocaleString("en-IN")}`} />
+                                            )}
+                                            {bookingDetail.completion_notes && (
+                                                <div className="py-2 border-b border-slate-50">
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Notes</p>
+                                                    <p className="text-xs text-slate-600 italic">"{bookingDetail.completion_notes}"</p>
+                                                </div>
+                                            )}
+                                            {bookingDetail.is_flagged && (
+                                                <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-100">
+                                                    <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+                                                    <p className="text-xs text-red-700 font-bold">This booking has been flagged</p>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
