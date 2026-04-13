@@ -658,7 +658,7 @@ export default function UserBookingsPage() {
                 <h2 className="text-lg font-black text-slate-900 uppercase tracking-widest">Confirm Receipt</h2>
                 <p className="text-xs text-slate-500 mt-1">{receiptModal.receipt.servicer_name} · {receiptModal.receipt.service_type}</p>
               </div>
-              <button onClick={() => setReceiptModal(null)} className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-slate-700">
+              <button onClick={() => { setReceiptModal(null); setDisputeMode(false); setDisputeReason(""); setRejectingCharge(false); }} className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-slate-700">
                 <X className="w-5 h-5" />
               </button>
             </div>
