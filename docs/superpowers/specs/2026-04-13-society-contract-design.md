@@ -106,42 +106,49 @@ Extends existing APScheduler in `backend/app/core/scheduler.py`.
 
 ## Frontend Pages
 
-### Secretary Portal — `/secretary/contracts` (new page)
+### Secretary Portal — two touch points
+
+**Touch point 1 — `/secretary/providers` (existing page, small addition)**
+The secretary already browses trusted providers here with a multi-select checkbox and floating action bar.
+- Add **"Invite to Contract"** as a second button on the existing floating selection bar (alongside "Send Request on Behalf")
+- Clicking opens a contract invite modal: duration picker (2/6/10/12 months), monthly rate ₹ input, notes textarea
+- On submit → `POST /secretary/contracts`
+- No new provider browsing UI needed — reuse the entire existing filter/card/select system
+
+**Touch point 2 — `/secretary/contracts` (new page)**
+Contract lifecycle management — secretary lands here after sending invites.
 
 **Tab 1 — Active Contracts**
-- Cards per active contracted provider: name, category, rating, duration, monthly rate, start/end date, days remaining
+- Cards per active contracted provider: name, category, duration, monthly rate, start/end date, days remaining
 - "Dispatch Job" button → modal (member picker from society members, service type, date/time, job price, notes)
 - "Cancel Contract" button
 
 **Tab 2 — Pending / History**
 - PENDING invites awaiting servicer response
-- COUNTER_PROPOSED cards with servicer's counter duration and "Confirm Counter" / "Reject Counter" buttons
+- COUNTER_PROPOSED cards showing servicer's proposed duration with "Confirm Counter" / "Reject Counter" buttons
 - REJECTED / EXPIRED / CANCELLED history
 
-**Send Invite modal:**
-- Provider selector (search from society's trusted providers with `AVAILABLE` filter)
-- Duration picker: 2 / 6 / 10 / 12 months
-- Monthly rate ₹ input
-- Notes/terms textarea (optional)
+### Servicer Portal — `/service/jobs` (existing page, add one tab)
 
-### Servicer Portal — `/service/jobs` (extend existing page)
+Existing `JobTab` type: `"jobs" | "requests" | "emergency" | "completed"`
+→ Extend to: `"jobs" | "requests" | "emergency" | "completed" | "society"`
 
-Add new **"Society Jobs"** tab to the existing jobs page.
+**Society tab — two sections:**
 
-**Invites section** (PENDING / COUNTER_PROPOSED)
+**Section A — Invites** (PENDING / COUNTER_PROPOSED)
 - Card: society name, proposed duration, monthly rate, secretary notes
 - Buttons: **Accept** / **Reject** / **Counter**
-- Counter → modal: duration selector (2/6/10/12) + note field
+- Counter → inline modal: duration selector (2/6/10/12) + note field
 
-**Active Contracts section**
+**Section B — Active Contracts**
 - Card: society name, duration, monthly rate, start/end date, days remaining
 - Dispatched jobs list per contract: service type, member home number, scheduled date, price, status
 - "Mark In Progress" / "Mark Completed" actions per dispatch
 
 ### Sidebar
 
-- Secretary sidebar: add **Contracts** link
-- Servicer sidebar: no change (Society Jobs is a tab inside existing `/service/jobs`)
+- Secretary: add **Contracts** entry to `SECRETARY_NAV` → `/secretary/contracts`
+- Servicer: no change (Society Jobs is a new tab inside existing `/service/jobs`)
 
 ---
 
@@ -196,14 +203,20 @@ backend/alembic/versions/13_04_2026_add_society_contracts.py
 ## New Files (Frontend)
 
 ```
-frontend/app/secretary/contracts/page.tsx          # Secretary contracts page
+frontend/app/secretary/contracts/page.tsx          # Secretary contracts page (list + dispatch)
 ```
 
-## Modified Files
+## Modified Files (Frontend — minimal, reuse existing)
+
+```
+frontend/app/secretary/providers/page.tsx          # Add "Invite to Contract" to floating action bar
+frontend/components/layout/Sidebar.tsx             # Add Contracts entry to SECRETARY_NAV only
+frontend/app/service/jobs/page.tsx                 # Add "society" to JobTab + Society Jobs tab UI
+```
+
+## Modified Files (Backend)
 
 ```
 backend/app/core/scheduler.py                      # Add daily contract expiry job
 backend/app/main.py                                # Register two new routers
-frontend/components/layout/Sidebar.tsx             # Add Contracts link for secretary
-frontend/app/service/jobs/page.tsx                 # Add Society Jobs tab
 ```
