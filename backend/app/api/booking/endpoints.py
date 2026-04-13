@@ -14,14 +14,13 @@ from app.booking.domain.model import ServiceBooking, BookingStatusHistory, Booki
 from app.notification.domain.model import Notification
 from app.service.services import get_provider_display_name
 from app.service.point_engine import award_points
-from app.emergency.domain.model import EmergencyConfig
 from app.api.booking.schemas import (
     BookingCreate, BookingUpdate, BookingStatusUpdate,
     BookingReschedule, BookingCancel,
     BookingRead, BookingDetailRead, BookingWithUserRead,
     ChatCreate, ChatRead, ReviewCreate, ReviewRead,
     BookingStatusHistoryRead,
-    FinalCompleteCreate, ReceiptRead, ComplaintCreate, ComplaintRead,
+    ReceiptRead, ComplaintCreate, ComplaintRead,
     ChargeSubmitCreate, FlagCreate,
 )
 
@@ -460,7 +459,6 @@ def final_complete_booking(
     booking.actual_hours = body.actual_hours
     booking.final_cost = body.charge_amount
     booking.completion_notes = body.charge_description
-    booking.completed_at = now
 
     db.add(BookingStatusHistory(
         booking_id=booking.id,
@@ -475,7 +473,6 @@ def final_complete_booking(
         timestamp=now,
     ))
 
-    provider_name = get_provider_display_name(provider)
     _notify_booking(
         db, user_id=booking.user_id,
         title="Charge Submitted \u2014 Please Confirm",
@@ -565,6 +562,8 @@ def reject_charge(
         timestamp=now,
     ))
 
+    # Note: no point deduction applied — the provider did not cancel,
+    # the user rejected the charge. Provider availability is freed.
     provider = db.query(ServiceProvider).filter(ServiceProvider.id == booking.provider_id).first()
     if provider:
         provider.availability_status = "AVAILABLE"
@@ -589,7 +588,7 @@ def flag_booking(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
 ):
-    """User or admin flags a booking as disputed. Creates a complaint and marks booking is_flagged=True."""
+    """User, servicer, or admin flags a booking as disputed. Creates a complaint and marks booking is_flagged=True."""
     from app.auth.domain.model import User as UserModel
 
     booking = db.query(ServiceBooking).filter(ServiceBooking.id == booking_id).first()
@@ -605,6 +604,8 @@ def flag_booking(
         raise HTTPException(status_code=403, detail="Access denied")
     if booking.status == "Cancelled":
         raise HTTPException(status_code=400, detail="Cannot flag a cancelled booking")
+    if booking.is_flagged:
+        raise HTTPException(status_code=409, detail="Booking is already flagged")
 
     booking.is_flagged = True
 

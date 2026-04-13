@@ -134,11 +134,6 @@ class BookingWithUserRead(BookingDetailRead):
         from_attributes = True
 
 
-class FinalCompleteCreate(BaseModel):
-    extra_hours: float = 0.0
-    notes: Optional[str] = None
-
-
 class ChargeSubmitCreate(BaseModel):
     actual_hours: float
     charge_amount: float
