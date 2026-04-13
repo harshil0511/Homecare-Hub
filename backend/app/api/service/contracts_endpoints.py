@@ -4,7 +4,7 @@ from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, subqueryload
 
 from app.common import deps
 from app.auth.domain.model import User
@@ -89,6 +89,9 @@ def list_my_contracts(
     provider = _get_provider(current_user, db)
     contracts = (
         db.query(SocietyContract)
+        .options(
+            subqueryload(SocietyContract.dispatches),
+        )
         .filter(
             SocietyContract.provider_id == provider.id,
             SocietyContract.status.in_(["PENDING", "COUNTER_PROPOSED", "ACTIVE"]),

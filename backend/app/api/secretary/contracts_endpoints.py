@@ -129,6 +129,9 @@ def confirm_counter(
             detail=f"Contract is {contract.status}, not COUNTER_PROPOSED.",
         )
 
+    if contract.counter_duration_months is None:
+        raise HTTPException(status_code=400, detail="counter_duration_months not set on this contract.")
+
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     contract.status = "ACTIVE"
     contract.duration_months = contract.counter_duration_months
