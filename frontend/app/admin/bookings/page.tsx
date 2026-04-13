@@ -541,11 +541,17 @@ export default function AdminBookingsPage() {
                                             <p className="text-xs text-slate-600">{bookingDetail.issue_description}</p>
                                         </div>
                                     )}
+                                    {bookingDetail.is_flagged && (
+                                        <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-100">
+                                            <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+                                            <p className="text-xs text-red-700 font-bold">This booking has been flagged</p>
+                                        </div>
+                                    )}
                                     {(bookingDetail.actual_hours != null || bookingDetail.final_cost != null) && (
                                         <div className="mt-4 pt-4 border-t border-slate-100">
                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Charge Details</p>
                                             {bookingDetail.actual_hours != null && (
-                                                <BRow label="Hours Worked" value={`${bookingDetail.actual_hours}h`} />
+                                                <BRow label="Hours Worked" value={`${bookingDetail.actual_hours?.toFixed(1) ?? "—"}h`} />
                                             )}
                                             {bookingDetail.final_cost != null && (
                                                 <BRow label="Final Charge" value={`₹${bookingDetail.final_cost.toLocaleString("en-IN")}`} />
@@ -554,12 +560,6 @@ export default function AdminBookingsPage() {
                                                 <div className="py-2 border-b border-slate-50">
                                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Notes</p>
                                                     <p className="text-xs text-slate-600 italic">"{bookingDetail.completion_notes}"</p>
-                                                </div>
-                                            )}
-                                            {bookingDetail.is_flagged && (
-                                                <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-100">
-                                                    <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
-                                                    <p className="text-xs text-red-700 font-bold">This booking has been flagged</p>
                                                 </div>
                                             )}
                                         </div>
