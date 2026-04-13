@@ -10,7 +10,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "14042026_is_flagged"
-down_revision = "13042026_home_members"
+down_revision = "13042026_society_contracts"
 branch_labels = None
 depends_on = None
 
