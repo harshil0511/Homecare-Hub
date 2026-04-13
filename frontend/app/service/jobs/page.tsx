@@ -21,6 +21,7 @@ interface Booking {
     estimated_cost: number;
     created_at: string;
     updated_at: string;
+    source_type?: string | null;
 }
 
 interface IncomingRequest {
@@ -143,6 +144,7 @@ export default function ServicerJobsPage() {
     const [extraHours, setExtraHours] = useState<number | "">(0);
     const [finalNotes, setFinalNotes] = useState("");
     const [submittingFinal, setSubmittingFinal] = useState(false);
+    const [chargeAmount, setChargeAmount] = useState<number | "">("");
 
     const [reportIssueTarget, setReportIssueTarget] = useState<Booking | null>(null);
     const [issueReason, setIssueReason] = useState("");
@@ -429,22 +431,28 @@ export default function ServicerJobsPage() {
 
     const handleFinalComplete = async () => {
         if (!finalCompleteTarget) return;
+        if (!extraHours || !chargeAmount) {
+            toast.error("Actual hours and charge amount are required");
+            return;
+        }
         setSubmittingFinal(true);
         try {
             await apiFetch(`/bookings/${finalCompleteTarget.id}/final-complete`, {
                 method: "POST",
                 body: JSON.stringify({
-                    extra_hours: Number(extraHours) || 0,
-                    notes: finalNotes || undefined,
+                    actual_hours: Number(extraHours),
+                    charge_amount: Number(chargeAmount),
+                    charge_description: finalNotes.trim() || null,
                 }),
             });
+            toast.success("Charge submitted. Waiting for user confirmation.");
             setFinalCompleteTarget(null);
             setExtraHours(0);
+            setChargeAmount("");
             setFinalNotes("");
-            toast.success("Job marked as complete. Receipt ready.");
-            await fetchJobs();
-        } catch (err) {
-            toast.error((err as Error).message ||"Failed to mark complete");
+            fetchJobs();
+        } catch (err: any) {
+            toast.error(err?.message || "Failed to submit charge");
         } finally {
             setSubmittingFinal(false);
         }
@@ -592,23 +600,25 @@ export default function ServicerJobsPage() {
                                                     Submit Completion
                                                 </button>
                                             )}
-                                            {booking.status === "In Progress" && (
+                                            {booking.status === "In Progress" && booking.source_type !== "emergency" && (
                                                 <button
                                                     onClick={() => {
                                                         setFinalCompleteTarget(booking);
                                                         setExtraHours(0);
+                                                        setChargeAmount("");
                                                         setFinalNotes("");
                                                     }}
                                                     className="w-full sm:w-auto px-10 py-3.5 bg-[#064e3b] hover:bg-emerald-800 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-900/10 hover:-translate-y-0.5 active:scale-95 transition-all flex items-center justify-center gap-2"
                                                 >
                                                     <CheckCircle className="w-4 h-4" />
-                                                    Final Complete
+                                                    Mark Complete &amp; Submit Charge
                                                 </button>
                                             )}
                                             {booking.status === "Pending Confirmation" && (
-                                                <span className="px-3 py-1.5 bg-amber-100 text-amber-700 text-[10px] font-black uppercase rounded-full">
-                                                    Awaiting User Confirmation
-                                                </span>
+                                                <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-sm">
+                                                    <Clock className="w-4 h-4 shrink-0" />
+                                                    Awaiting user payment confirmation
+                                                </div>
                                             )}
                                             {(booking.status === "In Progress" || booking.status === "Pending Confirmation" || booking.status === "Accepted") && (
                                                 <button
@@ -1298,49 +1308,77 @@ export default function ServicerJobsPage() {
                 </div>
             )}
 
-            {/* Final Complete Modal */}
+            {/* Charge Submission Modal */}
             {finalCompleteTarget && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
                         <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-base font-black text-slate-900 uppercase tracking-widest">Mark Job Complete</h2>
-                            <button onClick={() => setFinalCompleteTarget(null)} className="text-slate-400 hover:text-slate-600">
+                            <h2 className="text-lg font-semibold text-gray-900">Submit Charge</h2>
+                            <button
+                                onClick={() => setFinalCompleteTarget(null)}
+                                className="p-1 rounded-lg hover:bg-gray-100 text-gray-500"
+                            >
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
-                        <p className="text-xs text-slate-500 mb-4">{finalCompleteTarget.service_type}</p>
-                        <div className="space-y-3">
+                        <p className="text-sm text-gray-500 mb-5">
+                            {finalCompleteTarget.service_type} — fill in actual work details
+                        </p>
+                        <div className="space-y-4">
                             <div>
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1 block">
-                                    {finalCompleteTarget.priority === "Emergency" ? "Hours Worked" : "Extra Hours (beyond estimate)"}
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Actual hours worked <span className="text-red-500">*</span>
                                 </label>
-                                <input type="number" min={0} step={0.5} value={extraHours}
+                                <input
+                                    type="number"
+                                    min="0.1"
+                                    step="0.5"
+                                    value={extraHours}
                                     onChange={e => setExtraHours(e.target.value === "" ? "" : Number(e.target.value))}
-                                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                                    placeholder="e.g. 2.5"
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                />
                             </div>
                             <div>
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1 block">Notes (optional)</label>
-                                <textarea value={finalNotes} onChange={e => setFinalNotes(e.target.value)} rows={2}
-                                    placeholder="Any notes about the completed job..."
-                                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none" />
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Charge amount ₹ <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    value={chargeAmount}
+                                    onChange={e => setChargeAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                                    placeholder="e.g. 400"
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                />
                             </div>
-                            <div className="bg-emerald-50 rounded-xl p-3 text-xs text-emerald-800">
-                                {finalCompleteTarget.priority === "Emergency" ? (
-                                    <>Rate set by admin — bill = hours worked × rate</>
-                                ) : (
-                                    <>Base: ₹{finalCompleteTarget.estimated_cost.toLocaleString()}
-                                    {Number(extraHours) > 0 && <span> + extra hours charge</span>}</>
-                                )}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Description (optional)
+                                </label>
+                                <textarea
+                                    rows={3}
+                                    value={finalNotes}
+                                    onChange={e => setFinalNotes(e.target.value)}
+                                    placeholder="What work was done?"
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+                                />
                             </div>
                         </div>
-                        <div className="flex gap-3 mt-5">
-                            <button onClick={() => setFinalCompleteTarget(null)}
-                                className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 text-xs font-black uppercase rounded-xl hover:bg-slate-50">
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                onClick={() => setFinalCompleteTarget(null)}
+                                className="flex-1 px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                            >
                                 Cancel
                             </button>
-                            <button onClick={handleFinalComplete} disabled={submittingFinal}
-                                className="flex-1 px-4 py-2.5 bg-[#064e3b] hover:bg-emerald-800 text-white text-xs font-black uppercase rounded-xl disabled:opacity-50">
-                                {submittingFinal ? "Completing..." : "Mark Complete"}
+                            <button
+                                onClick={handleFinalComplete}
+                                disabled={!extraHours || !chargeAmount || submittingFinal}
+                                className="flex-1 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-medium transition-colors"
+                            >
+                                {submittingFinal ? "Submitting…" : "Submit Charge"}
                             </button>
                         </div>
                     </div>
