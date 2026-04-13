@@ -18,7 +18,7 @@ class SocietyContract(Base):
     monthly_rate = Column(Float, nullable=False)
     start_date = Column(DateTime, nullable=True)
     end_date = Column(DateTime, nullable=True)
-    status = Column(String, default="PENDING")
+    status = Column(String, default="PENDING", nullable=False, index=True)
     secretary_notes = Column(Text, nullable=True)
     servicer_notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
@@ -38,18 +38,18 @@ class SocietyDispatch(Base):
 
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     contract_id = Column(
-        PG_UUID(as_uuid=True), ForeignKey("society_contracts.id"), nullable=False
+        PG_UUID(as_uuid=True), ForeignKey("society_contracts.id", ondelete="CASCADE"), nullable=False, index=True
     )
     society_id = Column(PG_UUID(as_uuid=True), ForeignKey("societies.id"), nullable=False)
     provider_id = Column(
-        PG_UUID(as_uuid=True), ForeignKey("service_providers.id"), nullable=False
+        PG_UUID(as_uuid=True), ForeignKey("service_providers.id"), nullable=False, index=True
     )
     member_id = Column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     service_type = Column(String, nullable=False)
     scheduled_at = Column(DateTime, nullable=False)
     job_price = Column(Float, nullable=False)
     notes = Column(Text, nullable=True)
-    status = Column(String, default="ASSIGNED")
+    status = Column(String, default="ASSIGNED", nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     contract = relationship("SocietyContract", back_populates="dispatches")
