@@ -43,7 +43,7 @@ interface IncomingRequest {
 }
 
 
-type JobTab = "jobs" | "requests" | "emergency" | "completed";
+type JobTab = "jobs" | "requests" | "emergency" | "completed" | "society";
 
 interface CompletedJob {
     id: string;
@@ -70,6 +70,33 @@ interface CompletedJob {
         professionalism_rating: number;
         created_at: string;
     } | null;
+}
+
+interface SocietyDispatchItem {
+    id: string;
+    service_type: string;
+    scheduled_at: string;
+    job_price: number;
+    notes?: string;
+    status: string;
+    member_home_number?: string;
+    member_name?: string;
+}
+
+interface SocietyContractItem {
+    id: string;
+    society_id: string;
+    duration_months: number;
+    counter_duration_months?: number;
+    monthly_rate: number;
+    start_date?: string;
+    end_date?: string;
+    status: string;
+    secretary_notes?: string;
+    servicer_notes?: string;
+    created_at: string;
+    society?: { id: string; name: string; address: string };
+    dispatches: SocietyDispatchItem[];
 }
 
 export default function ServicerJobsPage() {
@@ -109,7 +136,9 @@ export default function ServicerJobsPage() {
     const [servicerCounterDate, setServicerCounterDate] = useState("");
     const [servicerCounterTime, setServicerCounterTime] = useState("morning");
     const [servicerCounterMessage, setServicerCounterMessage] = useState("");
+    const [servicerCounterIsFinal, setServicerCounterIsFinal] = useState(false);
     const [sendingServicerCounter, setSendingServicerCounter] = useState(false);
+    const [resFinalOffer, setResFinalOffer] = useState(false);
     const [finalCompleteTarget, setFinalCompleteTarget] = useState<Booking | null>(null);
     const [extraHours, setExtraHours] = useState<number | "">(0);
     const [finalNotes, setFinalNotes] = useState("");
@@ -121,6 +150,13 @@ export default function ServicerJobsPage() {
 
     const [completedJobs, setCompletedJobs] = useState<CompletedJob[]>([]);
     const [completedLoading, setCompletedLoading] = useState(false);
+
+    const [societyContracts, setSocietyContracts] = useState<SocietyContractItem[]>([]);
+    const [societyLoading, setSocietyLoading] = useState(false);
+    const [counterContractId, setCounterContractId] = useState<string | null>(null);
+    const [counterDuration, setCounterDuration] = useState<2 | 6 | 10 | 12>(6);
+    const [counterNote, setCounterNote] = useState("");
+    const [societyActionId, setSocietyActionId] = useState<string | null>(null);
 
     const toast = useToast();
 
@@ -163,6 +199,15 @@ export default function ServicerJobsPage() {
                 .catch(() => setCompletedJobs([]))
                 .finally(() => setCompletedLoading(false));
         }
+    }, [activeTab]);
+
+    useEffect(() => {
+        if (activeTab !== "society") return;
+        setSocietyLoading(true);
+        apiFetch("/service/contracts")
+            .then(d => setSocietyContracts(d || []))
+            .catch(() => {})
+            .finally(() => setSocietyLoading(false));
     }, [activeTab]);
 
     // Fetch provider id once (needed for WebSocket)
@@ -273,11 +318,12 @@ export default function ServicerJobsPage() {
                     proposed_price: Number(resPrice),
                     estimated_hours: resDuration,
                     message: resMessage || null,
+                    is_final_offer: resFinalOffer,
                 }),
             });
             setIncomingRequests(prev => prev.filter(r => r.id !== respondingTo.id));
             setRespondingTo(null);
-            setResDate(""); setResTime("09:00"); setResPrice(""); setResDuration(2); setResMessage("");
+            setResDate(""); setResTime("09:00"); setResPrice(""); setResDuration(2); setResMessage(""); setResFinalOffer(false);
         } catch (err) {
             console.error("Failed to submit response:", err);
             toast.error((err as Error).message ||"Failed to submit response — please try again");
@@ -364,6 +410,7 @@ export default function ServicerJobsPage() {
                         proposed_time: servicerCounterTime,
                         proposed_price: Number(servicerCounterPrice),
                         message: servicerCounterMessage || undefined,
+                        is_final_offer: servicerCounterIsFinal,
                     }),
                 }
             );
@@ -371,7 +418,8 @@ export default function ServicerJobsPage() {
             setServicerCounterPrice("");
             setServicerCounterDate("");
             setServicerCounterMessage("");
-            toast.success("New offer sent to user");
+            setServicerCounterIsFinal(false);
+            toast.success(servicerCounterIsFinal ? "Final offer sent to user" : "New offer sent to user");
         } catch (err) {
             toast.error((err as Error).message ||"Failed to send offer");
         } finally {
@@ -427,6 +475,7 @@ export default function ServicerJobsPage() {
                     { key: "requests", label: "Incoming Requests" },
                     { key: "emergency", label: "Emergency SOS" },
                     { key: "completed", label: "Completed Jobs" },
+                    { key: "society", label: "Society Jobs" },
                 ] as { key: JobTab; label: string }[]).map(tab => (
                     <button
                         key={tab.key}
@@ -981,13 +1030,13 @@ export default function ServicerJobsPage() {
                     <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-base font-black text-slate-900 uppercase tracking-widest">Send New Offer</h2>
-                            <button onClick={() => setCounterModal(null)} className="text-slate-400 hover:text-slate-600">
+                            <button onClick={() => { setCounterModal(null); setServicerCounterIsFinal(false); }} className="text-slate-400 hover:text-slate-600">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
                         <p className="text-xs text-slate-500 mb-4">
                             To: <span className="font-bold text-slate-700">{counterModal.userName}</span>
-                            <span className="ml-2 text-[10px] text-slate-400 uppercase tracking-widest">Round {counterModal.currentRound + 1} of 3</span>
+                            <span className="ml-2 text-[10px] text-slate-400 uppercase tracking-widest">Round {counterModal.currentRound + 1}</span>
                         </p>
                         <div className="space-y-3">
                             <div>
@@ -1017,18 +1066,231 @@ export default function ServicerJobsPage() {
                                     rows={2} placeholder="Add a note..."
                                     className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
                             </div>
+                            {/* Final Offer checkbox */}
+                            <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                                servicerCounterIsFinal ? "border-rose-300 bg-rose-50" : "border-slate-200 hover:border-rose-200 hover:bg-rose-50/40"
+                            }`}>
+                                <input
+                                    type="checkbox"
+                                    checked={servicerCounterIsFinal}
+                                    onChange={e => setServicerCounterIsFinal(e.target.checked)}
+                                    className="mt-0.5 accent-rose-600"
+                                />
+                                <div>
+                                    <p className={`text-[10px] font-black uppercase tracking-widest ${servicerCounterIsFinal ? "text-rose-700" : "text-slate-500"}`}>
+                                        This is my Final Best Offer
+                                    </p>
+                                    <p className="text-[10px] text-slate-400 mt-0.5">User will only be able to accept or reject — no further counter offers</p>
+                                </div>
+                            </label>
                         </div>
                         <div className="flex gap-3 mt-5">
-                            <button onClick={() => setCounterModal(null)}
+                            <button onClick={() => { setCounterModal(null); setServicerCounterIsFinal(false); }}
                                 className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 text-xs font-black uppercase rounded-xl hover:bg-slate-50">
                                 Cancel
                             </button>
                             <button onClick={handleServicerSendCounter} disabled={sendingServicerCounter || servicerCounterPrice === "" || !servicerCounterDate}
-                                className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase rounded-xl disabled:opacity-50">
-                                {sendingServicerCounter ? "Sending..." : "Send Offer"}
+                                className={`flex-1 px-4 py-2.5 text-white text-xs font-black uppercase rounded-xl disabled:opacity-50 ${
+                                    servicerCounterIsFinal ? "bg-rose-600 hover:bg-rose-700" : "bg-blue-600 hover:bg-blue-700"
+                                }`}>
+                                {sendingServicerCounter ? "Sending..." : servicerCounterIsFinal ? "Send Final Offer" : "Send Offer"}
                             </button>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* Society Jobs tab */}
+            {activeTab === "society" && (
+                <div className="space-y-6">
+                    {societyLoading ? (
+                        <div className="flex justify-center py-12">
+                            <div className="w-8 h-8 border-4 border-emerald-200 border-t-[#064e3b] rounded-full animate-spin" />
+                        </div>
+                    ) : (
+                        <>
+                            {/* Pending Invites */}
+                            {societyContracts.filter(c => ["PENDING", "COUNTER_PROPOSED"].includes(c.status)).length > 0 && (
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Contract Invites</p>
+                                    <div className="space-y-3">
+                                        {societyContracts.filter(c => ["PENDING", "COUNTER_PROPOSED"].includes(c.status)).map(c => (
+                                            <div key={c.id} className="bg-white border border-slate-200 rounded-2xl p-6">
+                                                <div className="flex items-start justify-between mb-3">
+                                                    <div>
+                                                        <p className="font-black text-slate-900">{c.society?.name || "Society"}</p>
+                                                        <p className="text-xs text-slate-500">{c.duration_months}mo contract · ₹{c.monthly_rate?.toLocaleString()}/month</p>
+                                                        {c.secretary_notes && <p className="text-xs text-slate-400 mt-1 italic">&ldquo;{c.secretary_notes}&rdquo;</p>}
+                                                    </div>
+                                                    <span className={`text-xs font-black px-2 py-0.5 rounded-full uppercase ${c.status === "COUNTER_PROPOSED" ? "text-blue-700 bg-blue-50" : "text-amber-700 bg-amber-50"}`}>
+                                                        {c.status === "COUNTER_PROPOSED" ? "Awaiting Confirmation" : "Pending"}
+                                                    </span>
+                                                </div>
+                                                {c.status === "PENDING" && (
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={async () => {
+                                                                setSocietyActionId(c.id + "_accept");
+                                                                try {
+                                                                    await apiFetch(`/service/contracts/${c.id}/accept`, { method: "POST" });
+                                                                    const d = await apiFetch("/service/contracts");
+                                                                    setSocietyContracts(d || []);
+                                                                } catch {} finally { setSocietyActionId(null); }
+                                                            }}
+                                                            disabled={societyActionId === c.id + "_accept"}
+                                                            className="px-4 py-2 bg-[#064e3b] text-white text-xs font-black uppercase rounded-xl hover:bg-emerald-800 disabled:opacity-50"
+                                                        >
+                                                            Accept
+                                                        </button>
+                                                        <button
+                                                            onClick={async () => {
+                                                                setSocietyActionId(c.id + "_reject");
+                                                                try {
+                                                                    await apiFetch(`/service/contracts/${c.id}/reject`, { method: "POST" });
+                                                                    const d = await apiFetch("/service/contracts");
+                                                                    setSocietyContracts(d || []);
+                                                                } catch {} finally { setSocietyActionId(null); }
+                                                            }}
+                                                            disabled={societyActionId === c.id + "_reject"}
+                                                            className="px-4 py-2 border border-rose-200 text-rose-600 text-xs font-black uppercase rounded-xl hover:bg-rose-50 disabled:opacity-50"
+                                                        >
+                                                            Reject
+                                                        </button>
+                                                        <button
+                                                            onClick={() => { setCounterContractId(c.id); setCounterDuration(6); setCounterNote(""); }}
+                                                            className="px-4 py-2 border border-blue-200 text-blue-700 text-xs font-black uppercase rounded-xl hover:bg-blue-50"
+                                                        >
+                                                            Counter
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                {counterContractId === c.id && (
+                                                    <div className="mt-4 p-4 bg-blue-50 rounded-xl space-y-3">
+                                                        <p className="text-xs font-black text-blue-700 uppercase tracking-widest">Propose Different Duration</p>
+                                                        <div className="grid grid-cols-4 gap-2">
+                                                            {([2, 6, 10, 12] as const).map(d => (
+                                                                <button key={d} onClick={() => setCounterDuration(d)}
+                                                                    className={`py-2 rounded-xl text-sm font-black transition-colors ${counterDuration === d ? "bg-[#064e3b] text-white" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"}`}>
+                                                                    {d}mo
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                        <input value={counterNote} onChange={e => setCounterNote(e.target.value)}
+                                                            placeholder="Note (optional)"
+                                                            className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-[#064e3b]" />
+                                                        <div className="flex gap-2">
+                                                            <button onClick={() => setCounterContractId(null)}
+                                                                className="flex-1 py-2 border border-slate-200 rounded-xl text-xs font-black text-slate-500 hover:bg-white">
+                                                                Cancel
+                                                            </button>
+                                                            <button
+                                                                onClick={async () => {
+                                                                    setSocietyActionId(c.id + "_counter");
+                                                                    try {
+                                                                        await apiFetch(`/service/contracts/${c.id}/counter`, {
+                                                                            method: "POST",
+                                                                            body: JSON.stringify({ counter_duration_months: counterDuration, servicer_notes: counterNote || null }),
+                                                                        });
+                                                                        setCounterContractId(null);
+                                                                        const d = await apiFetch("/service/contracts");
+                                                                        setSocietyContracts(d || []);
+                                                                    } catch {} finally { setSocietyActionId(null); }
+                                                                }}
+                                                                disabled={societyActionId === c.id + "_counter"}
+                                                                className="flex-1 py-2 bg-[#064e3b] text-white rounded-xl text-xs font-black uppercase hover:bg-emerald-800 disabled:opacity-50"
+                                                            >
+                                                                Send Counter
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Active Contracts */}
+                            {societyContracts.filter(c => c.status === "ACTIVE").length > 0 && (
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Active Contracts</p>
+                                    <div className="space-y-4">
+                                        {societyContracts.filter(c => c.status === "ACTIVE").map(c => (
+                                            <div key={c.id} className="bg-white border border-slate-200 rounded-2xl p-6">
+                                                <div className="flex items-start justify-between mb-4">
+                                                    <div>
+                                                        <p className="font-black text-slate-900">{c.society?.name}</p>
+                                                        <p className="text-xs text-slate-500">{c.duration_months}mo · ₹{c.monthly_rate?.toLocaleString()}/mo</p>
+                                                    </div>
+                                                    <span className="text-xs font-black px-2 py-0.5 rounded-full uppercase text-emerald-700 bg-emerald-50">Active</span>
+                                                </div>
+                                                {c.dispatches.length === 0
+                                                    ? <p className="text-xs text-slate-400 italic">No jobs dispatched yet.</p>
+                                                    : (
+                                                        <div className="space-y-2">
+                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jobs</p>
+                                                            {c.dispatches.map(d => (
+                                                                <div key={d.id} className="p-3 bg-slate-50 rounded-xl">
+                                                                    <div className="flex items-center justify-between mb-2">
+                                                                        <div>
+                                                                            <p className="text-sm font-black text-slate-900">{d.service_type}</p>
+                                                                            <p className="text-xs text-slate-500">
+                                                                                {new Date(d.scheduled_at).toLocaleDateString()} · ₹{d.job_price}
+                                                                                {d.member_home_number ? ` · Unit ${d.member_home_number}` : ""}
+                                                                            </p>
+                                                                        </div>
+                                                                        <span className={`text-xs font-black px-2 py-0.5 rounded-full uppercase ${d.status === "COMPLETED" ? "text-emerald-700 bg-emerald-50" : d.status === "IN_PROGRESS" ? "text-blue-700 bg-blue-50" : "text-amber-700 bg-amber-50"}`}>
+                                                                            {d.status}
+                                                                        </span>
+                                                                    </div>
+                                                                    {d.status === "ASSIGNED" && (
+                                                                        <button
+                                                                            onClick={async () => {
+                                                                                await apiFetch(`/service/contracts/${c.id}/jobs/${d.id}`, {
+                                                                                    method: "PATCH",
+                                                                                    body: JSON.stringify({ status: "IN_PROGRESS" }),
+                                                                                });
+                                                                                const updated = await apiFetch("/service/contracts");
+                                                                                setSocietyContracts(updated || []);
+                                                                            }}
+                                                                            className="text-xs font-black text-blue-700 hover:underline"
+                                                                        >
+                                                                            Mark In Progress →
+                                                                        </button>
+                                                                    )}
+                                                                    {d.status === "IN_PROGRESS" && (
+                                                                        <button
+                                                                            onClick={async () => {
+                                                                                await apiFetch(`/service/contracts/${c.id}/jobs/${d.id}`, {
+                                                                                    method: "PATCH",
+                                                                                    body: JSON.stringify({ status: "COMPLETED" }),
+                                                                                });
+                                                                                const updated = await apiFetch("/service/contracts");
+                                                                                setSocietyContracts(updated || []);
+                                                                            }}
+                                                                            className="text-xs font-black text-emerald-700 hover:underline"
+                                                                        >
+                                                                            Mark Completed ✓
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {societyContracts.filter(c => ["PENDING", "COUNTER_PROPOSED", "ACTIVE"].includes(c.status)).length === 0 && (
+                                <div className="flex flex-col items-center py-16 text-slate-400">
+                                    <svg className="w-12 h-12 mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                                    <p className="font-black text-sm uppercase tracking-widest">No society contracts</p>
+                                </div>
+                            )}
+                        </>
+                    )}
                 </div>
             )}
 
@@ -1130,18 +1392,38 @@ export default function ServicerJobsPage() {
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Message (optional)</label>
                                     <textarea value={resMessage} onChange={e => setResMessage(e.target.value)} placeholder="Describe your approach, materials needed, experience with this type of work..." rows={3} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b] resize-none" />
                                 </div>
+
+                                {/* Final Offer checkbox */}
+                                <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                                    resFinalOffer ? "border-rose-300 bg-rose-50" : "border-slate-200 hover:border-rose-200 hover:bg-rose-50/40"
+                                }`}>
+                                    <input
+                                        type="checkbox"
+                                        checked={resFinalOffer}
+                                        onChange={e => setResFinalOffer(e.target.checked)}
+                                        className="mt-0.5 accent-rose-600"
+                                    />
+                                    <div>
+                                        <p className={`text-[10px] font-black uppercase tracking-widest ${resFinalOffer ? "text-rose-700" : "text-slate-500"}`}>
+                                            This is my Final Best Offer
+                                        </p>
+                                        <p className="text-[10px] text-slate-400 mt-0.5">User will only be able to accept or reject — no counter offers allowed</p>
+                                    </div>
+                                </label>
                             </div>
 
                             <div className="flex gap-3 mt-6">
-                                <button onClick={() => setRespondingTo(null)} className="flex-1 py-3 border border-slate-200 rounded-2xl text-sm font-black uppercase text-slate-500 hover:bg-slate-50 transition-colors">
+                                <button onClick={() => { setRespondingTo(null); setResFinalOffer(false); }} className="flex-1 py-3 border border-slate-200 rounded-2xl text-sm font-black uppercase text-slate-500 hover:bg-slate-50 transition-colors">
                                     Cancel
                                 </button>
                                 <button
                                     onClick={handleSubmitResponse}
                                     disabled={submittingResponse || !resDate || !resPrice}
-                                    className="flex-1 py-3 bg-[#064e3b] text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-emerald-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    className={`flex-1 py-3 text-white rounded-2xl text-sm font-black uppercase tracking-widest transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                                        resFinalOffer ? "bg-rose-600 hover:bg-rose-700" : "bg-[#064e3b] hover:bg-emerald-800"
+                                    }`}
                                 >
-                                    {submittingResponse ? "Submitting..." : <><Send className="w-4 h-4" /> Submit Offer</>}
+                                    {submittingResponse ? "Submitting..." : <><Send className="w-4 h-4" /> {resFinalOffer ? "Submit Final Offer" : "Submit Offer"}</>}
                                 </button>
                             </div>
                         </div>
