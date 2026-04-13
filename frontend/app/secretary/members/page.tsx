@@ -5,7 +5,7 @@ import Spinner from "@/components/ui/Spinner";
 import EmptyState from "@/components/ui/EmptyState";
 import {
     Users, CheckCircle, XCircle, Search, AlertTriangle,
-    Home, Plus, Trash2, X, Phone, UserCheck
+    Home, Plus, Trash2, X, Phone, UserCheck, PhoneCall, Users2
 } from "lucide-react";
 
 interface AppMember {
@@ -54,6 +54,7 @@ export default function SecretaryMembersPage() {
     const [saving, setSaving] = useState(false);
     const [formError, setFormError] = useState("");
     const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [viewMember, setViewMember] = useState<HomeMember | null>(null);
 
     const [loading, setLoading] = useState(true);
 
@@ -311,7 +312,11 @@ export default function SecretaryMembersPage() {
                         <div className="bg-white border border-slate-200 rounded-2xl">
                             <div className="divide-y divide-slate-50 max-h-[520px] overflow-y-auto">
                                 {filteredHome.map(m => (
-                                    <div key={m.id} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                                    <div
+                                        key={m.id}
+                                        onClick={() => setViewMember(m)}
+                                        className="px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer"
+                                    >
                                         <div className="flex items-center gap-4">
                                             <div className="w-10 h-10 bg-emerald-50 rounded-2xl flex items-center justify-center border border-emerald-100 shrink-0">
                                                 <Home className="w-4 h-4 text-emerald-700" />
@@ -330,7 +335,7 @@ export default function SecretaryMembersPage() {
                                             </div>
                                         </div>
                                         <button
-                                            onClick={() => handleDelete(m.id)}
+                                            onClick={e => { e.stopPropagation(); handleDelete(m.id); }}
                                             disabled={deletingId === m.id}
                                             className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors disabled:opacity-40"
                                         >
@@ -341,6 +346,55 @@ export default function SecretaryMembersPage() {
                             </div>
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* ── HOME MEMBER DETAIL MODAL ── */}
+            {viewMember && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 w-full max-w-sm">
+                        <div className="flex items-center justify-between mb-5">
+                            <div className="flex items-center gap-2">
+                                <Home className="w-4 h-4 text-emerald-700" />
+                                <span className="text-sm font-black text-slate-900 uppercase tracking-wide">Flat {viewMember.house_no}</span>
+                            </div>
+                            <button onClick={() => setViewMember(null)}
+                                className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 transition-colors">
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-3 mb-5">
+                            <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
+                                <UserCheck className="w-4 h-4 text-slate-400 shrink-0" />
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Full Name</p>
+                                    <p className="text-sm font-bold text-slate-900">{viewMember.full_name}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
+                                <Users2 className="w-4 h-4 text-slate-400 shrink-0" />
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Family Members</p>
+                                    <p className="text-sm font-bold text-slate-900">{viewMember.family_members} {viewMember.family_members === 1 ? "person" : "people"}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
+                                <Phone className="w-4 h-4 text-slate-400 shrink-0" />
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Mobile</p>
+                                    <p className="text-sm font-bold text-slate-900">{viewMember.mobile}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <a
+                            href={`tel:${viewMember.mobile}`}
+                            className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-emerald-600 text-white text-xs font-black uppercase tracking-widest hover:bg-emerald-700 transition-colors"
+                        >
+                            <PhoneCall className="w-4 h-4" /> Call Now
+                        </a>
+                    </div>
                 </div>
             )}
 
