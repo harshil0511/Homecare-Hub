@@ -6,11 +6,11 @@ from app.common import deps
 from app.auth.domain.model import User, Society
 from app.maintenance.domain.model import MaintenanceTask
 from app.service.domain.model import ServiceProvider, SocietyRequest
-from app.secretary.domain.model import SecretaryComplaint
+from app.secretary.domain.model import SecretaryComplaint, HomeMember
 from app.notification.domain.model import Notification
 from app.api.auth.schemas import UserResponse
 from app.api.service.schemas import SocietyResponse, SocietyUpdate, ProviderResponse, SocietyRequestResponse, SocietyRequestAction
-from app.api.secretary.schemas import HomeAssign, SecretaryComplaintCreate, SecretaryComplaintRead
+from app.api.secretary.schemas import HomeAssign, SecretaryComplaintCreate, SecretaryComplaintRead, HomeMemberCreate, HomeMemberRead
 
 
 router = APIRouter(tags=["Secretary API"])
@@ -200,3 +200,57 @@ def list_secretary_complaints(
         .order_by(SecretaryComplaint.created_at.desc())
         .all()
     )
+
+
+@router.post("/home-members", response_model=HomeMemberRead)
+def create_home_member(
+    data: HomeMemberCreate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(secretary_only),
+):
+    """Secretary adds a new home member record to their society."""
+    society = get_secretary_society(current_user, db)
+    member = HomeMember(
+        society_id=society.id,
+        full_name=data.full_name,
+        family_members=data.family_members,
+        house_no=data.house_no,
+        mobile=data.mobile,
+    )
+    db.add(member)
+    db.commit()
+    db.refresh(member)
+    return member
+
+
+@router.get("/home-members", response_model=List[HomeMemberRead])
+def list_home_members(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(secretary_only),
+):
+    """List all home members for the secretary's society, sorted by house_no then full_name."""
+    society = get_secretary_society(current_user, db)
+    return (
+        db.query(HomeMember)
+        .filter(HomeMember.society_id == society.id)
+        .order_by(HomeMember.house_no, HomeMember.full_name)
+        .all()
+    )
+
+
+@router.delete("/home-members/{member_id}", status_code=204)
+def delete_home_member(
+    member_id: UUID,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(secretary_only),
+):
+    """Delete a home member record."""
+    society = get_secretary_society(current_user, db)
+    member = db.query(HomeMember).filter(
+        HomeMember.id == member_id,
+        HomeMember.society_id == society.id,
+    ).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Home member not found.")
+    db.delete(member)
+    db.commit()
