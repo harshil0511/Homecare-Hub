@@ -1,5 +1,5 @@
 from uuid import UUID
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional, List
 from datetime import datetime
 
@@ -107,6 +107,8 @@ class BookingRead(BookingBase):
     actual_hours: Optional[float] = None
     completion_notes: Optional[str] = None
     completion_photos: Optional[str] = None
+    completed_at: Optional[datetime] = None
+    is_flagged: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -135,6 +137,30 @@ class BookingWithUserRead(BookingDetailRead):
 class FinalCompleteCreate(BaseModel):
     extra_hours: float = 0.0
     notes: Optional[str] = None
+
+
+class ChargeSubmitCreate(BaseModel):
+    actual_hours: float
+    charge_amount: float
+    charge_description: Optional[str] = None
+
+    @field_validator("actual_hours")
+    @classmethod
+    def validate_hours(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError("actual_hours must be greater than 0")
+        return v
+
+    @field_validator("charge_amount")
+    @classmethod
+    def validate_amount(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError("charge_amount must be greater than 0")
+        return v
+
+
+class FlagCreate(BaseModel):
+    flag_reason: str
 
 
 class ReceiptRead(BaseModel):
