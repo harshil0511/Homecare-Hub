@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import Spinner from "@/components/ui/Spinner";
 import EmptyState from "@/components/ui/EmptyState";
-import { Wrench, Star, Phone, CheckSquare, Square, Send, Users, X, ShieldCheck } from "lucide-react";
+import { Wrench, Star, Phone, CheckSquare, Square, Send, Users, X, ShieldCheck, Briefcase } from "lucide-react";
 
 interface Provider {
     id: string;
@@ -40,6 +40,11 @@ export default function SecretaryProvidersPage() {
     const [behalfProblem, setBehalfProblem] = useState("");
     const [behalfDesc, setBehalfDesc] = useState("");
     const [behalfUrgency, setBehalfUrgency] = useState<"Normal" | "High" | "Emergency">("Normal");
+    const [showContractModal, setShowContractModal] = useState(false);
+    const [contractDuration, setContractDuration] = useState<2 | 6 | 10 | 12>(6);
+    const [contractRate, setContractRate] = useState("");
+    const [contractNotes, setContractNotes] = useState("");
+    const [submittingContract, setSubmittingContract] = useState(false);
 
     useEffect(() => {
         apiFetch("/secretary/providers")
@@ -88,6 +93,32 @@ export default function SecretaryProvidersPage() {
             console.error("Failed to submit behalf request:", err);
         } finally {
             setSubmittingBehalf(false);
+        }
+    };
+
+    const handleContractInvite = async () => {
+        if (!contractRate) return;
+        const [providerId] = Array.from(selectedIds);
+        setSubmittingContract(true);
+        try {
+            await apiFetch("/secretary/contracts", {
+                method: "POST",
+                body: JSON.stringify({
+                    provider_id: providerId,
+                    duration_months: contractDuration,
+                    monthly_rate: parseFloat(contractRate),
+                    secretary_notes: contractNotes || null,
+                }),
+            });
+            setShowContractModal(false);
+            setSelectedIds(new Set());
+            setContractRate("");
+            setContractNotes("");
+            setContractDuration(6);
+        } catch (err) {
+            console.error("Failed to send contract invite:", err);
+        } finally {
+            setSubmittingContract(false);
         }
     };
 
@@ -204,6 +235,15 @@ export default function SecretaryProvidersPage() {
                         <Send className="w-4 h-4" />
                         Send Request on Behalf
                     </button>
+                    <button
+                        onClick={() => setShowContractModal(true)}
+                        disabled={selectedIds.size !== 1}
+                        className="flex items-center gap-2 px-5 py-2 bg-emerald-100 text-[#064e3b] text-xs font-black uppercase rounded-xl hover:bg-emerald-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        title={selectedIds.size !== 1 ? "Select exactly 1 provider" : "Invite to contract"}
+                    >
+                        <Briefcase className="w-4 h-4" />
+                        Invite to Contract
+                    </button>
                     <button onClick={() => setSelectedIds(new Set())} className="p-2 hover:bg-white/20 rounded-lg">
                         <X className="w-4 h-4" />
                     </button>
@@ -278,6 +318,61 @@ export default function SecretaryProvidersPage() {
                                     className="flex-1 py-3 bg-[#064e3b] text-white rounded-2xl text-sm font-black uppercase hover:bg-emerald-800 disabled:opacity-50 flex items-center justify-center gap-2"
                                 >
                                     {submittingBehalf ? "Sending..." : <><Send className="w-4 h-4" /> Send Request</>}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Contract Invite Modal */}
+            {showContractModal && (
+                <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-4 bg-slate-900/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl">
+                        <div className="p-8">
+                            <div className="flex items-center justify-between mb-6">
+                                <div>
+                                    <h2 className="text-lg font-black text-slate-900 uppercase tracking-widest">Contract Invite</h2>
+                                    <p className="text-xs text-slate-500 mt-1">Invite this provider to join your society as a contracted worker</p>
+                                </div>
+                                <button onClick={() => setShowContractModal(false)} className="p-2 hover:bg-slate-100 rounded-xl">
+                                    <X className="w-5 h-5 text-slate-500" />
+                                </button>
+                            </div>
+                            <div className="space-y-4">
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Contract Duration</p>
+                                    <div className="grid grid-cols-4 gap-2">
+                                        {([2, 6, 10, 12] as const).map(d => (
+                                            <button key={d} onClick={() => setContractDuration(d)}
+                                                className={`py-2.5 rounded-xl text-sm font-black transition-colors ${contractDuration === d ? "bg-[#064e3b] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
+                                                {d}mo
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Monthly Retainer (₹) *</p>
+                                    <input type="number" value={contractRate} onChange={e => setContractRate(e.target.value)}
+                                        placeholder="e.g. 8000" min="1"
+                                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b]" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Terms / Notes</p>
+                                    <textarea value={contractNotes} onChange={e => setContractNotes(e.target.value)} rows={2}
+                                        placeholder="Any specific terms or expectations..."
+                                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b] resize-none" />
+                                </div>
+                            </div>
+                            <div className="flex gap-3 mt-6">
+                                <button onClick={() => setShowContractModal(false)}
+                                    className="flex-1 py-3 border border-slate-200 rounded-2xl text-sm font-black uppercase text-slate-500 hover:bg-slate-50">
+                                    Cancel
+                                </button>
+                                <button onClick={handleContractInvite}
+                                    disabled={submittingContract || !contractRate}
+                                    className="flex-1 py-3 bg-[#064e3b] text-white rounded-2xl text-sm font-black uppercase hover:bg-emerald-800 disabled:opacity-50 flex items-center justify-center gap-2">
+                                    {submittingContract ? "Sending..." : <><Send className="w-4 h-4" /> Send Invite</>}
                                 </button>
                             </div>
                         </div>
