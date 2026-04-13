@@ -19,6 +19,8 @@ from app.api.booking.endpoints import router as booking_router
 from app.api.ai.endpoints import router as ai_router
 from app.api.notification.endpoints import router as notification_router
 from app.api.secretary.endpoints import router as secretary_router
+from app.api.secretary.contracts_endpoints import router as secretary_contracts_router
+from app.api.service.contracts_endpoints import router as servicer_contracts_router
 from app.api.request.endpoints import router as request_router
 from app.api.emergency.endpoints import router as emergency_router, servicer_router as emergency_servicer_router
 from app.core.db.session import init_db, SessionLocal
@@ -137,7 +139,9 @@ app.include_router(admin_router,        prefix="/api/v1/admin")
 app.include_router(ai_router,           prefix="/api/v1/ai")
 app.include_router(booking_router,      prefix="/api/v1/bookings")
 app.include_router(notification_router, prefix="/api/v1/notifications")
-app.include_router(secretary_router,    prefix="/api/v1/secretary")
+app.include_router(secretary_router,           prefix="/api/v1/secretary")
+app.include_router(secretary_contracts_router, prefix="/api/v1/secretary/contracts")
+app.include_router(servicer_contracts_router,  prefix="/api/v1/service/contracts")
 app.include_router(request_router,          prefix="/api/v1/requests")
 app.include_router(emergency_router,        prefix="/api/v1/emergency")
 app.include_router(emergency_servicer_router, prefix="/api/v1/emergency")

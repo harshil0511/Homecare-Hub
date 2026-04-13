@@ -6,6 +6,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from app.core.db.session import SessionLocal
 from app.maintenance.domain.model import MaintenanceTask
 from app.notification.domain.model import Notification
+from app.contract.domain.model import SocietyContract
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ def _check_alert_notifications() -> None:
                     title="Maintenance Reminder — 2 Days Left",
                     message=f"Your '{task.title}' maintenance is due in 2 days on {due.strftime('%d %b %Y')}. Don't forget!",
                     notification_type="WARNING",
-                    link=f"/user/routine?taskId={task.id}",
+                    link="/user/alerts",
                 ))
                 task.warning_sent = True
 
@@ -49,7 +50,7 @@ def _check_alert_notifications() -> None:
                     title="MAINTENANCE DUE TODAY",
                     message=f"Your '{task.title}' maintenance is scheduled for today. Take action now.",
                     notification_type="URGENT",
-                    link=f"/user/routine?taskId={task.id}",
+                    link="/user/alerts",
                 ))
                 task.final_sent = True
                 task.status = "Triggered"
@@ -61,7 +62,7 @@ def _check_alert_notifications() -> None:
                     title="OVERDUE: Maintenance Missed",
                     message=f"Your '{task.title}' maintenance was due on {due.strftime('%d %b %Y')}. Please take action.",
                     notification_type="URGENT",
-                    link=f"/user/routine?taskId={task.id}",
+                    link="/user/alerts",
                 ))
                 task.overdue_sent = True
                 task.status = "Overdue"
@@ -79,6 +80,55 @@ def _check_alert_notifications() -> None:
         db.close()
 
 
+def _expire_contracts() -> None:
+    """Run daily. Mark ACTIVE contracts whose end_date has passed as EXPIRED."""
+    from app.auth.domain.model import User
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        expired = (
+            db.query(SocietyContract)
+            .filter(
+                SocietyContract.status == "ACTIVE",
+                SocietyContract.end_date < now,
+            )
+            .all()
+        )
+
+        for contract in expired:
+            contract.status = "EXPIRED"
+
+            secretary_user = db.query(User).filter(User.id == contract.proposed_by).first()
+            if secretary_user:
+                db.add(Notification(
+                    user_id=secretary_user.id,
+                    title="Contract Expired",
+                    message=(
+                        f"The {contract.duration_months}-month contract has expired."
+                    ),
+                    notification_type="INFO",
+                    link="/secretary/contracts",
+                ))
+
+            if contract.provider and contract.provider.user_id:
+                db.add(Notification(
+                    user_id=contract.provider.user_id,
+                    title="Society Contract Expired",
+                    message=f"Your contract with {contract.society.name} has expired.",
+                    notification_type="INFO",
+                    link="/service/jobs?tab=society",
+                ))
+
+        if expired:
+            db.commit()
+            logger.info("Contract expiry check complete — expired %d contracts.", len(expired))
+    except Exception:
+        logger.exception("Contract expiry scheduler failed.")
+        db.rollback()
+    finally:
+        db.close()
+
+
 def start_scheduler() -> None:
     scheduler.add_job(
         _check_alert_notifications,
@@ -87,6 +137,14 @@ def start_scheduler() -> None:
         id="alert_notifications",
         replace_existing=True,
         misfire_grace_time=300,
+    )
+    scheduler.add_job(
+        _expire_contracts,
+        trigger="interval",
+        hours=24,
+        id="contract_expiry",
+        replace_existing=True,
+        misfire_grace_time=3600,
     )
     scheduler.start()
     logger.info("Alert notification scheduler started.")
