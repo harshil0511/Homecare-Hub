@@ -47,6 +47,9 @@ class SocietyDispatchServicerRead(BaseModel):
     member_home_number: Optional[str] = None
     member_name: Optional[str] = None
 
+    class Config:
+        from_attributes = True
+
 
 class SocietyContractServicerRead(BaseModel):
     id: UUID
@@ -62,3 +65,6 @@ class SocietyContractServicerRead(BaseModel):
     created_at: datetime
     society: Optional[SocietySummary] = None
     dispatches: List[SocietyDispatchServicerRead] = []
+
+    class Config:
+        from_attributes = True
