@@ -141,7 +141,7 @@ export default function ServicerJobsPage() {
     const [sendingServicerCounter, setSendingServicerCounter] = useState(false);
     const [resFinalOffer, setResFinalOffer] = useState(false);
     const [finalCompleteTarget, setFinalCompleteTarget] = useState<Booking | null>(null);
-    const [extraHours, setExtraHours] = useState<number | "">(0);
+    const [extraHours, setExtraHours] = useState<number | ("")>("");
     const [finalNotes, setFinalNotes] = useState("");
     const [submittingFinal, setSubmittingFinal] = useState(false);
     const [chargeAmount, setChargeAmount] = useState<number | "">("");
@@ -431,7 +431,7 @@ export default function ServicerJobsPage() {
 
     const handleFinalComplete = async () => {
         if (!finalCompleteTarget) return;
-        if (!extraHours || !chargeAmount) {
+        if (!extraHours || Number(extraHours) <= 0 || !chargeAmount || Number(chargeAmount) <= 0) {
             toast.error("Actual hours and charge amount are required");
             return;
         }
@@ -447,10 +447,10 @@ export default function ServicerJobsPage() {
             });
             toast.success("Charge submitted. Waiting for user confirmation.");
             setFinalCompleteTarget(null);
-            setExtraHours(0);
+            setExtraHours("");
             setChargeAmount("");
             setFinalNotes("");
-            fetchJobs();
+            await fetchJobs();
         } catch (err: any) {
             toast.error(err?.message || "Failed to submit charge");
         } finally {
@@ -591,7 +591,8 @@ export default function ServicerJobsPage() {
                                                 <button
                                                     onClick={() => {
                                                         setFinalCompleteTarget(booking);
-                                                        setExtraHours(0);
+                                                        setExtraHours("");
+                                                        setChargeAmount("");
                                                         setFinalNotes("");
                                                     }}
                                                     className="w-full sm:w-auto px-10 py-3.5 bg-[#064e3b] hover:bg-emerald-800 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-900/10 hover:-translate-y-0.5 active:scale-95 transition-all flex items-center justify-center gap-2"
@@ -604,7 +605,7 @@ export default function ServicerJobsPage() {
                                                 <button
                                                     onClick={() => {
                                                         setFinalCompleteTarget(booking);
-                                                        setExtraHours(0);
+                                                        setExtraHours("");
                                                         setChargeAmount("");
                                                         setFinalNotes("");
                                                     }}
