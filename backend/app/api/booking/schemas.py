@@ -147,6 +147,9 @@ class ChargeSubmitCreate(BaseModel):
     @field_validator("actual_hours")
     @classmethod
     def validate_hours(cls, v: float) -> float:
+        import math
+        if not math.isfinite(v):
+            raise ValueError("actual_hours must be a finite number")
         if v <= 0:
             raise ValueError("actual_hours must be greater than 0")
         return v
@@ -154,6 +157,9 @@ class ChargeSubmitCreate(BaseModel):
     @field_validator("charge_amount")
     @classmethod
     def validate_amount(cls, v: float) -> float:
+        import math
+        if not math.isfinite(v):
+            raise ValueError("charge_amount must be a finite number")
         if v <= 0:
             raise ValueError("charge_amount must be greater than 0")
         return v
@@ -161,6 +167,14 @@ class ChargeSubmitCreate(BaseModel):
 
 class FlagCreate(BaseModel):
     flag_reason: str
+
+    @field_validator("flag_reason")
+    @classmethod
+    def validate_reason(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("flag_reason must not be blank")
+        return v
 
 
 class ReceiptRead(BaseModel):

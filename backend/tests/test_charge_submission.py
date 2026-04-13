@@ -79,3 +79,11 @@ class TestBookingReadIncludesIsFlagged:
         from app.api.booking.schemas import BookingRead
         assert "is_flagged" in BookingRead.model_fields, \
             "BookingRead must expose is_flagged"
+
+
+class TestBookingReadCompletedAt:
+    def test_completed_at_field_present_in_booking_read(self):
+        from app.api.booking.schemas import BookingRead
+        assert "completed_at" in BookingRead.model_fields
+        field = BookingRead.model_fields["completed_at"]
+        assert field.default is None  # Optional with None default
