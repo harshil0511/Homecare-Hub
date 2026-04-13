@@ -30,3 +30,23 @@ class SecretaryComplaintRead(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class HomeMemberCreate(BaseModel):
+    full_name: str
+    family_members: int
+    house_no: str
+    mobile: str
+
+
+class HomeMemberRead(BaseModel):
+    id: UUID
+    society_id: UUID
+    full_name: str
+    family_members: int
+    house_no: str
+    mobile: str
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
