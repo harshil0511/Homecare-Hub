@@ -1246,12 +1246,14 @@ export default function ServicerJobsPage() {
                                                                     {d.status === "ASSIGNED" && (
                                                                         <button
                                                                             onClick={async () => {
-                                                                                await apiFetch(`/service/contracts/${c.id}/jobs/${d.id}`, {
-                                                                                    method: "PATCH",
-                                                                                    body: JSON.stringify({ status: "IN_PROGRESS" }),
-                                                                                });
-                                                                                const updated = await apiFetch("/service/contracts");
-                                                                                setSocietyContracts(updated || []);
+                                                                                try {
+                                                                                    await apiFetch(`/service/contracts/${c.id}/jobs/${d.id}`, {
+                                                                                        method: "PATCH",
+                                                                                        body: JSON.stringify({ status: "IN_PROGRESS" }),
+                                                                                    });
+                                                                                    const updated = await apiFetch("/service/contracts");
+                                                                                    setSocietyContracts(updated || []);
+                                                                                } catch {}
                                                                             }}
                                                                             className="text-xs font-black text-blue-700 hover:underline"
                                                                         >
@@ -1261,12 +1263,14 @@ export default function ServicerJobsPage() {
                                                                     {d.status === "IN_PROGRESS" && (
                                                                         <button
                                                                             onClick={async () => {
-                                                                                await apiFetch(`/service/contracts/${c.id}/jobs/${d.id}`, {
-                                                                                    method: "PATCH",
-                                                                                    body: JSON.stringify({ status: "COMPLETED" }),
-                                                                                });
-                                                                                const updated = await apiFetch("/service/contracts");
-                                                                                setSocietyContracts(updated || []);
+                                                                                try {
+                                                                                    await apiFetch(`/service/contracts/${c.id}/jobs/${d.id}`, {
+                                                                                        method: "PATCH",
+                                                                                        body: JSON.stringify({ status: "COMPLETED" }),
+                                                                                    });
+                                                                                    const updated = await apiFetch("/service/contracts");
+                                                                                    setSocietyContracts(updated || []);
+                                                                                } catch {}
                                                                             }}
                                                                             className="text-xs font-black text-emerald-700 hover:underline"
                                                                         >
