@@ -21,7 +21,7 @@ def upgrade() -> None:
         sa.Column("id", PG_UUID(as_uuid=True), primary_key=True,
                   server_default=sa.text("gen_random_uuid()"), nullable=False),
         sa.Column("society_id", PG_UUID(as_uuid=True),
-                  sa.ForeignKey("societies.id"), nullable=False),
+                  sa.ForeignKey("societies.id", ondelete="CASCADE"), nullable=False),
         sa.Column("provider_id", PG_UUID(as_uuid=True),
                   sa.ForeignKey("service_providers.id"), nullable=False),
         sa.Column("proposed_by", PG_UUID(as_uuid=True),
@@ -62,11 +62,13 @@ def upgrade() -> None:
     )
     op.create_index("ix_society_dispatches_contract_id", "society_dispatches", ["contract_id"])
     op.create_index("ix_society_dispatches_provider_id", "society_dispatches", ["provider_id"])
+    op.create_index("ix_society_dispatches_member_id", "society_dispatches", ["member_id"])
     op.create_index("ix_society_dispatches_status", "society_dispatches", ["status"])
 
 
 def downgrade() -> None:
     op.drop_index("ix_society_dispatches_status", table_name="society_dispatches")
+    op.drop_index("ix_society_dispatches_member_id", table_name="society_dispatches")
     op.drop_index("ix_society_dispatches_provider_id", table_name="society_dispatches")
     op.drop_index("ix_society_dispatches_contract_id", table_name="society_dispatches")
     op.drop_table("society_dispatches")
