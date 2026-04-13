@@ -1,7 +1,7 @@
 """add is_flagged to service_bookings
 
 Revision ID: 14042026_is_flagged
-Revises: 13042026_home_members
+Revises: 13042026_society_contracts
 Branch_labels: None
 Depends_on: None
 """
