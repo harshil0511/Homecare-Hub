@@ -36,6 +36,7 @@ interface NegotiationOffer {
   proposed_time: string;
   proposed_price: number;
   message?: string;
+  is_final_offer: boolean;
   status: "PENDING" | "ACCEPTED" | "REJECTED";
   created_at: string;
 }
@@ -49,6 +50,7 @@ interface ServiceRequestResponse {
   estimated_hours?: number;
   message?: string;
   status: "PENDING" | "ACCEPTED" | "REJECTED";
+  is_final_offer: boolean;
   negotiation_status: "NONE" | "NEGOTIATING" | "AGREED" | "CLOSED";
   agreed_price?: number;
   agreed_date?: string;
@@ -73,6 +75,10 @@ interface ActiveBooking {
   scheduled_at?: string;
   estimated_cost?: number;
   final_cost?: number;
+  actual_hours?: number | null;
+  completion_notes?: string | null;
+  is_flagged?: boolean;
+  source_type?: string | null;
   provider?: {
     first_name?: string;
     last_name?: string;
@@ -149,6 +155,7 @@ export default function UserBookingsPage() {
   const [disputeMode, setDisputeMode] = useState(false);
   const [disputeReason, setDisputeReason] = useState("");
   const [filingDispute, setFilingDispute] = useState(false);
+  const [rejectingCharge, setRejectingCharge] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -247,17 +254,34 @@ export default function UserBookingsPage() {
     if (!receiptModal || !disputeReason.trim()) return;
     setFilingDispute(true);
     try {
-      await apiFetch(`/bookings/${receiptModal.booking.id}/complaint`, {
+      await apiFetch(`/bookings/${receiptModal.booking.id}/flag`, {
         method: "POST",
-        body: JSON.stringify({ reason: disputeReason }),
+        body: JSON.stringify({ flag_reason: disputeReason.trim() }),
       });
+      toast.success("Booking flagged. Admin has been notified.");
+      setDisputeMode(false);
+      setDisputeReason("");
       setReceiptModal(null);
-      toast.success("Dispute submitted — admin will review");
       await loadData();
     } catch (err: any) {
-      toast.error(err.message || "Failed to file dispute");
+      toast.error(err?.message || "Failed to flag booking");
     } finally {
       setFilingDispute(false);
+    }
+  };
+
+  const handleRejectCharge = async () => {
+    if (!receiptModal) return;
+    setRejectingCharge(true);
+    try {
+      await apiFetch(`/bookings/${receiptModal.booking.id}/reject-charge`, { method: "POST" });
+      toast.success("Charge rejected. Booking closed.");
+      setReceiptModal(null);
+      await loadData();
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to reject charge");
+    } finally {
+      setRejectingCharge(false);
     }
   };
 
@@ -424,8 +448,40 @@ export default function UserBookingsPage() {
                   const servicerName = getProviderName(resp.provider);
                   const initials = servicerName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
 
+                  // Determine if this is a servicer's final offer (initial or counter)
+                  const latestOffer = resp.negotiation_offers && resp.negotiation_offers.length > 0
+                    ? resp.negotiation_offers[resp.negotiation_offers.length - 1]
+                    : null;
+                  const isServicerFinalOffer =
+                    (resp.current_round === 0 && resp.is_final_offer) ||
+                    (latestOffer && latestOffer.offered_by === "SERVICER" && latestOffer.is_final_offer);
+                  // User's own pending counter — waiting for servicer
+                  const waitingForServicer =
+                    resp.negotiation_status === "NEGOTIATING" &&
+                    latestOffer !== null &&
+                    latestOffer.offered_by === "USER";
+                  // Counter button visible when non-Emergency, not closed/agreed, not waiting, not final, rounds remain
+                  const canCounter =
+                    req.urgency !== "Emergency" &&
+                    resp.status === "PENDING" &&
+                    resp.negotiation_status !== "CLOSED" &&
+                    resp.negotiation_status !== "AGREED" &&
+                    !waitingForServicer &&
+                    !isServicerFinalOffer &&
+                    resp.current_round < 3;
+
                   return (
-                    <div key={`${req.id}-${resp.id}`} className={`bg-white border border-slate-200 border-l-4 ${urgencyColor} rounded-2xl p-6`}>
+                    <div key={`${req.id}-${resp.id}`} className={`bg-white border border-slate-200 border-l-4 ${isServicerFinalOffer ? "border-l-rose-500 border-rose-200" : urgencyColor} rounded-2xl p-6`}>
+                      {/* Final Offer Banner */}
+                      {isServicerFinalOffer && (
+                        <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-rose-50 border border-rose-200 rounded-xl">
+                          <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-rose-700">Final Best Offer</p>
+                            <p className="text-[10px] text-rose-500">Servicer will not negotiate further — accept or reject only</p>
+                          </div>
+                        </div>
+                      )}
                       <div className="flex items-start gap-4 mb-4">
                         <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-sm font-black text-slate-600 flex-shrink-0">
                           {initials || "?"}
@@ -434,29 +490,26 @@ export default function UserBookingsPage() {
                           <p className="font-black text-slate-900 text-sm">{servicerName}</p>
                           <p className="text-xs text-slate-500">Response to: <span className="font-bold">{req.device_or_issue}</span></p>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap justify-end">
                           <button
                             onClick={() => setConfirmAccept({
                               requestId: req.id,
                               responseId: resp.id,
                               servicerName,
-                              price: resp.proposed_price,
-                              date: resp.proposed_date,
+                              price: latestOffer?.proposed_price ?? resp.proposed_price,
+                              date: latestOffer?.proposed_date ?? resp.proposed_date,
                             })}
-                            className="flex items-center gap-1.5 px-4 py-2 bg-[#064e3b] text-white text-xs font-black uppercase rounded-xl hover:bg-emerald-800 transition-colors"
+                            className={`flex items-center gap-1.5 px-4 py-2 text-white text-xs font-black uppercase rounded-xl transition-colors ${
+                              isServicerFinalOffer
+                                ? "bg-rose-600 hover:bg-rose-700"
+                                : "bg-[#064e3b] hover:bg-emerald-800"
+                            }`}
                           >
-                            <CheckCircle className="w-4 h-4" /> Accept
+                            <CheckCircle className="w-4 h-4" />
+                            {isServicerFinalOffer ? "Accept Final Offer" : "Accept"}
                           </button>
-                          {/* Counter Offer — only for non-Emergency, when it's user's turn and rounds remain */}
-                          {req.urgency !== "Emergency" &&
-                            resp.status === "PENDING" &&
-                            resp.negotiation_status !== "CLOSED" &&
-                            resp.negotiation_status !== "AGREED" &&
-                            !(resp.negotiation_status === "NEGOTIATING" &&
-                              resp.negotiation_offers &&
-                              resp.negotiation_offers.length > 0 &&
-                              resp.negotiation_offers[resp.negotiation_offers.length - 1].offered_by === "USER") &&
-                            resp.current_round < 3 && (
+                          {/* Counter Offer — hidden when it's a final offer, max rounds reached, or waiting */}
+                          {canCounter && (
                             <button
                               onClick={() => setCounterOffer({
                                 requestId: String(resp.request_id),
@@ -471,10 +524,7 @@ export default function UserBookingsPage() {
                               Counter Offer
                             </button>
                           )}
-                          {resp.negotiation_status === "NEGOTIATING" &&
-                            resp.negotiation_offers &&
-                            resp.negotiation_offers.length > 0 &&
-                            resp.negotiation_offers[resp.negotiation_offers.length - 1].offered_by === "USER" && (
+                          {waitingForServicer && (
                             <span className="px-3 py-1.5 bg-yellow-100 text-yellow-700 text-[10px] font-black uppercase rounded-full">
                               Waiting for servicer...
                             </span>
@@ -623,16 +673,17 @@ export default function UserBookingsPage() {
                   </div>
                 </>
               ) : (
-                /* Regular billing: base + extra hours */
+                /* Regular billing: show actual hours and charge amount directly */
                 <>
-                  <div className="flex justify-between text-sm text-slate-600">
-                    <span>Base Price</span>
-                    <span className="font-bold">₹{receiptModal.receipt.base_price.toLocaleString("en-IN")}</span>
-                  </div>
-                  {receiptModal.receipt.extra_hours > 0 && (
+                  {receiptModal.booking.actual_hours != null && (
                     <div className="flex justify-between text-sm text-slate-600">
-                      <span>Extra ({receiptModal.receipt.extra_hours}h × ₹{receiptModal.receipt.hourly_rate.toFixed(0)}/h)</span>
-                      <span className="font-bold">₹{receiptModal.receipt.extra_charge.toLocaleString("en-IN")}</span>
+                      <span>Hours worked</span>
+                      <span className="font-bold">{receiptModal.booking.actual_hours}h</span>
+                    </div>
+                  )}
+                  {receiptModal.booking.completion_notes && (
+                    <div className="flex justify-between text-sm text-slate-600">
+                      <span className="text-slate-400 italic">&ldquo;{receiptModal.booking.completion_notes}&rdquo;</span>
                     </div>
                   )}
                 </>
@@ -644,28 +695,37 @@ export default function UserBookingsPage() {
             </div>
 
             {!disputeMode ? (
-              <div className="flex gap-3">
+              <div className="space-y-3">
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleRejectCharge}
+                    disabled={rejectingCharge}
+                    className="flex-1 py-3 border border-rose-200 text-rose-600 rounded-2xl text-sm font-black uppercase hover:bg-rose-50 disabled:opacity-50"
+                  >
+                    {rejectingCharge ? "Rejecting..." : "Reject Charge"}
+                  </button>
+                  <button
+                    onClick={handleConfirmPayment}
+                    disabled={confirmingPayment}
+                    className="flex-1 py-3 bg-[#064e3b] text-white rounded-2xl text-sm font-black uppercase hover:bg-emerald-800 disabled:opacity-50"
+                  >
+                    {confirmingPayment ? "Confirming..." : "Accept Charge"}
+                  </button>
+                </div>
                 <button
                   onClick={() => setDisputeMode(true)}
-                  className="flex-1 py-3 border border-rose-200 text-rose-600 rounded-2xl text-sm font-black uppercase hover:bg-rose-50"
+                  className="w-full py-2 text-slate-400 text-xs font-black uppercase hover:text-rose-500 transition-colors"
                 >
-                  Dispute
-                </button>
-                <button
-                  onClick={handleConfirmPayment}
-                  disabled={confirmingPayment}
-                  className="flex-1 py-3 bg-[#064e3b] text-white rounded-2xl text-sm font-black uppercase hover:bg-emerald-800 disabled:opacity-50"
-                >
-                  {confirmingPayment ? "Confirming..." : "Confirm Payment"}
+                  Flag to Admin
                 </button>
               </div>
             ) : (
               <div className="space-y-4">
-                <p className="text-xs text-slate-500">Describe the issue with this bill:</p>
+                <p className="text-xs text-slate-500">Describe the issue — admin will be notified:</p>
                 <textarea
                   value={disputeReason}
                   onChange={e => setDisputeReason(e.target.value)}
-                  placeholder="e.g. Extra hours are incorrect — job took 1h not 3h"
+                  placeholder="e.g. Charged 5 hours but job took 1 hour"
                   rows={3}
                   className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none"
                 />
@@ -678,7 +738,7 @@ export default function UserBookingsPage() {
                     disabled={filingDispute || !disputeReason.trim()}
                     className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl text-sm font-black uppercase disabled:opacity-50 hover:bg-rose-700"
                   >
-                    {filingDispute ? "Submitting..." : "File Dispute"}
+                    {filingDispute ? "Flagging..." : "Flag to Admin"}
                   </button>
                 </div>
               </div>
