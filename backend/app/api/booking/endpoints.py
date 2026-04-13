@@ -22,6 +22,7 @@ from app.api.booking.schemas import (
     ChatCreate, ChatRead, ReviewCreate, ReviewRead,
     BookingStatusHistoryRead,
     FinalCompleteCreate, ReceiptRead, ComplaintCreate, ComplaintRead,
+    ChargeSubmitCreate, FlagCreate,
 )
 
 logger = logging.getLogger(__name__)
@@ -427,14 +428,14 @@ def create_review(
     db.refresh(db_review)
     return db_review
 
-@router.post("/{booking_id}/final-complete", response_model=ReceiptRead)
+@router.post("/{booking_id}/final-complete", response_model=BookingRead)
 def final_complete_booking(
     booking_id: UUID,
-    body: FinalCompleteCreate,
+    body: ChargeSubmitCreate,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
 ):
-    """Servicer marks job fully complete. Generates receipt. Booking status → Pending Confirmation (awaiting user confirmation)."""
+    """Servicer submits actual hours + charge amount. Booking → Pending Confirmation. User must confirm."""
     booking = db.query(ServiceBooking).filter(ServiceBooking.id == booking_id).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
@@ -443,62 +444,52 @@ def final_complete_booking(
         ServiceProvider.user_id == current_user.id
     ).first()
     if not provider or provider.id != booking.provider_id:
-        raise HTTPException(status_code=403, detail="Only the assigned servicer can mark this complete")
+        raise HTTPException(status_code=403, detail="Only the assigned servicer can submit a charge")
+
+    if booking.source_type == "emergency":
+        raise HTTPException(status_code=400, detail="Emergency bookings use the emergency billing flow")
 
     if booking.status not in ("In Progress", "Accepted"):
-        raise HTTPException(status_code=400, detail=f"Booking is '{booking.status}', must be 'Accepted' or 'In Progress' to complete")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Booking is '{booking.status}' — must be 'Accepted' or 'In Progress' to submit charge"
+        )
 
-    if booking.priority == "Emergency":
-        # Emergency billing: total_hours × admin-set hourly_rate (no callout_fee)
-        em_config = db.query(EmergencyConfig).filter(
-            EmergencyConfig.category == booking.service_type
-        ).first()
-        hourly_rate = em_config.hourly_rate if em_config else 0.0
-        total_hours = body.extra_hours or 0.0
-        base_price = 0.0
-        extra_charge = round(total_hours * hourly_rate, 2)
-        final_amount = extra_charge
-    else:
-        base_price = booking.estimated_cost or 0.0
-        estimated_hours = booking.actual_hours if booking.actual_hours and booking.actual_hours > 0 else 1.0
-        hourly_rate = base_price / estimated_hours
-        extra_charge = (body.extra_hours or 0.0) * hourly_rate
-        final_amount = base_price + extra_charge
-
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     booking.status = "Pending Confirmation"
-    booking.actual_hours = body.extra_hours or 0.0
-    booking.final_cost = final_amount
-    booking.completion_notes = body.notes
+    booking.actual_hours = body.actual_hours
+    booking.final_cost = body.charge_amount
+    booking.completion_notes = body.charge_description
+    booking.completed_at = now
 
     db.add(BookingStatusHistory(
         booking_id=booking.id,
         status="Pending Confirmation",
-        notes=f"Servicer submitted completion. Extra hours: {body.extra_hours or 0}. Final: \u20b9{final_amount:.0f}. Awaiting user confirmation.",
+        notes=(
+            f"Servicer submitted charge: {body.actual_hours}h × "
+            f"\u20b9{body.charge_amount / body.actual_hours:.0f}/h"
+            f" = \u20b9{body.charge_amount:.0f}."
+            + (f" Note: {body.charge_description}" if body.charge_description else "")
+            + " Awaiting user confirmation."
+        ),
+        timestamp=now,
     ))
 
     provider_name = get_provider_display_name(provider)
     _notify_booking(
         db, user_id=booking.user_id,
-        title="Work Complete \u2014 Please Confirm",
-        message=f"'{booking.service_type}' work is done. Review the receipt and confirm payment of \u20b9{final_amount:.0f}.",
-        notification_type="INFO",
+        title="Charge Submitted \u2014 Please Confirm",
+        message=(
+            f"'{booking.service_type}': {body.actual_hours}h worked, "
+            f"charge \u20b9{body.charge_amount:.0f}. Review and confirm."
+        ),
+        notification_type="URGENT",
         link=f"/user/bookings/{booking.id}",
     )
 
     db.commit()
-
-    return ReceiptRead(
-        booking_id=booking.id,
-        service_type=booking.service_type,
-        servicer_name=provider_name,
-        base_price=base_price,
-        extra_hours=body.extra_hours or 0.0,
-        hourly_rate=hourly_rate,
-        extra_charge=extra_charge,
-        final_amount=final_amount,
-        completed_at=booking.completed_at,
-        negotiated=(booking.source_type == "negotiated"),
-    )
+    db.refresh(booking)
+    return booking
 
 
 @router.post("/{booking_id}/confirm", response_model=BookingRead)
@@ -517,7 +508,7 @@ def confirm_booking_complete(
         raise HTTPException(status_code=400, detail=f"Booking is '{booking.status}', must be 'Pending Confirmation' to confirm")
 
     booking.status = "Completed"
-    booking.completed_at = datetime.utcnow()
+    booking.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
     db.add(BookingStatusHistory(
         booking_id=booking.id,
@@ -544,6 +535,101 @@ def confirm_booking_complete(
     db.commit()
     db.refresh(booking)
     return booking
+
+
+@router.post("/{booking_id}/reject-charge", response_model=BookingRead)
+def reject_charge(
+    booking_id: UUID,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+):
+    """User rejects the submitted charge. Booking is cancelled and both parties are freed."""
+    booking = db.query(ServiceBooking).filter(ServiceBooking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if booking.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the booking's user can reject a charge")
+    if booking.status != "Pending Confirmation":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Booking is '{booking.status}' \u2014 must be 'Pending Confirmation' to reject charge"
+        )
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    booking.status = "Cancelled"
+
+    db.add(BookingStatusHistory(
+        booking_id=booking.id,
+        status="Cancelled",
+        notes="Charge rejected by user. Booking closed.",
+        timestamp=now,
+    ))
+
+    provider = db.query(ServiceProvider).filter(ServiceProvider.id == booking.provider_id).first()
+    if provider:
+        provider.availability_status = "AVAILABLE"
+        if provider.user_id:
+            _notify_booking(
+                db, user_id=provider.user_id,
+                title="Charge Rejected \u2014 Booking Closed",
+                message=f"User rejected your charge for '{booking.service_type}'. Booking has been closed.",
+                notification_type="INFO",
+                link="/service/jobs",
+            )
+
+    db.commit()
+    db.refresh(booking)
+    return booking
+
+
+@router.post("/{booking_id}/flag", response_model=ComplaintRead)
+def flag_booking(
+    booking_id: UUID,
+    body: FlagCreate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+):
+    """User or admin flags a booking as disputed. Creates a complaint and marks booking is_flagged=True."""
+    from app.auth.domain.model import User as UserModel
+
+    booking = db.query(ServiceBooking).filter(ServiceBooking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    provider = db.query(ServiceProvider).filter(ServiceProvider.user_id == current_user.id).first()
+    is_user = booking.user_id == current_user.id
+    is_servicer = provider is not None and provider.id == booking.provider_id
+    is_admin = current_user.role == "ADMIN"
+
+    if not is_user and not is_servicer and not is_admin:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if booking.status == "Cancelled":
+        raise HTTPException(status_code=400, detail="Cannot flag a cancelled booking")
+
+    booking.is_flagged = True
+
+    complaint = BookingComplaint(
+        booking_id=booking_id,
+        filed_by=current_user.id,
+        reason=body.flag_reason,
+        status="OPEN",
+    )
+    db.add(complaint)
+    db.flush()
+
+    admins = db.query(UserModel).filter(UserModel.role == "ADMIN").all()
+    for admin in admins:
+        _notify_booking(
+            db, user_id=admin.id,
+            title="Booking Flagged",
+            message=f"Booking '{booking.service_type}' has been flagged: {body.flag_reason[:80]}",
+            notification_type="URGENT",
+            link="/admin/bookings",
+        )
+
+    db.commit()
+    db.refresh(complaint)
+    return complaint
 
 
 @router.get("/{booking_id}/receipt", response_model=ReceiptRead)

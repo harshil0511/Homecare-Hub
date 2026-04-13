@@ -87,3 +87,23 @@ class TestBookingReadCompletedAt:
         assert "completed_at" in BookingRead.model_fields
         field = BookingRead.model_fields["completed_at"]
         assert field.default is None  # Optional with None default
+
+
+class TestChargeEndpointImports:
+    """Smoke-test that all new endpoint functions are importable."""
+
+    def test_final_complete_booking_is_importable(self):
+        from app.api.booking.endpoints import final_complete_booking
+        assert callable(final_complete_booking)
+
+    def test_reject_charge_is_importable(self):
+        from app.api.booking.endpoints import reject_charge
+        assert callable(reject_charge)
+
+    def test_flag_booking_is_importable(self):
+        from app.api.booking.endpoints import flag_booking
+        assert callable(flag_booking)
+
+    def test_confirm_booking_complete_is_importable(self):
+        from app.api.booking.endpoints import confirm_booking_complete
+        assert callable(confirm_booking_complete)
