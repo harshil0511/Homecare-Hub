@@ -28,6 +28,7 @@ class ServiceBooking(Base):
     source_type = Column(String, nullable=True)
     source_id = Column(PG_UUID(as_uuid=True), nullable=True)
     completed_at = Column(DateTime, nullable=True)  # set when servicer clicks Final Complete
+    is_flagged = Column(Boolean, default=False, nullable=False, server_default="false")
 
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
