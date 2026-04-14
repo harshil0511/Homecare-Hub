@@ -6,7 +6,7 @@ import { Star, X, Upload, Check } from "lucide-react";
 interface ReviewModalProps {
     bookingId: number;
     onClose: () => void;
-    onSubmit: (data: any) => void;
+    onSubmit: (data: Record<string, unknown>) => void;
 }
 
 export default function ReviewModal({ bookingId, onClose, onSubmit }: ReviewModalProps) {

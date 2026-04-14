@@ -4,7 +4,7 @@ import { apiFetch } from "@/lib/api";
 import { Building2, Save } from "lucide-react";
 
 export default function SecretarySocietyPage() {
-    const [society, setSociety] = useState<any>(null);
+    const [society, setSociety] = useState<Record<string, unknown> | null>(null);
     const [name, setName] = useState("");
     const [address, setAddress] = useState("");
     const [saving, setSaving] = useState(false);
@@ -28,8 +28,8 @@ export default function SecretarySocietyPage() {
             });
             setSociety(updated);
             setMsg("Society updated successfully.");
-        } catch (err: any) {
-            setMsg(err.message || "Failed to update.");
+        } catch (err) {
+            setMsg((err as Error).message || "Failed to update.");
         } finally {
             setSaving(false);
             setTimeout(() => setMsg(""), 3000);

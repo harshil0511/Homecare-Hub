@@ -31,7 +31,7 @@ export default function BackendStatus() {
     };
 
     useEffect(() => {
-        checkHealth();
+        setTimeout(() => checkHealth(), 0);
         const interval = setInterval(checkHealth, 15000);
         return () => clearInterval(interval);
     }, []);

@@ -103,6 +103,8 @@ class BookingRead(BookingBase):
     id: UUID
     user_id: UUID
     status: str
+    source_type: Optional[str] = None
+    source_id: Optional[UUID] = None
     final_cost: Optional[float] = None
     actual_hours: Optional[float] = None
     completion_notes: Optional[str] = None
@@ -136,7 +138,6 @@ class BookingWithUserRead(BookingDetailRead):
 
 class ChargeSubmitCreate(BaseModel):
     actual_hours: float
-    charge_amount: float
     charge_description: Optional[str] = None
 
     @field_validator("actual_hours")
@@ -147,16 +148,6 @@ class ChargeSubmitCreate(BaseModel):
             raise ValueError("actual_hours must be a finite number")
         if v <= 0:
             raise ValueError("actual_hours must be greater than 0")
-        return v
-
-    @field_validator("charge_amount")
-    @classmethod
-    def validate_amount(cls, v: float) -> float:
-        import math
-        if not math.isfinite(v):
-            raise ValueError("charge_amount must be a finite number")
-        if v <= 0:
-            raise ValueError("charge_amount must be greater than 0")
         return v
 
 
@@ -172,10 +163,27 @@ class FlagCreate(BaseModel):
         return v
 
 
+class EmergencyCompleteCreate(BaseModel):
+    actual_hours: float
+    completion_notes: Optional[str] = None
+
+    @field_validator("actual_hours")
+    @classmethod
+    def validate_hours(cls, v: float) -> float:
+        import math
+        if not math.isfinite(v):
+            raise ValueError("actual_hours must be a finite number")
+        if v <= 0:
+            raise ValueError("actual_hours must be greater than 0")
+        return v
+
+
 class ReceiptRead(BaseModel):
     booking_id: UUID
     service_type: str
     servicer_name: str
+    is_emergency: bool = False
+    callout_fee: float = 0.0
     base_price: float
     extra_hours: float
     hourly_rate: float

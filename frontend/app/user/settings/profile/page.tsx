@@ -38,8 +38,8 @@ export default function ProfilePage() {
             });
             setSuccess(true);
             setTimeout(() => setSuccess(false), 3000);
-        } catch (err: any) {
-            setError(err.message || "Failed to update profile");
+        } catch (err) {
+            setError((err as Error).message || "Failed to update profile");
         } finally {
             setLoading(false);
         }

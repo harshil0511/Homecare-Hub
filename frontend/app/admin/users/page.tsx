@@ -68,8 +68,8 @@ export default function AdminUsersPage() {
             setUsers((prev) => prev.map((u) => u.user_uuid === uuid ? { ...u, is_active: !current } : u));
             setActionMsg("Status updated.");
             setTimeout(() => setActionMsg(""), 2000);
-        } catch (err: any) {
-            setActionMsg(err.message || "Failed to update.");
+        } catch (err) {
+            setActionMsg((err as Error).message || "Failed to update.");
             setTimeout(() => setActionMsg(""), 3000);
         }
     };
@@ -81,8 +81,8 @@ export default function AdminUsersPage() {
             setUsers((prev) => prev.filter((u) => u.user_uuid !== uuid));
             setActionMsg(`Account "${username}" deleted.`);
             setTimeout(() => setActionMsg(""), 3000);
-        } catch (err: any) {
-            setActionMsg(err.message || "Failed to delete.");
+        } catch (err) {
+            setActionMsg((err as Error).message || "Failed to delete.");
             setTimeout(() => setActionMsg(""), 3000);
         }
     };
@@ -96,8 +96,8 @@ export default function AdminUsersPage() {
             setUsers((prev) => prev.map((u) => u.user_uuid === uuid ? { ...u, role: newRole } : u));
             setActionMsg("Role updated.");
             setTimeout(() => setActionMsg(""), 2000);
-        } catch (err: any) {
-            setActionMsg(err.message || "Failed to update role.");
+        } catch (err) {
+            setActionMsg((err as Error).message || "Failed to update role.");
             setTimeout(() => setActionMsg(""), 3000);
         }
     };

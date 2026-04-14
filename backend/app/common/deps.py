@@ -1,13 +1,16 @@
+import logging
 import uuid
 from typing import Generator, List
 from fastapi import Depends, HTTPException, status
 from jose import JWTError, jwt
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core import security
 from app.auth.domain.model import User
 from app.api.auth.schemas import TokenData
+
+logger = logging.getLogger(__name__)
 
 
 def get_db() -> Generator:
@@ -21,11 +24,19 @@ def get_db() -> Generator:
     db = SessionLocal()
     try:
         yield db
-    except OperationalError:
+    except OperationalError as exc:
+        db.rollback()
         raise HTTPException(
             status_code=503,
             detail="Database connection lost. Please try again in a moment.",
-        )
+        ) from exc
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.exception("Database error during request: %s", exc)
+        raise HTTPException(
+            status_code=500,
+            detail="A database error occurred. Please try again.",
+        ) from exc
     finally:
         db.close()
 

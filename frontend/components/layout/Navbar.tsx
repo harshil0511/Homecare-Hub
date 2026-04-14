@@ -114,7 +114,7 @@ export default function Navbar({ onMenuToggle, isSidebarOpen }: NavbarProps) {
                 setRole(data.role || storedRole);
             } catch (err) {
                 setUser({
-                    username: localStorage.getItem("hc_username") || "User",
+                    username: sessionStorage.getItem("hc_username") || "User",
                     email: "",
                     role: storedRole,
                 });

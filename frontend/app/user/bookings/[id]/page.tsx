@@ -16,9 +16,9 @@ export default function BookingDetailsPage() {
     const { id } = useParams();
     const router = useRouter();
     const toast = useToast();
-    const [booking, setBooking] = useState<any>(null);
+    const [booking, setBooking] = useState<Record<string, unknown> | null>(null);
     const [loading, setLoading] = useState(true);
-    const [messages, setMessages] = useState<any[]>([]);
+    const [messages, setMessages] = useState<Record<string, unknown>[]>([]);
     const [newMessage, setNewMessage] = useState("");
     const [showCancel, setShowCancel] = useState(false);
     const [cancelReason, setCancelReason] = useState("");
@@ -35,7 +35,7 @@ export default function BookingDetailsPage() {
     const [punctualityRating, setPunctualityRating] = useState(0);
     const [professionalismRating, setProfessionalismRating] = useState(0);
     const [submittingReview, setSubmittingReview] = useState(false);
-    const [receipt, setReceipt] = useState<any>(null);
+    const [receipt, setReceipt] = useState<Record<string, unknown> | null>(null);
     const [confirming, setConfirming] = useState(false);
     const [showDispute, setShowDispute] = useState(false);
     const [disputeReason, setDisputeReason] = useState("");
@@ -77,8 +77,8 @@ export default function BookingDetailsPage() {
             await apiFetch(`/bookings/${id}/confirm`, { method: "POST" });
             toast.success("Payment confirmed — job complete!");
             await fetchData();
-        } catch (err: any) {
-            toast.error(err.message || "Failed to confirm");
+        } catch (err) {
+            toast.error((err as Error).message || "Failed to confirm");
         } finally {
             setConfirming(false);
         }
@@ -95,8 +95,8 @@ export default function BookingDetailsPage() {
             setShowDispute(false);
             toast.success("Dispute filed — admin will review");
             await fetchData();
-        } catch (err: any) {
-            toast.error(err.message || "Failed to file dispute");
+        } catch (err) {
+            toast.error((err as Error).message || "Failed to file dispute");
         } finally {
             setFilingDispute(false);
         }
@@ -122,8 +122,8 @@ export default function BookingDetailsPage() {
             setShowReview(false);
             toast.success("Review submitted — thank you!");
             await fetchData();
-        } catch (err: any) {
-            toast.error(err.message || "Failed to submit review");
+        } catch (err) {
+            toast.error((err as Error).message || "Failed to submit review");
         } finally {
             setSubmittingReview(false);
         }
@@ -157,8 +157,8 @@ export default function BookingDetailsPage() {
             toast.success("Booking cancelled");
             setLoading(true);
             await fetchData();
-        } catch (err: any) {
-            toast.error(err.message || "Failed to cancel booking");
+        } catch (err) {
+            toast.error((err as Error).message || "Failed to cancel booking");
         }
     };
 
@@ -188,8 +188,8 @@ export default function BookingDetailsPage() {
             toast.success("Schedule updated");
             setLoading(true);
             await fetchData();
-        } catch (err: any) {
-            toast.error(err.message || "Failed to reschedule. Please try again.");
+        } catch (err) {
+            toast.error((err as Error).message || "Failed to reschedule. Please try again.");
         } finally {
             setRescheduling(false);
         }
@@ -278,15 +278,26 @@ export default function BookingDetailsPage() {
                                     <IndianRupee size={12} /> Receipt — Awaiting Your Confirmation
                                 </h3>
                                 <div className="space-y-2 mb-6 text-sm text-slate-700">
-                                    <div className="flex justify-between">
-                                        <span>Base Price</span>
-                                        <span className="font-bold">₹{Number(receipt.base_price).toLocaleString("en-IN")}</span>
-                                    </div>
-                                    {receipt.extra_hours > 0 && (
-                                        <div className="flex justify-between">
-                                            <span>Extra ({receipt.extra_hours}h × ₹{receipt.hourly_rate?.toFixed(0)}/h)</span>
-                                            <span className="font-bold">₹{Number(receipt.extra_charge).toLocaleString("en-IN")}</span>
-                                        </div>
+                                    {receipt.is_emergency ? (
+                                        <>
+                                            <div className="flex justify-between">
+                                                <span>Callout fee (first hour)</span>
+                                                <span className="font-bold">₹{Number(receipt.callout_fee).toLocaleString("en-IN")}</span>
+                                            </div>
+                                            {Number(receipt.extra_hours) > 0 && (
+                                                <div className="flex justify-between">
+                                                    <span>Extra ({Number(receipt.extra_hours).toFixed(1)}h × ₹{Number(receipt.hourly_rate).toFixed(0)}/h)</span>
+                                                    <span className="font-bold">₹{Number(receipt.extra_charge).toLocaleString("en-IN")}</span>
+                                                </div>
+                                            )}
+                                        </>
+                                    ) : (
+                                        Number(receipt.extra_hours) > 0 && (
+                                            <div className="flex justify-between">
+                                                <span>{Number(receipt.extra_hours)}h × ₹{Number(receipt.hourly_rate).toFixed(0)}/h</span>
+                                                <span className="font-bold">₹{Number(receipt.extra_charge).toLocaleString("en-IN")}</span>
+                                            </div>
+                                        )
                                     )}
                                     <div className="border-t border-amber-200 pt-2 flex justify-between font-black text-base">
                                         <span>Total</span>

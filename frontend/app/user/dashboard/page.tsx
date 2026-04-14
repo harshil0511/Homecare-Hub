@@ -12,7 +12,6 @@ import {
     Zap,
     X,
     CheckCircle2,
-    Loader2,
     ArrowRight,
     ClipboardList,
     Bell,
@@ -104,7 +103,6 @@ export default function DashboardPage() {
     const [activeEmergency, setActiveEmergency] = useState<EmergencyRequestRead | null>(null);
     const [showTaskModal, setShowTaskModal] = useState(false);
     const [newTask, setNewTask] = useState({ title: "", description: "", due_date: "", priority: "Routine", category: "" });
-    const [findingServicer, setFindingServicer] = useState<number | null>(null);
 
     const fetchData = async () => {
         try {
@@ -162,22 +160,6 @@ export default function DashboardPage() {
         }
     };
 
-    const handleFindServicer = async (task: MaintenanceTask) => {
-        setFindingServicer(task.id);
-        try {
-            if (task.task_type !== "routine") {
-                await apiFetch(`/maintenance/${task.id}`, {
-                    method: "PATCH",
-                    body: JSON.stringify({ task_type: "routine" })
-                });
-            }
-            setFindingServicer(null);
-            router.push(`/user/routine?taskId=${task.id}`);
-        } catch (err) {
-            console.error("Failed to start find servicer flow", err);
-            setFindingServicer(null);
-        }
-    };
 
     const activeAlerts = tasks.filter(t =>
         ["Pending", "Active", "Triggered", "Overdue", "Assigned"].includes(t.status)
@@ -331,18 +313,13 @@ export default function DashboardPage() {
                                                     View Booking
                                                 </Link>
                                             ) : (
-                                                <button
-                                                    onClick={() => handleFindServicer(task)}
-                                                    disabled={findingServicer === task.id}
-                                                    className="bg-[#064e3b] text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#053e2f] transition-all active:scale-95 flex items-center gap-2 disabled:opacity-60"
+                                                <Link
+                                                    href={`/user/providers${task.category ? `?category=${encodeURIComponent(task.category)}` : ""}`}
+                                                    className="bg-[#064e3b] text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#053e2f] transition-all active:scale-95 flex items-center gap-2"
                                                 >
-                                                    {findingServicer === task.id ? (
-                                                        <Loader2 className="w-3 h-3 animate-spin" />
-                                                    ) : (
-                                                        <Search className="w-3 h-3" />
-                                                    )}
+                                                    <Search className="w-3 h-3" />
                                                     Find Servicer
-                                                </button>
+                                                </Link>
                                             )}
                                             <button
                                                 onClick={() => markDone(task.id)}

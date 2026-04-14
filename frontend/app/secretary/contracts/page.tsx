@@ -242,7 +242,7 @@ export default function SecretaryContractsPage() {
                                         <div className="p-4 bg-blue-50 rounded-xl">
                                             <p className="text-xs font-black text-blue-700 mb-1">Provider Counter-Proposed</p>
                                             <p className="text-sm text-blue-900">Duration: <strong>{c.counter_duration_months} months</strong></p>
-                                            {c.servicer_notes && <p className="text-xs text-blue-600 mt-1 italic">"{c.servicer_notes}"</p>}
+                                            {c.servicer_notes && <p className="text-xs text-blue-600 mt-1 italic">&ldquo;{c.servicer_notes}&rdquo;</p>}
                                             <div className="flex gap-2 mt-3">
                                                 <button onClick={() => act(`/secretary/contracts/${c.id}/confirm-counter`, "POST", c.id + "_confirm")}
                                                     disabled={actionId === c.id + "_confirm"}

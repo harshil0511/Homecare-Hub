@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, AlertCircle, ShieldAlert, CheckCircle2, Clock, MoreHorizontal, Search, Loader2, Wrench, ArrowRight, CalendarClock, ChevronDown, Send, DollarSign } from "lucide-react";
+import { Bell, AlertCircle, ShieldAlert, CheckCircle2, Clock, MoreHorizontal, Search, Loader2, ArrowRight, ChevronDown, Send, DollarSign } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 import Spinner from "@/components/ui/Spinner";
@@ -15,17 +15,6 @@ interface Notification {
     is_read: boolean;
     created_at: string;
     link?: string;
-}
-
-interface PendingTask {
-    id: number;
-    title: string;
-    category: string | null;
-    location: string | null;
-    priority: string;
-    status: string;
-    booking_id: number | null;
-    created_at: string | null;
 }
 
 interface PendingBooking {
@@ -56,18 +45,10 @@ interface BookingDetailData {
     };
 }
 
-const PRIORITY_BADGE: Record<string, string> = {
-    Routine: "bg-slate-100 text-slate-500",
-    Mandatory: "bg-amber-50 text-amber-700",
-    Urgent: "bg-red-50 text-red-700",
-};
-
 export default function AlertsPage() {
     const [notifications, setNotifications] = useState<Notification[]>([]);
-    const [pendingTasks, setPendingTasks] = useState<PendingTask[]>([]);
     const [pendingBookings, setPendingBookings] = useState<PendingBooking[]>([]);
     const [loading, setLoading] = useState(true);
-    const [loadingTasks, setLoadingTasks] = useState(true);
     const [loadingBookings, setLoadingBookings] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
     const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -120,21 +101,8 @@ export default function AlertsPage() {
         }
     };
 
-    const fetchPendingTasks = async () => {
-        setLoadingTasks(true);
-        try {
-            const data: PendingTask[] = await apiFetch("/maintenance/routine");
-            setPendingTasks(data.filter(t => t.booking_id === null));
-        } catch (err) {
-            // User may not be a home user — silently ignore
-        } finally {
-            setLoadingTasks(false);
-        }
-    };
-
     useEffect(() => {
         fetchNotifications();
-        fetchPendingTasks();
         fetchPendingBookings();
     }, []);
 
@@ -195,68 +163,6 @@ export default function AlertsPage() {
                     </button>
                 </div>
             </div>
-
-            {/* ── Pending Assignments Section ── */}
-            {!loadingTasks && pendingTasks.length > 0 && (
-                <div className="space-y-3">
-                    <div className="flex items-center gap-2 px-1">
-                        <CalendarClock className="w-4 h-4 text-amber-500" />
-                        <h2 className="text-xs font-black text-slate-500 uppercase tracking-[0.25em]">
-                            Pending Assignments — Awaiting Expert
-                        </h2>
-                        <span className="ml-auto text-[9px] font-black bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full uppercase tracking-widest">
-                            {pendingTasks.length} open
-                        </span>
-                    </div>
-
-                    <div className="bg-white border border-amber-100 rounded-[1.75rem] overflow-hidden shadow-sm">
-                        <div className="divide-y divide-amber-50">
-                            {pendingTasks.map((task) => (
-                                <div key={task.id} className="flex items-center gap-5 px-7 py-5 hover:bg-amber-50/60 transition-all group">
-                                    {/* Icon */}
-                                    <div className="w-12 h-12 bg-amber-50 border border-amber-100 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:bg-amber-100 transition-colors">
-                                        <Wrench className="w-5 h-5 text-amber-600" />
-                                    </div>
-
-                                    {/* Info */}
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 mb-0.5">
-                                            <p className="text-sm font-black text-[#000000] truncate tracking-tight">
-                                                {task.title}
-                                            </p>
-                                            <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest flex-shrink-0 ${PRIORITY_BADGE[task.priority] || "bg-slate-100 text-slate-500"}`}>
-                                                {task.priority}
-                                            </span>
-                                        </div>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                            {task.category || "General"}
-                                            {task.location && <> &bull; {task.location}</>}
-                                            {task.created_at && <> &bull; {timeAgo(task.created_at)}</>}
-                                        </p>
-                                    </div>
-
-                                    {/* CTAs */}
-                                    <div className="flex items-center gap-2 flex-shrink-0">
-                                        <Link
-                                            href={`/dashboard/routine?taskId=${task.id}`}
-                                            className="text-[9px] font-black text-amber-600 bg-amber-50 border border-amber-100 px-3 py-1.5 rounded-lg uppercase tracking-widest hover:bg-[#064e3b] hover:text-white hover:border-[#064e3b] transition-all"
-                                        >
-                                            Assign Expert
-                                        </Link>
-                                        <Link
-                                            href={`/dashboard/providers?category=${encodeURIComponent(task.category || "")}`}
-                                            className="text-[9px] font-black text-[#064e3b] bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-lg uppercase tracking-widest hover:bg-emerald-900 hover:text-white hover:border-emerald-900 transition-all"
-                                        >
-                                            Find Expert
-                                        </Link>
-                                        <ArrowRight className="w-4 h-4 text-slate-300" />
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* ── Pending Requests (Awaiting Servicer Response) ── */}
             {!loadingBookings && pendingBookings.length > 0 && (

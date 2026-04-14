@@ -62,7 +62,7 @@ backend/
 | `ALLOWED_CATEGORIES`, constants | `app.common.constants` |
 | `User`, `Society`, `society_trusted_providers` | `app.auth.domain.model` |
 | `ServiceProvider`, `ServiceCertificate`, `ProviderPoints` | `app.service.domain.model` |
-| `ServiceBooking`, `BookingReview` | `app.booking.domain.model` |
+| `ServiceBooking`, `BookingReview`, `BookingComplaint` | `app.booking.domain.model` |
 | `MaintenanceTask` | `app.maintenance.domain.model` |
 | `Notification` | `app.notification.domain.model` |
 | `ServiceRequest`, `ServiceRequestRecipient` | `app.request.domain.model` |
@@ -187,9 +187,9 @@ Health: `http://localhost:8000/api/v1/health`
 
 - **Frontend base URL**: `http://localhost:8000` (via `NEXT_PUBLIC_API_URL` in `frontend/.env.local`)
 - **Full API base**: `http://localhost:8000/api/v1`
-- **CORS**: Backend allows `http://localhost:3000` and `http://localhost:3001`
-- **Auth tokens**: Stored in localStorage per role (`hc_token_ADMIN`, `hc_token_USER`, `hc_token_SERVICER`, `hc_token_SECRETARY`)
-- **Token claims**: `sub` (user UUID), `role`, `email`, `exp`
+- **CORS**: Backend allows the frontend origin defined in `FRONTEND_URL` env var
+- **Auth tokens**: Stored in role-segregated localStorage keys (see `lib/auth.ts` for key names)
+- **Token format**: JWT signed with `SECRET_KEY` — claims defined in `app/api/auth/schemas.py`
 
 ---
 

@@ -28,7 +28,7 @@ export default function ServicerRatingsPage() {
         totalCompleted: 0
     });
     const [reviews, setReviews] = useState<Review[]>([]);
-    const [profile, setProfile] = useState<any>(null);
+    const [profile, setProfile] = useState<Record<string, unknown> | null>(null);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -40,7 +40,7 @@ export default function ServicerRatingsPage() {
                     apiFetch("/services/providers/me/reviews").catch(() => [])
                 ]);
 
-                const completed = contractedBookings.filter((b: any) => b.status === "Completed");
+                const completed = (contractedBookings as Record<string, unknown>[]).filter((b) => b.status === "Completed");
                 const total = allBookings.length;
                 const rate = total > 0 ? Math.round((completed.length / total) * 100) : 0;
 
@@ -52,8 +52,9 @@ export default function ServicerRatingsPage() {
                     completionRate: `${rate}%`,
                     totalCompleted: completed.length
                 });
-            } catch (err: any) {
-                if ((err instanceof TypeError && err.message.toLowerCase().includes("failed to fetch")) || err?.message?.toLowerCase().includes("timed out") || err?.message?.toLowerCase().includes("request timed out")) {
+            } catch (err) {
+                const errMsg = err instanceof Error ? err.message.toLowerCase() : "";
+                if ((err instanceof TypeError && errMsg.includes("failed to fetch")) || errMsg.includes("timed out") || errMsg.includes("request timed out")) {
                     setFetchError("Could not connect to the server. Please ensure the backend is running.");
                 } else {
                     console.error("Failed to fetch ratings data", err);

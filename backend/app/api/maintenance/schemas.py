@@ -45,32 +45,3 @@ class MaintenanceTaskUpdate(BaseModel):
     task_type: Optional[str] = None
 
 
-class RoutineTaskCreate(BaseModel):
-    title: str
-    description: Optional[str] = None
-    category: str
-    location: Optional[str] = None
-    priority: str = "Routine"
-
-
-class RoutineTaskResponse(BaseModel):
-    id: UUID
-    title: str
-    description: Optional[str] = None
-    category: Optional[str] = None
-    location: Optional[str] = None
-    priority: str
-    status: str
-    task_type: str
-    user_id: UUID
-    booking_id: Optional[UUID] = None
-    service_provider_id: Optional[UUID] = None
-    created_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
-
-
-class RoutineTaskAssign(BaseModel):
-    provider_id: UUID
-    scheduled_at: datetime

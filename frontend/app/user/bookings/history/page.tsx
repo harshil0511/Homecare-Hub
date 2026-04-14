@@ -11,7 +11,7 @@ import {
 
 export default function BookingHistoryPage() {
     const router = useRouter();
-    const [bookings, setBookings] = useState<any[]>([]);
+    const [bookings, setBookings] = useState<Record<string, unknown>[]>([]);
     const [loading, setLoading] = useState(true);
     const [categoryFilter, setCategoryFilter] = useState("All");
 

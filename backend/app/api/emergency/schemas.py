@@ -174,6 +174,10 @@ class EmergencyResponseCreate(BaseModel):
     @field_validator("arrival_time")
     @classmethod
     def arrival_must_be_future(cls, v: datetime) -> datetime:
+        from datetime import timezone as _tz
+        # Normalize to naive UTC (DB stores naive UTC datetimes)
+        if v.tzinfo is not None:
+            v = v.astimezone(_tz.utc).replace(tzinfo=None)
         if v <= datetime.utcnow():
             raise ValueError("arrival_time must be in the future")
         return v

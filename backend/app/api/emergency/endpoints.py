@@ -269,7 +269,6 @@ async def accept_emergency_response(
 ):
     """User accepts a servicer response → creates ServiceBooking, closes emergency."""
     from app.booking.domain.model import ServiceBooking, BookingStatusHistory
-    from app.api.booking.schemas import BookingRead
 
     em = db.query(EmergencyRequest).filter(
         EmergencyRequest.id == request_id,
@@ -288,32 +287,39 @@ async def accept_emergency_response(
     if not resp:
         raise HTTPException(status_code=404, detail="Response not found or already processed")
 
-    # Create ServiceBooking — emergency billing is hours × hourly_rate at job close,
-    # so estimated_cost starts at 0.0 (the admin-set hourly_rate is fetched at final-complete time).
-    config = em.config
+    # Read all values we need from ORM objects NOW, before commit expires them
+    em_category = em.category
+    em_society = em.society_name
+    em_building = em.building_name
+    em_flat = em.flat_no
+    em_description = em.description
+    resp_provider_id = resp.provider_id
+    resp_arrival_time = resp.arrival_time
 
     booking = ServiceBooking(
         user_id=current_user.id,
-        provider_id=resp.provider_id,
-        service_type=em.category,
-        scheduled_at=resp.arrival_time,
+        provider_id=resp_provider_id,
+        service_type=em_category,
+        scheduled_at=resp_arrival_time,
         priority="Emergency",
-        issue_description=em.description,
-        property_details=f"{em.society_name}, {em.building_name}, {em.flat_no}",
+        issue_description=em_description,
+        property_details=f"{em_society}, {em_building}, {em_flat}",
         estimated_cost=0.0,
-        status="Accepted",  # servicer already committed by responding to SOS
+        status="Accepted",
         source_type="emergency",
     )
     db.add(booking)
     db.flush()  # get booking.id
 
+    booking_id = booking.id  # capture before commit expires it
+
     db.add(BookingStatusHistory(
-        booking_id=booking.id,
+        booking_id=booking_id,
         status="Accepted",
         notes="Emergency SOS booking — servicer committed arrival time, auto-accepted",
     ))
 
-    em.resulting_booking_id = booking.id
+    em.resulting_booking_id = booking_id
     em.status = "BOOKED"
     resp.status = "ACCEPTED"
 
@@ -323,40 +329,44 @@ async def accept_emergency_response(
         EmergencyResponse.status == "PENDING",
     ).update({"status": "REJECTED"})
 
-    # Notify user and accepted provider, then commit once
     _notify(db, current_user.id, "Booking Confirmed",
-            f"Emergency {em.category} booking confirmed with your servicer.",
-            notification_type="INFO", link=f"/user/bookings/{booking.id}")
+            f"Emergency {em_category} booking confirmed with your servicer.",
+            notification_type="INFO", link=f"/user/bookings/{booking_id}")
 
     provider = db.query(ServiceProvider).filter(
-        ServiceProvider.id == resp.provider_id
+        ServiceProvider.id == resp_provider_id
     ).first()
     if provider and provider.user_id:
         _notify(db, provider.user_id, "Emergency Job Accepted",
-                f"You have been selected for emergency {em.category}. Proceed to the location.",
+                f"You have been selected for emergency {em_category}. Proceed to the location.",
                 notification_type="URGENT", link="/service/jobs")
 
+    db.commit()
+
+    # WebSocket sends are best-effort — must not crash the HTTP response
+    request_id_str = str(request_id)
+    booking_id_str = str(booking_id)
+    provider_id_str = str(resp_provider_id)
+
     try:
-        db.commit()
+        await emergency_manager.send_to_user(request_id_str, {
+            "event": "request_accepted",
+            "booking_id": booking_id_str,
+            "provider_id": provider_id_str,
+        })
     except Exception:
-        logger.exception("Failed to commit notifications after emergency accept (booking %s)", booking.id)
+        logger.warning("WS notify user failed for emergency accept %s", request_id_str)
 
-    db.refresh(booking)
+    try:
+        await emergency_manager.send_to_servicer(provider_id_str, {
+            "event": "response_accepted",
+            "booking_id": booking_id_str,
+            "category": em_category,
+        })
+    except Exception:
+        logger.warning("WS notify servicer failed for emergency accept %s", request_id_str)
 
-    await emergency_manager.send_to_user(str(request_id), {
-        "event": "request_accepted",
-        "booking_id": str(booking.id),
-        "provider_id": str(resp.provider_id),
-    })
-
-    # Notify the accepted servicer in real-time — they should see the new booking in their Jobs tab
-    await emergency_manager.send_to_servicer(str(resp.provider_id), {
-        "event": "response_accepted",
-        "booking_id": str(booking.id),
-        "category": em.category,
-    })
-
-    return booking
+    return {"id": booking_id_str, "status": "Accepted"}
 
 
 @router.post("/{request_id}/cancel")

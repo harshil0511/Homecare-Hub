@@ -39,8 +39,12 @@ export default function LoginPage() {
 
     // Load saved accounts from localStorage
     useEffect(() => {
-        const stored = localStorage.getItem("hc_saved_accounts");
-        if (stored) setSavedAccounts(JSON.parse(stored));
+        try {
+            const stored = localStorage.getItem("hc_saved_accounts");
+            if (stored) setSavedAccounts(JSON.parse(stored));
+        } catch {
+            localStorage.removeItem("hc_saved_accounts");
+        }
     }, []);
 
     // Close suggestions when clicking outside
@@ -66,8 +70,17 @@ export default function LoginPage() {
 
     // Login page is always accessible — no redirect even if other roles are logged in
 
+    const isValidEmail = (val: string): boolean =>
+        /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9\-]{2,}\.[a-zA-Z]{2,}$/.test(val.trim());
+
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!isValidEmail(email)) {
+            const msg = "Please enter a valid email address (e.g. name@gmail.com).";
+            setError(msg);
+            showToast(msg, "error");
+            return;
+        }
         setLoading(true);
         setError("");
         try {
@@ -80,6 +93,18 @@ export default function LoginPage() {
             // Save all auth info to localStorage
             saveAuthData(data);
 
+            // Save credentials to autocomplete list
+            try {
+                const stored = localStorage.getItem("hc_saved_accounts");
+                const existing: SavedAccount[] = stored ? JSON.parse(stored) : [];
+                const updated = [
+                    { email, password },
+                    ...existing.filter(a => a.email !== email),
+                ].slice(0, 5); // keep last 5 accounts
+                localStorage.setItem("hc_saved_accounts", JSON.stringify(updated));
+                setSavedAccounts(updated);
+            } catch { /* non-critical — ignore */ }
+
             // Route to role-specific dashboards
             const roleHome: Record<string, string> = {
                 ADMIN: "/admin/dashboard",
@@ -88,8 +113,8 @@ export default function LoginPage() {
                 USER: "/user/dashboard",
             };
             router.push(roleHome[data.role] ?? "/user/dashboard");
-        } catch (err: any) {
-            const msg = err.message || "Incorrect email or password.";
+        } catch (err) {
+            const msg = (err as Error)?.message || "Incorrect email or password.";
             setError(msg);
             showToast(msg, "error");
         } finally {
@@ -99,6 +124,10 @@ export default function LoginPage() {
 
     const handleReset = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!isValidEmail(forgotEmail)) {
+            setForgotMsg("error:Please enter a valid email address (e.g. name@gmail.com).");
+            return;
+        }
         setForgotLoading(true);
         setForgotMsg("");
         try {
@@ -109,8 +138,8 @@ export default function LoginPage() {
             setForgotMsg("success");
             showToast("Password updated! You can now sign in.", "success");
             setTimeout(() => setShowForgot(false), 2500);
-        } catch (err: any) {
-            const msg = err.message || "User not found.";
+        } catch (err) {
+            const msg = (err as Error).message || "User not found.";
             setForgotMsg("error:" + msg);
             showToast(msg, "error");
         } finally {

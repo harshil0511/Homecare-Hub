@@ -55,6 +55,7 @@ class ServiceRequestResponse(Base):
     estimated_hours = Column(Float, nullable=True)
     message = Column(Text, nullable=True)
     status = Column(String, default="PENDING")
+    is_final_offer = Column(Boolean, default=False)  # servicer marks initial offer as final
     # Negotiation fields
     negotiation_status = Column(String, default="NONE")  # NONE | NEGOTIATING | AGREED | CLOSED
     agreed_price = Column(Float, nullable=True)
@@ -79,6 +80,7 @@ class NegotiationOffer(Base):
     proposed_time = Column(String(50), nullable=False)  # "morning" | "afternoon" | "evening"
     proposed_price = Column(Float, nullable=False)
     message = Column(Text, nullable=True)
+    is_final_offer = Column(Boolean, default=False)  # servicer marks counter as final
     status = Column(String, default="PENDING")  # PENDING | ACCEPTED | REJECTED
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 

@@ -95,8 +95,8 @@ export default function AdminProvidersPage() {
             setReviewProvider(null);
             setActionMsg("Provider verified successfully.");
             setTimeout(() => setActionMsg(""), 2500);
-        } catch (err: any) {
-            setActionMsg(err.message || "Failed to verify.");
+        } catch (err) {
+            setActionMsg((err as Error).message || "Failed to verify.");
             setTimeout(() => setActionMsg(""), 3000);
         }
     };
@@ -123,8 +123,8 @@ export default function AdminProvidersPage() {
             setTimeout(() => setActionMsg(""), 3000);
             setRevokeTarget(null);
             setRevokeReason("");
-        } catch (err: any) {
-            setRevokeError(err.message || "Failed to revoke verification.");
+        } catch (err) {
+            setRevokeError((err as Error).message || "Failed to revoke verification.");
         } finally {
             setRevokeLoading(false);
         }

@@ -14,8 +14,8 @@ import EmptyState from "@/components/ui/EmptyState";
 
 export default function ServicerDashboard() {
     const [jobs, setJobs] = useState([]);
-    const [profile, setProfile] = useState<any>(null);
-    const [invitations, setInvitations] = useState<any[]>([]);
+    const [profile, setProfile] = useState<Record<string, unknown> | null>(null);
+    const [invitations, setInvitations] = useState<Record<string, unknown>[]>([]);
     const [loading, setLoading] = useState(true);
     const [updatingStatus, setUpdatingStatus] = useState(false);
     const [filterStatus, setFilterStatus] = useState("ACTIVE");
@@ -23,7 +23,7 @@ export default function ServicerDashboard() {
 
     const fetchData = async () => {
         try {
-            let myProfile = await apiFetch("/services/providers/me").catch(() => null);
+            const myProfile = await apiFetch("/services/providers/me").catch(() => null);
             if (myProfile && typeof myProfile.categories === "string") {
                 try { myProfile.categories = JSON.parse(myProfile.categories); }
                 catch { myProfile.categories = []; }
@@ -33,8 +33,9 @@ export default function ServicerDashboard() {
             setProfile(myProfile);
             setJobs(jobsData || []);
             setInvitations(invitesData || []);
-        } catch (err: any) {
-            if ((err instanceof TypeError && err.message.toLowerCase().includes("failed to fetch")) || err?.message?.toLowerCase().includes("timed out") || err?.message?.toLowerCase().includes("request timed out")) {
+        } catch (err) {
+            const errMsg = err instanceof Error ? err.message.toLowerCase() : "";
+            if ((err instanceof TypeError && errMsg.includes("failed to fetch")) || errMsg.includes("timed out") || errMsg.includes("request timed out")) {
                 setFetchError("Could not connect to the server. Please ensure the backend is running.");
             } else {
                 console.error(err);
@@ -73,7 +74,7 @@ export default function ServicerDashboard() {
         }
     };
 
-    const filteredJobs = jobs.filter((j: any) => {
+    const filteredJobs = (jobs as Record<string, unknown>[]).filter((j) => {
         if (filterStatus === "ALL") return true;
         if (filterStatus === "ACTIVE") return j.status !== "Completed" && j.status !== "Cancelled";
         return j.status === filterStatus.charAt(0) + filterStatus.slice(1).toLowerCase();
@@ -158,7 +159,7 @@ export default function ServicerDashboard() {
                         <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center"><DollarSign className="w-6 h-6" /></div>
                         <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded uppercase">Week 12</span>
                     </div>
-                    <p className="text-3xl font-black text-[#000000] tracking-tight">₹{jobs.filter((j: any) => j.status === "Completed").reduce((sum: number, j: any) => sum + (j.estimated_cost || 0), 0).toFixed(2)}</p>
+                    <p className="text-3xl font-black text-[#000000] tracking-tight">₹{(jobs as Record<string, unknown>[]).filter((j) => j.status === "Completed").reduce((sum: number, j) => sum + ((j.estimated_cost as number) || 0), 0).toFixed(2)}</p>
                     <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mt-1">Total Earnings</p>
                 </div>
                 <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm hover:shadow-md transition-all">
@@ -336,7 +337,7 @@ export default function ServicerDashboard() {
                     </div>
                 ) : (
                     <div className="divide-y divide-slate-50">
-                        {filteredJobs.map((job: any) => (
+                        {(filteredJobs as Record<string, unknown>[]).map((job) => (
                             <div key={job.id} className="px-10 py-8 hover:bg-slate-50/80 transition-all cursor-pointer group flex items-center justify-between">
                                 <div className="flex items-center gap-8">
                                     <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center group-hover:bg-[#064e3b] transition-colors">

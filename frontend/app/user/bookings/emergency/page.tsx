@@ -184,8 +184,8 @@ function EmergencySOSContent() {
     };
 
     const handleDetailsNext = () => {
-        const { society_name, landmark, full_address, description, contact_name, contact_phone } = form;
-        if (!society_name || !landmark || !full_address || !description || !contact_name || !contact_phone) {
+        const { society_name, landmark, full_address, contact_name, contact_phone } = form;
+        if (!society_name || !landmark || !full_address || !contact_name || !contact_phone) {
             showError("Please fill all required fields.");
             return;
         }
@@ -401,7 +401,7 @@ function EmergencySOSContent() {
 
                     <div className="bg-white border border-slate-100 rounded-3xl p-6 space-y-4">
                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50 pb-3">Issue</p>
-                        {field("description", "Description * (max 500 chars)", "Describe the emergency clearly…", "textarea")}
+                        {field("description", "Description (optional, max 500 chars)", "Describe the emergency clearly…", "textarea")}
                         {field("device_name", "Device / Appliance (optional)", "e.g. Washing Machine, Geyser")}
                     </div>
 

@@ -17,9 +17,9 @@
 
 **Homecare Hub** is a full-stack platform for managing home maintenance and community services inside residential societies. It connects four types of users — **residents**, **service providers**, **society secretaries**, and **system admins** — in one unified ecosystem.
 
-A resident can book a plumber, raise an emergency SOS, track maintenance history, and chat directly with their provider. A secretary manages the society's trusted provider list and responds to member alerts. A service provider sees incoming job requests in real time and submits proposals. An admin has complete system visibility: users, bookings, providers, emergency incidents, and logs — all live, no hardcoded data.
+A resident can book a plumber, raise an emergency SOS, track maintenance history, chat directly with their provider, and dispute incorrect charges. A secretary manages the society's trusted provider list and responds to member alerts. A service provider sees incoming job requests in real time, submits proposals, and enters job completion details. An admin has complete system visibility: users, bookings, providers, emergency incidents, flagged charge disputes, and full audit logs — all live, no hardcoded data.
 
-**Domain:** Residential property services · Housing society management · Home maintenance marketplace · Emergency response coordination.
+**Domain:** Residential property services · Housing society management · Home maintenance marketplace · Emergency response coordination · Billing & dispute resolution.
 
 ---
 
@@ -29,10 +29,10 @@ The platform is built around **4 distinct roles**, each with their own fully pro
 
 | Role | Portal Root | What They Do |
 | :--- | :--- | :--- |
-| **ADMIN** | `/admin/dashboard` | Full system control: users, providers, bookings, emergency config, penalty management, audit logs, health monitoring |
+| **ADMIN** | `/admin/dashboard` | Full system control: users, providers, bookings, emergency config, penalty management, charge dispute review, audit logs, health monitoring |
 | **SECRETARY** | `/secretary/dashboard` | Society management: members, home number assignment, trusted providers, maintenance alerts |
-| **USER** (Resident) | `/user/dashboard` | Book services, raise emergency SOS, track maintenance tasks, chat with providers, view ratings |
-| **SERVICER** (Provider) | `/service/dashboard` | Manage incoming job requests and emergency alerts, update profile, track ratings and star adjustments |
+| **USER** (Resident) | `/user/dashboard` | Book services, raise emergency SOS, track maintenance tasks, chat with providers, review charges, flag disputes to admin |
+| **SERVICER** (Provider) | `/service/dashboard` | Manage incoming job requests and emergency alerts, enter actual job hours for billing, update profile, track ratings and star adjustments |
 
 Route access is enforced by **dual-layer protection**:
 1. `middleware.ts` — server-side JWT check before page renders
@@ -49,12 +49,15 @@ Route access is enforced by **dual-layer protection**:
 - **Maintenance Task Tracker** — Create, track, and assign routine or one-time maintenance tasks; receive staged alerts (2 days before → due → overdue → expired)
 - **Booking Chat** — In-booking messaging with the assigned provider
 - **Booking Review** — Rate completed jobs with overall + quality + punctuality + professionalism scores
+- **Charge Review & Receipt** — When a servicer submits a charge (actual hours × estimated cost), the resident receives a receipt; can accept silently or formally reject with a reason
+- **Dispute Flagging** — If a charge is incorrect, resident can flag the booking to admin with a written reason; flagged bookings are highlighted in the admin panel for review
 - **Routine Maintenance** — Intelligent category matching to find the right provider automatically
 - **AI Assistant** — Ask home service questions via integrated Claude AI chat
 
 ### Service Providers (SERVICER)
 - **Job Board** — View assigned bookings and incoming service request broadcasts
 - **Emergency Alert Feed** — Real-time emergency alerts via WebSocket with 5-minute response window
+- **Job Charge Entry** — After job completion, enter actual hours worked; charge is auto-calculated as `hours × estimated_cost (hourly rate)` and sent to the resident
 - **Professional Profile** — Bio, category, hourly rate, location, certifications, government ID, profile photo
 - **Availability Management** — Toggle between `AVAILABLE`, `WORKING`, `VACATION`
 - **Ratings Dashboard** — View detailed feedback: overall, quality, punctuality, professionalism
@@ -72,11 +75,39 @@ Route access is enforced by **dual-layer protection**:
 ### Admins (ADMIN)
 - **User Management** — View all users, change roles, toggle active status, delete accounts; superadmin is protected from demotion
 - **Provider Oversight** — Verify providers, revoke verification, view full profile with booking history and certificates; providers listed by star rating
-- **Booking Monitor** — All bookings with detailed view
+- **Booking Monitor** — All bookings with detailed view; flagged/disputed bookings appear with a visible warning badge so admins can prioritize review
+- **Charge Dispute Panel** — When a resident flags an incorrect charge, admin sees full charge details (actual hours, computed amount, rejection reason) in a dedicated panel and can take action
 - **Emergency Management** — Configure emergency category pricing (callout fee + hourly rate), manage penalty configs (LATE_ARRIVAL, CANCELLATION, NO_SHOW), view all SOS incidents, apply penalties with star deductions
 - **System Logs** — Full activity audit log for security and compliance
 - **Health Dashboard** — Live DB / API / backend status indicators
 - **Dashboard Stats** — User count, servicer count, booking count, task count, pending verifications
+
+---
+
+## Booking Charge & Billing Flow
+
+When a job is marked complete, the billing cycle works as follows:
+
+```
+Servicer enters actual hours worked
+        ↓
+Charge = actual_hours × provider's estimated_cost (hourly rate)
+        ↓
+Resident receives receipt in booking detail page
+        ↓
+    ┌───────────────────────────┐
+    │   Resident reviews charge  │
+    └───────────────────────────┘
+           ↙               ↘
+    Accept (silent)     Reject with reason
+                              ↓
+                    Option to flag to Admin
+                              ↓
+                  Admin sees flagged badge in booking list
+                  + full charge breakdown in detail panel
+```
+
+This gives residents transparency and accountability over every billing event, with admin as a neutral dispute arbiter.
 
 ---
 
@@ -194,11 +225,11 @@ homecare-hub/
 │   │   │   ├── auth/             # /auth — signup, login, forgot-password
 │   │   │   ├── user/             # /user — profile, password
 │   │   │   ├── service/          # /services — societies, providers, certificates
-│   │   │   ├── booking/          # /bookings — create, chat, review, reschedule
+│   │   │   ├── booking/          # /bookings — create, chat, review, reschedule, charge
 │   │   │   ├── maintenance/      # /maintenance — tasks, routine tasks
 │   │   │   ├── request/          # /requests — service request broadcast workflow
 │   │   │   ├── emergency/        # /emergency — SOS requests and responses
-│   │   │   ├── admin/            # /admin — users, providers, bookings, logs
+│   │   │   ├── admin/            # /admin — users, providers, bookings, charge disputes
 │   │   │   ├── secretary/        # /secretary — society, members, trusted providers
 │   │   │   ├── notification/     # /notifications — list, read, delete
 │   │   │   └── ai/               # /ai — Claude AI chat
@@ -253,13 +284,13 @@ All endpoints prefixed `/api/v1`. Docs at `http://localhost:8000/api/v1/docs`
 | Auth | `/auth` | signup, login, forgot-password |
 | User | `/user` | profile, change-password |
 | Services | `/services` | societies CRUD, provider registration, certificates, availability |
-| Bookings | `/bookings` | create, status update, chat, review, reschedule, cancel |
+| Bookings | `/bookings` | create, status update, chat, review, reschedule, cancel, charge submit, charge reject, flag to admin |
 | Maintenance | `/maintenance` | tasks, routine tasks, assignment |
 | Requests | `/requests` | broadcast to providers, accept/reject proposals |
 | Emergency | `/emergency` | SOS create, provider responses, status updates |
 | Secretary | `/secretary` | society edit, member management, trusted providers |
 | Notifications | `/notifications` | list, mark read, delete |
-| Admin | `/admin` | users, providers, bookings, logs, stats, health |
+| Admin | `/admin` | users, providers, bookings (with flagged filter), logs, stats, health |
 | Admin Emergency | `/admin/emergency` | pricing config, penalty config, incident management |
 | AI | `/ai` | Claude AI chat |
 
@@ -311,35 +342,55 @@ ServiceProvider ───── 1:N ── EmergencyStarAdjustment
 
 ## Future Roadmap
 
-### Phase 1 — Provider & Booking Enhancement
-- [ ] **Payment Integration** — Online payment gateway for booking fees and emergency callouts
-- [ ] **Provider Availability Calendar** — Visual calendar for booking slots instead of manual time entry
-- [ ] **Booking Reminders** — Push/email notifications for upcoming scheduled bookings
-- [ ] **Provider Portfolio** — Gallery of completed work photos per provider
-- [ ] **Multi-language Support** — Localization for regional languages
+### Phase 1 — Direct Communication (Next Priority)
 
-### Phase 2 — Society & Community Features
-- [ ] **Society Notice Board** — Announcements from secretary to all members
-- [ ] **Community Chat** — Society-wide or floor-wise group messaging
-- [ ] **Visitor Management** — Log and pre-approve guest/delivery entries
-- [ ] **Society Billing** — Maintenance dues, tracking, and payment history per member
-- [ ] **Document Vault** — Society documents (NOC, agreements, bylaws) stored per society
+- [ ] **Direct WebSocket Messaging** — Real-time one-to-one chat channel between a resident and a servicer, independent of any booking. Currently booking-chat exists only within a booking context; this would be a persistent direct message thread so a resident can contact their trusted provider any time, and the servicer can send updates or reminders. Backend: a new `DirectMessage` table + WebSocket room per `(user_id, provider_id)` pair. Frontend: a chat inbox in both the user and service portals.
 
-### Phase 3 — Intelligence & Automation
+- [ ] **In-App Voice/Video Call** — WebRTC-based audio/video call between resident and servicer initiated from the booking detail page. No third-party app needed — one click to connect directly through the platform.
+
+### Phase 2 — Native Payment System
+
+- [ ] **QR Code Payment at Completion** — When a servicer completes a job and submits their charge, the system generates a unique payment QR code tied to that booking's computed amount. The resident scans the QR code with any UPI / mobile payment app to pay directly. The backend marks the booking as `PAID` on confirmation, and the receipt updates to show payment status. This removes reliance on cash and provides a verifiable payment trail per booking.
+
+- [ ] **Digital Receipt & Payment History** — Every paid booking produces a downloadable PDF receipt with provider name, service category, actual hours, rate, total, and payment timestamp. Residents and providers each see their full payment history filtered by date range.
+
+- [ ] **Emergency SOS Bill Settlement** — Emergency callouts currently compute a bill (callout fee + hourly rate × hours × 1.5× multiplier) but payment is manual. QR-based settlement would close this loop — servicer generates QR at scene, resident pays instantly.
+
+- [ ] **Wallet / Prepaid Credits** — Residents pre-load credits into a platform wallet. Charges are deducted automatically on job acceptance, removing the payment step entirely at completion.
+
+### Phase 3 — Society Management Expansion
+
+- [ ] **Society Notice Board** — Secretary publishes announcements (maintenance shutdowns, meeting dates, rule changes) pinned to all resident dashboards with read/unread tracking.
+
+- [ ] **Community Group Chat** — Society-wide or floor/wing-wise group messaging channel managed by the secretary. Residents post questions, report issues, or coordinate among neighbors.
+
+- [ ] **Visitor & Delivery Pre-Authorization** — Residents pre-register expected visitors or delivery windows. Secretary or gate staff see the approved list and can mark arrivals.
+
+- [ ] **Society Maintenance Billing** — Monthly society maintenance dues tracked per home number. Secretary raises invoices, residents pay (cash-acknowledged or QR), and history is logged per unit.
+
+- [ ] **Document Vault** — Society-level document storage: NOC certificates, society bylaws, meeting minutes, and compliance papers accessible to secretary and admin.
+
+- [ ] **Multi-Society Admin** — A single admin account manages multiple registered societies, with per-society dashboards and secretary assignments.
+
+### Phase 4 — Intelligence & Automation
+
 - [x] **Points-Based Star Rating** — Uncapped, achievement-driven rating system with auto-verification at 10 stars
-- [x] **Provider Analytics** — Performance dashboard with job stats, points breakdown, and monthly trends
-- [ ] **Smart Provider Matching** — AI-powered provider recommendation based on rating, proximity, category, and past bookings
-- [ ] **Predictive Maintenance** — Suggest upcoming maintenance based on past task history and seasonal patterns
-- [ ] **AI Booking Assistant** — Conversational booking flow — describe the problem in plain language, AI creates the request
-- [ ] **Automated SLA Monitoring** — Alert when bookings exceed expected completion time
-- [ ] **Fraud Detection** — Flag unusual booking patterns or suspicious review activity
+- [x] **Provider Analytics Dashboard** — Performance dashboard with job stats, points breakdown, and monthly trends
+- [x] **Charge Dispute Resolution** — Resident can reject incorrect charges and flag to admin; admin sees full charge breakdown in booking panel
 
-### Phase 4 — Platform Scaling
-- [ ] **Mobile App** — React Native app for residents and service providers
-- [ ] **Multi-City Support** — Platform expansion beyond single-city societies
-- [ ] **Provider Subscription Tiers** — Free vs. premium provider visibility and lead allocation
-- [ ] **Admin Analytics Dashboard** — Booking trends, revenue insights, provider performance charts
-- [ ] **Third-party Integrations** — WhatsApp notifications, Google Calendar sync, SMS alerts
+- [ ] **Smart Provider Matching** — AI-powered provider recommendation based on rating, proximity, category, and past booking satisfaction scores
+- [ ] **Predictive Maintenance** — Suggest upcoming maintenance actions based on past task history and seasonal patterns (e.g. "AC service usually needed in April based on your history")
+- [ ] **Automated SLA Monitoring** — Alert admin and resident when a booking exceeds expected completion time without a status update
+- [ ] **Fraud & Anomaly Detection** — Flag unusual patterns: inflated hours, rapid repeated bookings, suspicious review bursts
+
+### Phase 5 — Platform Scaling
+
+- [ ] **Mobile App (React Native)** — Native iOS/Android app for residents and servicers with push notifications and offline task viewing
+- [ ] **Provider Availability Calendar** — Visual calendar UI for selecting booking slots, replacing the manual datetime entry
+- [ ] **Multi-City & Multi-Society** — Expand beyond a single-city scope; society onboarding self-service with admin approval
+- [ ] **Provider Subscription Tiers** — Free (standard listing) vs. premium (priority placement, lead quota boost, featured badge)
+- [ ] **Third-party Integrations** — WhatsApp/SMS booking confirmations, Google Calendar sync for scheduled bookings, email digest for secretaries
+- [ ] **Admin Revenue Analytics** — Platform-wide booking volume, revenue estimates, provider churn, and month-over-month growth charts
 
 ---
 
@@ -349,9 +400,7 @@ ServiceProvider ───── 1:N ── EmergencyStarAdjustment
 | :--- | :--- |
 | `http://localhost:8000/api/v1/docs` | Live Swagger UI (backend running) |
 | [`backend/BACKEND.md`](backend/BACKEND.md) | Backend quick-reference: import rules, router table, patterns |
-| [`docs/BACKEND.md`](docs/BACKEND.md) | Full backend developer guide: structure, models, schemas, migrations |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System architecture, data flow, security, logic flows |
-| [`CLAUDE.md`](CLAUDE.md) | Full project playbook for AI-assisted development |
+| [`CLAUDE.md`](CLAUDE.md) | Full project playbook for AI-assisted development (architecture, models, endpoints, business rules) |
 
 ---
 

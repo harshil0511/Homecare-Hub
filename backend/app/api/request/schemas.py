@@ -41,6 +41,7 @@ class ServiceRequestResponseCreate(BaseModel):
     proposed_price: float
     estimated_hours: Optional[float] = None
     message: Optional[str] = None
+    is_final_offer: bool = False
 
     @field_validator("proposed_price")
     @classmethod
@@ -69,6 +70,7 @@ class NegotiationOfferRead(BaseModel):
     proposed_time: str
     proposed_price: float
     message: Optional[str] = None
+    is_final_offer: bool = False
     status: str
     created_at: Optional[datetime] = None
 
@@ -81,6 +83,7 @@ class NegotiationOfferCreate(BaseModel):
     proposed_time: str          # "morning" | "afternoon" | "evening"
     proposed_price: float
     message: Optional[str] = None
+    is_final_offer: bool = False
 
     @field_validator("proposed_price")
     @classmethod
@@ -107,6 +110,7 @@ class ServiceRequestResponseRead(BaseModel):
     estimated_hours: Optional[float] = None
     message: Optional[str] = None
     status: str
+    is_final_offer: bool = False
     negotiation_status: str = "NONE"
     agreed_price: Optional[float] = None
     agreed_date: Optional[datetime] = None
@@ -176,6 +180,8 @@ class IncomingServiceRequestRead(BaseModel):
     response_id: Optional[UUID] = None
     negotiation_status: Optional[str] = None
     current_round: int = 0
+    counter_offer_price: Optional[float] = None
+    counter_offer_message: Optional[str] = None
 
     @field_validator("photos", "preferred_dates", mode="before")
     @classmethod

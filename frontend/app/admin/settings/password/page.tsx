@@ -42,8 +42,8 @@ export default function AdminPasswordPage() {
             setNewPassword("");
             setConfirmPassword("");
             setTimeout(() => setSuccess(false), 3000);
-        } catch (err: any) {
-            setError(err.message || "Failed to change password");
+        } catch (err) {
+            setError((err as Error).message || "Failed to change password");
         } finally {
             setLoading(false);
         }

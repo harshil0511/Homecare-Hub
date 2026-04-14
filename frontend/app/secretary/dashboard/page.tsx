@@ -115,7 +115,7 @@ export default function SecretaryDashboard() {
             setReportModal(false);
             setReportSubject("");
             setReportDescription("");
-        } catch (err: any) {
+        } catch (err) {
             console.error("Failed to submit report:", err);
         } finally {
             setSubmittingReport(false);

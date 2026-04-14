@@ -9,6 +9,7 @@ import {
     Check,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { useToast } from "@/lib/toast-context";
 import Spinner from "@/components/ui/Spinner";
 import EmptyState from "@/components/ui/EmptyState";
 
@@ -179,6 +180,8 @@ function ProviderDetailModal({ provider, onClose, onSOS }: { provider: Provider;
 function ProvidersContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
+    const toast = useToast();
+    const today = useMemo(() => new Date().toISOString().split("T")[0], []);
 
     // ── Source data ──────────────────────────────────────────────────────────
     const [allProviders, setAllProviders] = useState<Provider[]>([]);
@@ -351,9 +354,10 @@ function ProvidersContent() {
             setReqName(""); setReqMobile(""); setReqLocation("");
             setReqProblemType(""); setReqDescription("");
             setReqDateStart(""); setReqDateEnd(""); setReqUrgency("Normal");
+            toast.success(`Request sent to ${selectedIds.size} provider${selectedIds.size !== 1 ? "s" : ""}! Waiting for their offers.`);
             router.push("/user/bookings");
         } catch (err) {
-            console.error("Failed to submit request:", err);
+            toast.error((err as Error)?.message || "Failed to send request — please try again");
         } finally {
             setSubmittingRequest(false);
         }
@@ -740,11 +744,27 @@ function ProvidersContent() {
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
                                             <label className="text-xs text-slate-500 mb-1 block">From Date</label>
-                                            <input type="date" value={reqDateStart} onChange={e => setReqDateStart(e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b]" />
+                                            <input
+                                                type="date"
+                                                value={reqDateStart}
+                                                min={today}
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    setReqDateStart(val);
+                                                    if (reqDateEnd && reqDateEnd < val) setReqDateEnd("");
+                                                }}
+                                                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b]"
+                                            />
                                         </div>
                                         <div>
                                             <label className="text-xs text-slate-500 mb-1 block">To Date</label>
-                                            <input type="date" value={reqDateEnd} onChange={e => setReqDateEnd(e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b]" />
+                                            <input
+                                                type="date"
+                                                value={reqDateEnd}
+                                                min={reqDateStart || today}
+                                                onChange={e => setReqDateEnd(e.target.value)}
+                                                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b]"
+                                            />
                                         </div>
                                     </div>
                                 </div>

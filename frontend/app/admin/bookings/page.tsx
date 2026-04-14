@@ -116,8 +116,8 @@ export default function AdminBookingsPage() {
             });
             toast.success("Complaint resolved");
             fetchComplaints();
-        } catch (err: any) {
-            toast.error(err.message || "Failed to resolve complaint");
+        } catch (err) {
+            toast.error((err as Error).message || "Failed to resolve complaint");
         }
     };
 
@@ -142,8 +142,8 @@ export default function AdminBookingsPage() {
             });
             toast.success(action === "cancel_bill" ? "Bill cancelled — servicer notified" : "Amount overridden — booking completed");
             fetchComplaints();
-        } catch (err: any) {
-            toast.error(err.message || "Action failed");
+        } catch (err) {
+            toast.error((err as Error).message || "Action failed");
         } finally {
             setApplyingAction(null);
             setOverrideTarget(null);
@@ -559,7 +559,7 @@ export default function AdminBookingsPage() {
                                             {bookingDetail.completion_notes && (
                                                 <div className="py-2 border-b border-slate-50">
                                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Notes</p>
-                                                    <p className="text-xs text-slate-600 italic">"{bookingDetail.completion_notes}"</p>
+                                                    <p className="text-xs text-slate-600 italic">&ldquo;{bookingDetail.completion_notes}&rdquo;</p>
                                                 </div>
                                             )}
                                         </div>

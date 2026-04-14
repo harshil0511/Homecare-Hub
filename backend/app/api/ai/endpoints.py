@@ -5,7 +5,7 @@ from app.common import deps
 from app.auth.domain.model import User
 from app.api.ai.schemas import DiagnosticRequest
 
-router = APIRouter()
+router = APIRouter(tags=["AI Diagnostics"])
 
 @router.post("/diagnose")
 async def diagnose_incident(request: DiagnosticRequest, current_user: User = Depends(deps.get_current_user)):

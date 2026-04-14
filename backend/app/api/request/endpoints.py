@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 from typing import List, Optional
 from uuid import UUID
 
@@ -27,6 +27,30 @@ router = APIRouter(tags=["Service Requests"])
 # Role guards
 user_or_secretary = deps.RoleChecker(["USER", "SECRETARY"])
 servicer_only = deps.RoleChecker(["SERVICER"])
+
+
+def _all_preferred_dates_past(preferred_dates_json: Optional[str]) -> bool:
+    """Return True if preferred_dates is non-empty and every date in it is strictly in the past."""
+    if not preferred_dates_json:
+        return False
+    try:
+        dates_raw: list = json.loads(preferred_dates_json)
+    except Exception:
+        return False
+    if not dates_raw:
+        return False
+    today = date.today()
+    parsed = []
+    for d in dates_raw:
+        for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f", "%d/%m/%Y", "%d-%m-%Y"):
+            try:
+                parsed.append(datetime.strptime(str(d).split("T")[0], "%Y-%m-%d").date())
+                break
+            except ValueError:
+                continue
+    if not parsed:
+        return False
+    return all(d < today for d in parsed)
 
 
 def _mark_expired_if_needed(request: ServiceRequest) -> None:
@@ -80,8 +104,25 @@ def list_incoming_requests(
         if req.status != "OPEN":
             continue
 
+        # Skip requests where all preferred dates are in the past
+        if _all_preferred_dates_past(req.preferred_dates):
+            continue
+
         my_response = next((r for r in req.responses if r.provider_id == provider.id), None)
         has_responded = my_response is not None
+
+        counter_offer_price = None
+        counter_offer_message = None
+        if (
+            my_response
+            and my_response.negotiation_status == "NEGOTIATING"
+            and my_response.current_round > 0
+            and my_response.negotiation_offers
+        ):
+            latest_offer = sorted(my_response.negotiation_offers, key=lambda o: o.round_number)[-1]
+            if latest_offer.offered_by == "USER":
+                counter_offer_price = latest_offer.proposed_price
+                counter_offer_message = latest_offer.message
 
         result.append(IncomingServiceRequestRead(
             id=req.id,
@@ -100,6 +141,8 @@ def list_incoming_requests(
             response_id=my_response.id if my_response else None,
             negotiation_status=my_response.negotiation_status if my_response else None,
             current_round=my_response.current_round if my_response else 0,
+            counter_offer_price=counter_offer_price,
+            counter_offer_message=counter_offer_message,
         ))
 
     if changed:
@@ -279,6 +322,7 @@ def respond_to_request(
         proposed_price=response_in.proposed_price,
         estimated_hours=response_in.estimated_hours,
         message=response_in.message,
+        is_final_offer=response_in.is_final_offer,
         status="PENDING",
     )
     db.add(db_response)
@@ -424,8 +468,7 @@ def accept_response(
     )
 
     db.commit()
-    db.refresh(booking)
-    return booking
+    return {"booking_id": str(booking.id), "detail": "Offer accepted — contract created"}
 
 
 @router.post("/{request_id}/responses/{response_id}/reject", status_code=200)
@@ -482,7 +525,7 @@ def send_counter_offer(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
 ):
-    """User or servicer sends a counter-offer. Max 3 rounds."""
+    """User or servicer sends a counter-offer (max 3 rounds). Servicer can mark any offer as final to stop further counters."""
     req = db.query(ServiceRequest).filter(ServiceRequest.id == request_id).first()
     if not req:
         raise HTTPException(status_code=404, detail="Request not found")
@@ -503,7 +546,7 @@ def send_counter_offer(
     if response.status not in ("PENDING",):
         raise HTTPException(status_code=400, detail=f"Response is already {response.status}")
     if response.negotiation_status == "CLOSED":
-        raise HTTPException(status_code=400, detail="Negotiation is closed for this response")
+        raise HTTPException(status_code=400, detail="Negotiation is closed — the final offer was rejected")
 
     provider = db.query(ServiceProvider).filter(
         ServiceProvider.user_id == current_user.id
@@ -516,9 +559,10 @@ def send_counter_offer(
 
     caller_role = "SERVICER" if is_servicer else "USER"
 
-    # Turn enforcement
+    # Turn enforcement — resolve last offer once and reuse
     if response.current_round == 0:
         expected_role = "USER"
+        last_offer = None
     else:
         last_offer = db.query(NegotiationOffer).filter(
             NegotiationOffer.response_id == response_id
@@ -528,10 +572,25 @@ def send_counter_offer(
     if caller_role != expected_role:
         raise HTTPException(status_code=400, detail=f"It is {expected_role}'s turn to respond")
 
-    if response.current_round >= 3:
-        raise HTTPException(status_code=400, detail="Maximum negotiation rounds (3) reached")
+    # Block counter if servicer marked their offer as final (beats the round cap)
+    if caller_role == "USER":
+        if response.current_round == 0 and response.is_final_offer:
+            raise HTTPException(
+                status_code=400,
+                detail="Servicer marked this as their final offer — you can only accept or reject"
+            )
+        if last_offer and last_offer.is_final_offer and last_offer.offered_by == "SERVICER":
+            raise HTTPException(
+                status_code=400,
+                detail="Servicer marked this as their final offer — you can only accept or reject"
+            )
+
+    if response.current_round >= 1:
+        raise HTTPException(status_code=400, detail="Only one counter offer is allowed — servicer must accept or reject")
 
     new_round = response.current_round + 1
+    # Only servicer can mark an offer as final; ignore the flag from users
+    is_final = offer_in.is_final_offer if caller_role == "SERVICER" else False
 
     offer = NegotiationOffer(
         response_id=response_id,
@@ -541,6 +600,7 @@ def send_counter_offer(
         proposed_time=offer_in.proposed_time,
         proposed_price=offer_in.proposed_price,
         message=offer_in.message,
+        is_final_offer=is_final,
         status="PENDING",
     )
     db.add(offer)
@@ -557,10 +617,14 @@ def send_counter_offer(
                     message=f"Counter offer from user for '{req.device_or_issue}': \u20b9{offer_in.proposed_price:.0f}.",
                     notification_type="INFO", link="/service/jobs")
     else:
-        _notify(db, user_id=req.user_id,
-                title="Servicer Sent New Offer",
-                message=f"Servicer updated their offer for '{req.device_or_issue}': \u20b9{offer_in.proposed_price:.0f}.",
-                notification_type="INFO", link="/user/bookings")
+        title = "Servicer's Final Offer" if is_final else "Servicer Sent New Offer"
+        msg = (
+            f"Final offer for '{req.device_or_issue}': \u20b9{offer_in.proposed_price:.0f}. You can only accept or reject."
+            if is_final else
+            f"Servicer updated their offer for '{req.device_or_issue}': \u20b9{offer_in.proposed_price:.0f}."
+        )
+        _notify(db, user_id=req.user_id, title=title, message=msg,
+                notification_type="URGENT" if is_final else "INFO", link="/user/bookings")
 
     db.commit()
     db.refresh(offer)
@@ -726,11 +790,12 @@ def reject_counter_offer(
 
     latest_offer.status = "REJECTED"
 
-    if response.current_round >= 3:
+    # Close negotiation after servicer responds to user's counter (1 round max), or if final offer rejected
+    if response.current_round >= 1 or latest_offer.is_final_offer:
         response.negotiation_status = "CLOSED"
         closed = True
     else:
-        response.negotiation_status = "NONE"  # reset: no active pending counter, new counter can be sent
+        response.negotiation_status = "NONE"  # reset: allow a new counter offer
         closed = False
 
     if latest_offer.offered_by == "USER":

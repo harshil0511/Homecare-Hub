@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Bell, Briefcase, Calendar, Star, Mail } from "lucide-react";
 
 function ToggleSwitch({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
@@ -25,14 +25,14 @@ const DEFAULT_PREFS = {
 };
 
 export default function ServicerNotificationsPage() {
-    const [prefs, setPrefs] = useState(DEFAULT_PREFS);
-
-    useEffect(() => {
+    const [prefs, setPrefs] = useState(() => {
         try {
             const saved = localStorage.getItem("hc_servicer_notification_prefs");
-            if (saved) setPrefs(JSON.parse(saved));
-        } catch {}
-    }, []);
+            return saved ? JSON.parse(saved) : DEFAULT_PREFS;
+        } catch {
+            return DEFAULT_PREFS;
+        }
+    });
 
     const togglePref = (key: keyof typeof prefs) => {
         const updated = { ...prefs, [key]: !prefs[key] };

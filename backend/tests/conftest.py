@@ -1,21 +1,10 @@
-import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from app.core.database import Base
+"""
+Test configuration for HomeCare Hub backend.
+Uses the real SQLAlchemy Base so model metadata is available for column-level tests.
+No live DB connection required for schema/model/logic tests.
+"""
+import sys
+import os
 
-@pytest.fixture(scope="session")
-def engine():
-    return create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
-
-@pytest.fixture(scope="session")
-def tables(engine):
-    Base.metadata.create_all(engine)
-    yield
-    Base.metadata.drop_all(engine)
-
-@pytest.fixture
-def db_session(engine, tables):
-    Session = sessionmaker(bind=engine)
-    session = Session()
-    yield session
-    session.close()
+# Ensure the backend/ directory is on the path so `app.*` imports work.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

@@ -103,11 +103,14 @@ export default function RegisterPage() {
         setCertName(file.name);
     };
 
+    const isValidEmail = (val: string): boolean =>
+        /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9\-]{2,}\.[a-zA-Z]{2,}$/.test(val.trim());
+
     const validateStep = (): boolean => {
         setError("");
         if (step === 0) {
             if (!username.trim()) { setError("Please enter your name."); return false; }
-            if (!email.trim() || !email.includes("@")) { setError("Please enter a valid email."); return false; }
+            if (!email.trim() || !isValidEmail(email)) { setError("Please enter a valid email address (e.g. name@gmail.com)."); return false; }
             const hasCapital = /[A-Z]/.test(password);
             const hasSpecial = /[@#$!%*?&]/.test(password);
             if (!hasCapital || !hasSpecial || password.length < 6) {
@@ -138,6 +141,10 @@ export default function RegisterPage() {
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
+        if (!isValidEmail(email)) {
+            const msg = "Please enter a valid email address (e.g. name@gmail.com).";
+            setError(msg); showToast(msg, "error"); return;
+        }
         const hasCapital = /[A-Z]/.test(password);
         const hasSpecial = /[@#$!%*?&]/.test(password);
         if (!hasCapital || !hasSpecial || password.length < 6) {
@@ -161,8 +168,8 @@ export default function RegisterPage() {
             }
             setSuccess(true);
             setTimeout(() => router.push("/login"), 2500);
-        } catch (err: any) {
-            const msg = err.message || "Registration failed. Please try again.";
+        } catch (err) {
+            const msg = (err as Error).message || "Registration failed. Please try again.";
             if (msg.toLowerCase().includes("already exists")) {
                 const existsMsg = "An account with this email already exists. Please sign in.";
                 setError(existsMsg); showToast(existsMsg, "error");
@@ -210,7 +217,7 @@ export default function RegisterPage() {
                 });
                 if (!res.ok) {
                     const err = await res.json().catch(() => ({}));
-                    throw new Error((err as any).detail || "Request failed.");
+                    throw new Error((err as Record<string, unknown>).detail as string || "Request failed.");
                 }
                 return res.json();
             };
@@ -268,8 +275,8 @@ export default function RegisterPage() {
             }
             setSuccess(true);
             setTimeout(() => router.push("/login"), 2500);
-        } catch (err: any) {
-            const msg = err.message || "Registration failed. Please try again.";
+        } catch (err) {
+            const msg = (err as Error).message || "Registration failed. Please try again.";
             if (msg.toLowerCase().includes("already exists")) {
                 const existsMsg = "An account with this email already exists. Please sign in.";
                 setError(existsMsg); showToast(existsMsg, "error");

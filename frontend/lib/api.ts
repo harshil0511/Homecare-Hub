@@ -18,10 +18,10 @@ export async function apiFetch(endpoint: string, options: ApiOptions = {}) {
                 p.startsWith("/service")   ? "hc_token_SERVICER" :
                 p.startsWith("/secretary") ? "hc_token_SECRETARY" :
                 null;
-            if (roleKey) return localStorage.getItem(roleKey);
+            if (roleKey) return sessionStorage.getItem(roleKey);
             // Fallback: any available token
             for (const k of ["hc_token_ADMIN","hc_token_USER","hc_token_SERVICER","hc_token_SECRETARY"]) {
-                const t = localStorage.getItem(k);
+                const t = sessionStorage.getItem(k);
                 if (t) return t;
             }
             return null;
@@ -84,7 +84,7 @@ export async function apiFetch(endpoint: string, options: ApiOptions = {}) {
                     p.startsWith("/user")      ? "hc_token_USER" :
                     p.startsWith("/service")   ? "hc_token_SERVICER" :
                     p.startsWith("/secretary") ? "hc_token_SECRETARY" : null;
-                if (roleKey) localStorage.removeItem(roleKey);
+                if (roleKey) sessionStorage.removeItem(roleKey);
                 window.location.href = "/login";
             }
 
@@ -99,9 +99,9 @@ export async function apiFetch(endpoint: string, options: ApiOptions = {}) {
         } catch {
             throw new Error("Received an invalid response from the server.");
         }
-    } catch (err: any) {
+    } catch (err) {
         clearTimeout(id);
-        if (err.name === 'AbortError') {
+        if ((err as Error).name === 'AbortError') {
             throw new Error("Request timed out. Please check your connection.");
         }
         throw err;

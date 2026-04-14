@@ -1,17 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Briefcase, Clock, MapPin, CheckCircle, XCircle, ChevronRight, User, IndianRupee, Calendar, Send, X, FileText, ShieldAlert } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Briefcase, Clock, MapPin, CheckCircle, XCircle, User, IndianRupee, Calendar, Send, X, FileText, ShieldAlert } from "lucide-react";
 import { apiFetch, emergencyApi, createServicerAlertSocket, IncomingEmergencyRead } from "@/lib/api";
 import { useToast } from "@/lib/toast-context";
-import Link from "next/link";
 import Spinner from "@/components/ui/Spinner";
 import EmptyState from "@/components/ui/EmptyState";
 
 interface Booking {
-    id: number;
-    user_id: number;
-    provider_id: number;
+    id: string;
+    user_id: string;
+    provider_id: string;
     service_type: string;
     scheduled_at: string;
     status: string;
@@ -25,7 +24,7 @@ interface Booking {
 }
 
 interface IncomingRequest {
-    id: number;
+    id: string;
     contact_name: string;
     location: string;
     device_or_issue: string;
@@ -41,6 +40,8 @@ interface IncomingRequest {
     response_id?: string;
     negotiation_status?: string;
     current_round?: number;
+    counter_offer_price?: number;
+    counter_offer_message?: string;
 }
 
 
@@ -124,7 +125,7 @@ export default function ServicerJobsPage() {
     const [providerId, setProviderId] = useState<string | null>(null);
     const emergencyWsRef = useRef<WebSocket | null>(null);
 
-    const [countdown, setCountdown] = useState<Record<number, string>>({});
+    const [countdown, setCountdown] = useState<Record<string, string>>({});
 
     const [counterModal, setCounterModal] = useState<{
         requestId: string;
@@ -139,12 +140,11 @@ export default function ServicerJobsPage() {
     const [servicerCounterMessage, setServicerCounterMessage] = useState("");
     const [servicerCounterIsFinal, setServicerCounterIsFinal] = useState(false);
     const [sendingServicerCounter, setSendingServicerCounter] = useState(false);
-    const [resFinalOffer, setResFinalOffer] = useState(false);
     const [finalCompleteTarget, setFinalCompleteTarget] = useState<Booking | null>(null);
     const [extraHours, setExtraHours] = useState<number | ("")>("");
     const [finalNotes, setFinalNotes] = useState("");
     const [submittingFinal, setSubmittingFinal] = useState(false);
-    const [chargeAmount, setChargeAmount] = useState<number | "">("");
+    const [emergencyRates, setEmergencyRates] = useState<{ callout_fee: number; hourly_rate: number } | null>(null);
 
     const [reportIssueTarget, setReportIssueTarget] = useState<Booking | null>(null);
     const [issueReason, setIssueReason] = useState("");
@@ -162,7 +162,7 @@ export default function ServicerJobsPage() {
 
     const toast = useToast();
 
-    const fetchJobs = async () => {
+    const fetchJobs = useCallback(async () => {
         setFetchError(null);
         try {
             const data = await apiFetch("/bookings/incoming");
@@ -180,11 +180,15 @@ export default function ServicerJobsPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchJobs();
-    }, []);
+        // Pre-fetch incoming requests so the tab badge count is visible from any tab
+        apiFetch("/requests/incoming")
+            .then((d: IncomingRequest[]) => setIncomingRequests(d || []))
+            .catch(() => {});
+    }, [fetchJobs]);
 
     useEffect(() => {
         if (activeTab === "requests") {
@@ -250,7 +254,7 @@ export default function ServicerJobsPage() {
                 emergencyWsRef.current = null;
             };
         }
-    }, [activeTab, providerId]);
+    }, [activeTab, providerId, fetchJobs]);
 
     useEffect(() => {
         if (emergencies.length === 0) return;
@@ -281,7 +285,7 @@ export default function ServicerJobsPage() {
         if (activeTab !== "requests" || incomingRequests.length === 0) return;
         const tick = () => {
             const now = Date.now();
-            const map: Record<number, string> = {};
+            const map: Record<string, string> = {};
             incomingRequests.forEach(req => {
                 const diff = new Date(req.expires_at).getTime() - now;
                 if (diff <= 0) { map[req.id] = "Expired"; return; }
@@ -296,7 +300,7 @@ export default function ServicerJobsPage() {
         return () => clearInterval(t);
     }, [activeTab, incomingRequests]);
 
-    const updateStatus = async (id: number, status: string) => {
+    const updateStatus = async (id: string, status: string) => {
         try {
             await apiFetch(`/bookings/${id}/status`, {
                 method: "PATCH",
@@ -320,12 +324,12 @@ export default function ServicerJobsPage() {
                     proposed_price: Number(resPrice),
                     estimated_hours: resDuration,
                     message: resMessage || null,
-                    is_final_offer: resFinalOffer,
+                    is_final_offer: false,
                 }),
             });
             setIncomingRequests(prev => prev.filter(r => r.id !== respondingTo.id));
             setRespondingTo(null);
-            setResDate(""); setResTime("09:00"); setResPrice(""); setResDuration(2); setResMessage(""); setResFinalOffer(false);
+            setResDate(""); setResTime("09:00"); setResPrice(""); setResDuration(2); setResMessage("");
         } catch (err) {
             console.error("Failed to submit response:", err);
             toast.error((err as Error).message ||"Failed to submit response — please try again");
@@ -354,9 +358,18 @@ export default function ServicerJobsPage() {
 
     const handleEmergencyRespond = async () => {
         if (!respondingToEmergency || !emergencyArrivalTime) return;
+
+        // Validate arrival time is in the future (datetime-local gives local time)
+        const selectedDate = new Date(emergencyArrivalTime);
+        if (isNaN(selectedDate.getTime()) || selectedDate <= new Date()) {
+            toast.error("Arrival time must be in the future.");
+            return;
+        }
+
         setSubmittingEmergencyResponse(true);
         try {
-            await emergencyApi.respond(respondingToEmergency.id, emergencyArrivalTime);
+            // Send as UTC ISO string so backend validates timezone-correctly
+            await emergencyApi.respond(respondingToEmergency.id, selectedDate.toISOString());
             setEmergencies(prev => prev.map(e =>
                 e.id === respondingToEmergency.id ? { ...e, has_responded: true } : e
             ));
@@ -379,10 +392,21 @@ export default function ServicerJobsPage() {
         }
     };
 
+    const reloadIncomingRequests = async () => {
+        try {
+            const d: IncomingRequest[] = await apiFetch("/requests/incoming");
+            setIncomingRequests(d || []);
+        } catch {
+            // silently ignore — stale data is acceptable here
+        }
+    };
+
     const handleAcceptCounter = async (requestId: string, responseId: string) => {
         try {
             await apiFetch(`/requests/${requestId}/responses/${responseId}/accept-counter`, { method: "POST" });
             toast.success("Counter offer accepted! Contract created.");
+            setIncomingRequests(prev => prev.filter(r => String(r.id) !== String(requestId)));
+            setActiveTab("jobs");
             await fetchJobs();
         } catch (err) {
             toast.error((err as Error).message ||"Failed to accept counter offer");
@@ -394,6 +418,7 @@ export default function ServicerJobsPage() {
             await apiFetch(`/requests/${requestId}/responses/${responseId}/reject-counter`, { method: "POST" });
             toast.success("Counter offer rejected");
             if (counterModal) setCounterModal(null);
+            await reloadIncomingRequests();
         } catch (err) {
             toast.error((err as Error).message ||"Failed to reject counter offer");
         }
@@ -431,28 +456,38 @@ export default function ServicerJobsPage() {
 
     const handleFinalComplete = async () => {
         if (!finalCompleteTarget) return;
-        if (!extraHours || Number(extraHours) <= 0 || !chargeAmount || Number(chargeAmount) <= 0) {
-            toast.error("Actual hours and charge amount are required");
+        const isEmergency = finalCompleteTarget.source_type === "emergency";
+        if (!extraHours || Number(extraHours) <= 0) {
+            toast.error("Actual hours worked is required");
             return;
         }
         setSubmittingFinal(true);
         try {
-            await apiFetch(`/bookings/${finalCompleteTarget.id}/final-complete`, {
-                method: "POST",
-                body: JSON.stringify({
-                    actual_hours: Number(extraHours),
-                    charge_amount: Number(chargeAmount),
-                    charge_description: finalNotes.trim() || null,
-                }),
-            });
+            if (isEmergency) {
+                await apiFetch(`/bookings/${finalCompleteTarget.id}/emergency-complete`, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        actual_hours: Number(extraHours),
+                        completion_notes: finalNotes.trim() || null,
+                    }),
+                });
+            } else {
+                await apiFetch(`/bookings/${finalCompleteTarget.id}/final-complete`, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        actual_hours: Number(extraHours),
+                        charge_description: finalNotes.trim() || null,
+                    }),
+                });
+            }
             toast.success("Charge submitted. Waiting for user confirmation.");
             setFinalCompleteTarget(null);
             setExtraHours("");
-            setChargeAmount("");
             setFinalNotes("");
+            setEmergencyRates(null);
             await fetchJobs();
-        } catch (err: any) {
-            toast.error(err?.message || "Failed to submit charge");
+        } catch (err) {
+            toast.error((err as Error)?.message || "Failed to submit charge");
         } finally {
             setSubmittingFinal(false);
         }
@@ -495,11 +530,19 @@ export default function ServicerJobsPage() {
                         }`}
                     >
                         {tab.label}
-                        {tab.key === "requests" && incomingRequests.length > 0 && (
-                            <span className="ml-2 inline-block w-2 h-2 bg-rose-500 rounded-full animate-pulse" />
+                        {tab.key === "requests" && incomingRequests.filter(r => !r.has_responded).length > 0 && (
+                            <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-black ${
+                                activeTab === tab.key ? "bg-white/20 text-white" : "bg-amber-100 text-amber-700"
+                            }`}>
+                                {incomingRequests.filter(r => !r.has_responded).length}
+                            </span>
                         )}
                         {tab.key === "emergency" && emergencies.filter(e => !e.has_responded).length > 0 && (
-                            <span className="ml-2 inline-block w-2 h-2 bg-rose-500 rounded-full animate-pulse" />
+                            <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-black ${
+                                activeTab === tab.key ? "bg-white/20 text-white" : "bg-rose-100 text-rose-700"
+                            }`}>
+                                {emergencies.filter(e => !e.has_responded).length}
+                            </span>
                         )}
                     </button>
                 ))}
@@ -587,18 +630,27 @@ export default function ServicerJobsPage() {
                                                     </button>
                                                 </>
                                             )}
-                                            {booking.status === "Accepted" && (
+                                            {(booking.status === "Accepted" || (booking.status === "In Progress" && booking.source_type === "emergency")) && (
                                                 <button
-                                                    onClick={() => {
-                                                        setFinalCompleteTarget(booking);
+                                                    onClick={async () => {
                                                         setExtraHours("");
-                                                        setChargeAmount("");
                                                         setFinalNotes("");
+                                                        setEmergencyRates(null);
+                                                        if (booking.source_type === "emergency") {
+                                                            try {
+                                                                const configs: { category: string; callout_fee: number; hourly_rate: number }[] = await apiFetch("/emergency/config");
+                                                                const cfg = configs.find(c => c.category === booking.service_type);
+                                                                setEmergencyRates(cfg ? { callout_fee: cfg.callout_fee, hourly_rate: cfg.hourly_rate } : { callout_fee: 0, hourly_rate: 0 });
+                                                            } catch {
+                                                                setEmergencyRates({ callout_fee: 0, hourly_rate: 0 });
+                                                            }
+                                                        }
+                                                        setFinalCompleteTarget(booking);
                                                     }}
                                                     className="w-full sm:w-auto px-10 py-3.5 bg-[#064e3b] hover:bg-emerald-800 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-900/10 hover:-translate-y-0.5 active:scale-95 transition-all flex items-center justify-center gap-2"
                                                 >
                                                     <CheckCircle className="w-4 h-4" />
-                                                    Submit Completion
+                                                    {booking.source_type === "emergency" ? "Submit Emergency Charge" : "Submit Completion"}
                                                 </button>
                                             )}
                                             {booking.status === "In Progress" && booking.source_type !== "emergency" && (
@@ -606,8 +658,8 @@ export default function ServicerJobsPage() {
                                                     onClick={() => {
                                                         setFinalCompleteTarget(booking);
                                                         setExtraHours("");
-                                                        setChargeAmount("");
                                                         setFinalNotes("");
+                                                        setEmergencyRates(null);
                                                     }}
                                                     className="w-full sm:w-auto px-10 py-3.5 bg-[#064e3b] hover:bg-emerald-800 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-900/10 hover:-translate-y-0.5 active:scale-95 transition-all flex items-center justify-center gap-2"
                                                 >
@@ -630,9 +682,6 @@ export default function ServicerJobsPage() {
                                                     Report Issue
                                                 </button>
                                             )}
-                                            <Link href={`/user/bookings/${booking.id}`} className="p-3.5 text-slate-300 hover:text-slate-900 bg-slate-50 rounded-xl transition-all">
-                                                <ChevronRight className="w-5 h-5" />
-                                            </Link>
                                         </div>
                                     </div>
                                 </div>
@@ -722,24 +771,25 @@ export default function ServicerJobsPage() {
                                                 <p className="text-[10px] font-black uppercase tracking-widest text-yellow-700 mb-2">
                                                     Counter Offer from User
                                                 </p>
+                                                {req.counter_offer_price != null && (
+                                                    <div className="mb-3 space-y-1">
+                                                        <p className="text-sm font-black text-slate-800 flex items-center gap-1">
+                                                            <IndianRupee className="w-3.5 h-3.5 text-slate-500" />
+                                                            ₹{req.counter_offer_price.toLocaleString("en-IN")}
+                                                        </p>
+                                                        {req.counter_offer_message && (
+                                                            <p className="text-xs text-slate-500 italic border-l-2 border-yellow-300 pl-2">
+                                                                &ldquo;{req.counter_offer_message}&rdquo;
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                )}
                                                 <div className="flex gap-2 flex-wrap">
                                                     <button
                                                         onClick={() => handleAcceptCounter(String(req.id), req.response_id!)}
                                                         className="px-3 py-1.5 bg-emerald-600 text-white text-[10px] font-black uppercase rounded-lg hover:bg-emerald-700 transition-colors"
                                                     >
                                                         Accept Counter
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setCounterModal({
-                                                            requestId: String(req.id),
-                                                            responseId: req.response_id!,
-                                                            userName: req.contact_name,
-                                                            currentOffer: { price: 0, date: new Date().toISOString() },
-                                                            currentRound: req.current_round ?? 0,
-                                                        })}
-                                                        className="px-3 py-1.5 bg-blue-600 text-white text-[10px] font-black uppercase rounded-lg hover:bg-blue-700 transition-colors"
-                                                    >
-                                                        Send New Offer
                                                     </button>
                                                     <button
                                                         onClick={() => handleRejectCounter(String(req.id), req.response_id!)}
@@ -1310,81 +1360,108 @@ export default function ServicerJobsPage() {
             )}
 
             {/* Charge Submission Modal */}
-            {finalCompleteTarget && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-lg font-semibold text-gray-900">Submit Charge</h2>
-                            <button
-                                onClick={() => setFinalCompleteTarget(null)}
-                                className="p-1 rounded-lg hover:bg-gray-100 text-gray-500"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <p className="text-sm text-gray-500 mb-5">
-                            {finalCompleteTarget.service_type} — fill in actual work details
-                        </p>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Actual hours worked <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="number"
-                                    min="0.1"
-                                    step="0.5"
-                                    value={extraHours}
-                                    onChange={e => setExtraHours(e.target.value === "" ? "" : Number(e.target.value))}
-                                    placeholder="e.g. 2.5"
-                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                                />
+            {finalCompleteTarget && (() => {
+                const isEmergency = finalCompleteTarget.source_type === "emergency";
+                const hrs = Number(extraHours) || 0;
+                const callout = emergencyRates?.callout_fee ?? 0;
+                const rate = emergencyRates?.hourly_rate ?? 0;
+                const extraH = Math.max(0, hrs - 1);
+                const autoCharge = isEmergency
+                    ? callout + extraH * rate
+                    : hrs * (finalCompleteTarget.estimated_cost || 0);
+
+                return (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                        <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <div>
+                                    <h2 className="text-lg font-semibold text-gray-900">
+                                        {isEmergency ? "Submit Emergency Charge" : "Submit Charge"}
+                                    </h2>
+                                    {isEmergency && (
+                                        <p className="text-xs text-rose-500 font-medium mt-0.5">Emergency SOS — rate set by admin</p>
+                                    )}
+                                </div>
+                                <button
+                                    onClick={() => { setFinalCompleteTarget(null); setEmergencyRates(null); }}
+                                    className="p-1 rounded-lg hover:bg-gray-100 text-gray-500"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Charge amount ₹ <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    step="1"
-                                    value={chargeAmount}
-                                    onChange={e => setChargeAmount(e.target.value === "" ? "" : Number(e.target.value))}
-                                    placeholder="e.g. 400"
-                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                                />
+                            <p className="text-sm text-gray-500 mb-5">
+                                {finalCompleteTarget.service_type} — enter hours worked
+                            </p>
+
+                            {isEmergency && emergencyRates && (
+                                <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4 text-xs text-amber-800 space-y-1">
+                                    <div className="flex justify-between"><span>Callout fee (first hour)</span><span className="font-bold">₹{callout.toLocaleString("en-IN")}</span></div>
+                                    <div className="flex justify-between"><span>Rate per extra hour</span><span className="font-bold">₹{rate.toLocaleString("en-IN")}/h</span></div>
+                                </div>
+                            )}
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Actual hours worked <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="0.25"
+                                        step="0.25"
+                                        value={extraHours}
+                                        onChange={e => setExtraHours(e.target.value === "" ? "" : Number(e.target.value))}
+                                        placeholder="e.g. 1.5"
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                    />
+                                    <p className="text-xs text-gray-400 mt-1">Use decimals — 1.5 = 1h 30min, 2.5 = 2h 30min</p>
+                                </div>
+
+                                {hrs > 0 && (
+                                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm">
+                                        <div className="flex justify-between text-emerald-700">
+                                            <span>
+                                                {isEmergency
+                                                    ? `₹${callout} callout${extraH > 0 ? ` + ${extraH.toFixed(1)}h × ₹${rate}/h` : ""}`
+                                                    : `${hrs}h × ₹${(finalCompleteTarget.estimated_cost || 0).toLocaleString("en-IN")}/h`}
+                                            </span>
+                                            <span className="font-black">= ₹{autoCharge.toLocaleString("en-IN")}</span>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Notes (optional)
+                                    </label>
+                                    <textarea
+                                        rows={3}
+                                        value={finalNotes}
+                                        onChange={e => setFinalNotes(e.target.value)}
+                                        placeholder="What work was done?"
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+                                    />
+                                </div>
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Description (optional)
-                                </label>
-                                <textarea
-                                    rows={3}
-                                    value={finalNotes}
-                                    onChange={e => setFinalNotes(e.target.value)}
-                                    placeholder="What work was done?"
-                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
-                                />
+                            <div className="flex gap-3 mt-6">
+                                <button
+                                    onClick={() => { setFinalCompleteTarget(null); setEmergencyRates(null); }}
+                                    className="flex-1 px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleFinalComplete}
+                                    disabled={!extraHours || submittingFinal}
+                                    className="flex-1 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-medium transition-colors"
+                                >
+                                    {submittingFinal ? "Submitting…" : "Submit Charge"}
+                                </button>
                             </div>
-                        </div>
-                        <div className="flex gap-3 mt-6">
-                            <button
-                                onClick={() => setFinalCompleteTarget(null)}
-                                className="flex-1 px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleFinalComplete}
-                                disabled={!extraHours || !chargeAmount || submittingFinal}
-                                className="flex-1 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-medium transition-colors"
-                            >
-                                {submittingFinal ? "Submitting…" : "Submit Charge"}
-                            </button>
                         </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
             {/* Response modal */}
             {respondingTo && (
@@ -1405,7 +1482,21 @@ export default function ServicerJobsPage() {
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Proposed Date *</label>
-                                        <input type="date" value={resDate} onChange={e => setResDate(e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-3 text-sm outline-none focus:border-[#064e3b]" />
+                                        <input
+                                            type="date"
+                                            value={resDate}
+                                            min={respondingTo.preferred_dates?.[0] ?? undefined}
+                                            max={respondingTo.preferred_dates?.[1] ?? undefined}
+                                            onChange={e => setResDate(e.target.value)}
+                                            className="w-full border border-slate-200 rounded-xl px-3 py-3 text-sm outline-none focus:border-[#064e3b]"
+                                        />
+                                        {respondingTo.preferred_dates && respondingTo.preferred_dates.length > 0 && (
+                                            <p className="text-[10px] text-slate-400 mt-1">
+                                                {respondingTo.preferred_dates[1]
+                                                    ? `${respondingTo.preferred_dates[0]} – ${respondingTo.preferred_dates[1]}`
+                                                    : respondingTo.preferred_dates[0]}
+                                            </p>
+                                        )}
                                     </div>
                                     <div>
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Arrival Time</label>
@@ -1436,37 +1527,18 @@ export default function ServicerJobsPage() {
                                     <textarea value={resMessage} onChange={e => setResMessage(e.target.value)} placeholder="Describe your approach, materials needed, experience with this type of work..." rows={3} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#064e3b] resize-none" />
                                 </div>
 
-                                {/* Final Offer checkbox */}
-                                <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
-                                    resFinalOffer ? "border-rose-300 bg-rose-50" : "border-slate-200 hover:border-rose-200 hover:bg-rose-50/40"
-                                }`}>
-                                    <input
-                                        type="checkbox"
-                                        checked={resFinalOffer}
-                                        onChange={e => setResFinalOffer(e.target.checked)}
-                                        className="mt-0.5 accent-rose-600"
-                                    />
-                                    <div>
-                                        <p className={`text-[10px] font-black uppercase tracking-widest ${resFinalOffer ? "text-rose-700" : "text-slate-500"}`}>
-                                            This is my Final Best Offer
-                                        </p>
-                                        <p className="text-[10px] text-slate-400 mt-0.5">User will only be able to accept or reject — no counter offers allowed</p>
-                                    </div>
-                                </label>
                             </div>
 
                             <div className="flex gap-3 mt-6">
-                                <button onClick={() => { setRespondingTo(null); setResFinalOffer(false); }} className="flex-1 py-3 border border-slate-200 rounded-2xl text-sm font-black uppercase text-slate-500 hover:bg-slate-50 transition-colors">
+                                <button onClick={() => setRespondingTo(null)} className="flex-1 py-3 border border-slate-200 rounded-2xl text-sm font-black uppercase text-slate-500 hover:bg-slate-50 transition-colors">
                                     Cancel
                                 </button>
                                 <button
                                     onClick={handleSubmitResponse}
                                     disabled={submittingResponse || !resDate || !resPrice}
-                                    className={`flex-1 py-3 text-white rounded-2xl text-sm font-black uppercase tracking-widest transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
-                                        resFinalOffer ? "bg-rose-600 hover:bg-rose-700" : "bg-[#064e3b] hover:bg-emerald-800"
-                                    }`}
+                                    className="flex-1 py-3 text-white rounded-2xl text-sm font-black uppercase tracking-widest transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 bg-[#064e3b] hover:bg-emerald-800"
                                 >
-                                    {submittingResponse ? "Submitting..." : <><Send className="w-4 h-4" /> {resFinalOffer ? "Submit Final Offer" : "Submit Offer"}</>}
+                                    {submittingResponse ? "Submitting..." : <><Send className="w-4 h-4" /> Submit Offer</>}
                                 </button>
                             </div>
                         </div>

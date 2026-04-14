@@ -21,12 +21,12 @@ from app.api.booking.schemas import (
     ChatCreate, ChatRead, ReviewCreate, ReviewRead,
     BookingStatusHistoryRead,
     ReceiptRead, ComplaintCreate, ComplaintRead,
-    ChargeSubmitCreate, FlagCreate,
+    ChargeSubmitCreate, FlagCreate, EmergencyCompleteCreate,
 )
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(tags=["Bookings API"])
 
 
 def _notify_booking(db: Session, user_id, title: str, message: str,
@@ -297,8 +297,12 @@ def reschedule_booking(
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
 
-    # Only client or provider can reschedule
-    # ... Simplified logic for now
+    # Only the client or the assigned provider can reschedule
+    profile = db.query(ServiceProvider).filter(ServiceProvider.user_id == current_user.id).first()
+    is_client = booking.user_id == current_user.id
+    is_provider = profile is not None and booking.provider_id == profile.id
+    if not is_client and not is_provider:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     booking.scheduled_at = reschedule_in.new_date
 
@@ -454,10 +458,13 @@ def final_complete_booking(
             detail=f"Booking is '{booking.status}' — must be 'Accepted' or 'In Progress' to submit charge"
         )
 
+    hourly_rate = booking.estimated_cost or 0.0
+    charge_amount = body.actual_hours * hourly_rate
+
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     booking.status = "Pending Confirmation"
     booking.actual_hours = body.actual_hours
-    booking.final_cost = body.charge_amount
+    booking.final_cost = charge_amount
     booking.completion_notes = body.charge_description
 
     db.add(BookingStatusHistory(
@@ -465,8 +472,8 @@ def final_complete_booking(
         status="Pending Confirmation",
         notes=(
             f"Servicer submitted charge: {body.actual_hours}h × "
-            f"\u20b9{body.charge_amount / body.actual_hours:.0f}/h"
-            f" = \u20b9{body.charge_amount:.0f}."
+            f"\u20b9{hourly_rate:.0f}/h"
+            f" = \u20b9{charge_amount:.0f}."
             + (f" Note: {body.charge_description}" if body.charge_description else "")
             + " Awaiting user confirmation."
         ),
@@ -477,8 +484,96 @@ def final_complete_booking(
         db, user_id=booking.user_id,
         title="Charge Submitted \u2014 Please Confirm",
         message=(
-            f"'{booking.service_type}': {body.actual_hours}h worked, "
-            f"charge \u20b9{body.charge_amount:.0f}. Review and confirm."
+            f"'{booking.service_type}': {body.actual_hours}h \u00d7 \u20b9{hourly_rate:.0f}/h"
+            f" = \u20b9{charge_amount:.0f}. Review and confirm."
+        ),
+        notification_type="URGENT",
+        link=f"/user/bookings/{booking.id}",
+    )
+
+    db.commit()
+    db.refresh(booking)
+    return booking
+
+
+@router.post("/{booking_id}/emergency-complete", response_model=BookingRead)
+def emergency_complete_booking(
+    booking_id: UUID,
+    body: EmergencyCompleteCreate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+):
+    """Servicer submits actual hours for an emergency booking.
+    Charge is auto-calculated from the emergency config (callout_fee + hourly_rate).
+    Booking → Pending Confirmation. User must confirm."""
+    from app.emergency.domain.model import EmergencyRequest, EmergencyConfig
+    from app.emergency.services import calculate_emergency_bill
+
+    booking = db.query(ServiceBooking).filter(ServiceBooking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    provider = db.query(ServiceProvider).filter(
+        ServiceProvider.user_id == current_user.id
+    ).first()
+    if not provider or provider.id != booking.provider_id:
+        raise HTTPException(status_code=403, detail="Only the assigned servicer can submit a charge")
+
+    if booking.source_type != "emergency":
+        raise HTTPException(status_code=400, detail="This endpoint is only for emergency bookings")
+
+    if booking.status not in ("In Progress", "Accepted"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Booking is '{booking.status}' — must be 'Accepted' or 'In Progress' to submit charge"
+        )
+
+    # Look up the emergency config via the source emergency request
+    em_request = None
+    if booking.source_id:
+        em_request = db.query(EmergencyRequest).filter(
+            EmergencyRequest.id == booking.source_id
+        ).first()
+
+    callout_fee = 0.0
+    hourly_rate = 0.0
+    if em_request and em_request.config_id:
+        config = db.query(EmergencyConfig).filter(
+            EmergencyConfig.id == em_request.config_id
+        ).first()
+        if config:
+            callout_fee = config.callout_fee
+            hourly_rate = config.hourly_rate
+
+    charge_amount = calculate_emergency_bill(callout_fee, hourly_rate, body.actual_hours)
+    extra_hours = max(0.0, body.actual_hours - 1.0)
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    booking.status = "Pending Confirmation"
+    booking.actual_hours = body.actual_hours
+    booking.final_cost = charge_amount
+    booking.completion_notes = body.completion_notes
+
+    history_note = (
+        f"Emergency charge: ₹{callout_fee:.0f} callout"
+        + (f" + {extra_hours:.1f}h × ₹{hourly_rate:.0f}/h" if extra_hours > 0 else "")
+        + f" = ₹{charge_amount:.0f}."
+        + (f" Note: {body.completion_notes}" if body.completion_notes else "")
+        + " Awaiting user confirmation."
+    )
+    db.add(BookingStatusHistory(
+        booking_id=booking.id,
+        status="Pending Confirmation",
+        notes=history_note,
+        timestamp=now,
+    ))
+
+    _notify_booking(
+        db, user_id=booking.user_id,
+        title="Emergency Charge Submitted — Please Confirm",
+        message=(
+            f"Emergency '{booking.service_type}': {body.actual_hours}h worked, "
+            f"charge ₹{charge_amount:.0f}. Review and confirm."
         ),
         notification_type="URGENT",
         link=f"/user/bookings/{booking.id}",
@@ -520,6 +615,9 @@ def confirm_booking_complete(
             award_points(db, provider_id=provider.id, event_type=event, source_id=booking.id)
         except Exception as exc:
             logger.warning("award_points failed for booking %s: %s", booking.id, exc)
+
+        # Free the provider automatically — no manual dashboard step needed
+        provider.availability_status = "AVAILABLE"
 
         _notify_booking(
             db, user_id=provider.user_id,
@@ -655,20 +753,59 @@ def get_receipt(
     booking_provider = db.query(ServiceProvider).filter(ServiceProvider.id == booking.provider_id).first()
     provider_name = get_provider_display_name(booking_provider) if booking_provider else "Unknown"
 
-    base_price = booking.estimated_cost or 0.0
-    final_amount = booking.final_cost if booking.final_cost else base_price
-    extra_charge = max(0.0, final_amount - base_price)
-    extra_hours = booking.actual_hours or 0.0
-    hourly_rate = (extra_charge / extra_hours) if extra_hours > 0 else 0.0
+    is_emergency = booking.source_type == "emergency"
+
+    if is_emergency:
+        # Emergency billing: callout_fee + extra_hours × hourly_rate
+        # Recover config rates from the linked emergency request
+        from app.emergency.domain.model import EmergencyRequest, EmergencyConfig
+        callout_fee = 0.0
+        hourly_rate = 0.0
+        if booking.source_id:
+            em_request = db.query(EmergencyRequest).filter(
+                EmergencyRequest.id == booking.source_id
+            ).first()
+            if em_request and em_request.config_id:
+                config = db.query(EmergencyConfig).filter(
+                    EmergencyConfig.id == em_request.config_id
+                ).first()
+                if config:
+                    callout_fee = config.callout_fee
+                    hourly_rate = config.hourly_rate
+
+        actual_hours = booking.actual_hours or 0.0
+        extra_hours = max(0.0, actual_hours - 1.0)
+        final_amount = booking.final_cost or 0.0
+
+        return ReceiptRead(
+            booking_id=booking.id,
+            service_type=booking.service_type,
+            servicer_name=provider_name,
+            is_emergency=True,
+            callout_fee=callout_fee,
+            base_price=callout_fee,
+            extra_hours=extra_hours,
+            hourly_rate=hourly_rate,
+            extra_charge=extra_hours * hourly_rate,
+            final_amount=final_amount,
+            completed_at=booking.completed_at,
+            negotiated=False,
+        )
+
+    hourly_rate = booking.estimated_cost or 0.0
+    actual_hours = booking.actual_hours or 0.0
+    final_amount = booking.final_cost if booking.final_cost else (actual_hours * hourly_rate)
 
     return ReceiptRead(
         booking_id=booking.id,
         service_type=booking.service_type,
         servicer_name=provider_name,
-        base_price=base_price,
-        extra_hours=extra_hours,
+        is_emergency=False,
+        callout_fee=0.0,
+        base_price=0.0,
+        extra_hours=actual_hours,
         hourly_rate=hourly_rate,
-        extra_charge=extra_charge,
+        extra_charge=final_amount,
         final_amount=final_amount,
         completed_at=booking.completed_at,
         negotiated=(booking.source_type == "negotiated"),
@@ -681,7 +818,14 @@ def get_chat(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
-    # Verify access...
+    booking = db.query(ServiceBooking).filter(ServiceBooking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    profile = db.query(ServiceProvider).filter(ServiceProvider.user_id == current_user.id).first()
+    is_client = booking.user_id == current_user.id
+    is_provider = profile is not None and booking.provider_id == profile.id
+    if not is_client and not is_provider and current_user.role != "ADMIN":
+        raise HTTPException(status_code=403, detail="Access denied")
     return db.query(BookingChat).filter(BookingChat.booking_id == booking_id).order_by(BookingChat.timestamp).all()
 
 @router.post("/{booking_id}/chat/message", response_model=ChatRead)
@@ -691,6 +835,14 @@ def send_message(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
+    booking = db.query(ServiceBooking).filter(ServiceBooking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    profile = db.query(ServiceProvider).filter(ServiceProvider.user_id == current_user.id).first()
+    is_client = booking.user_id == current_user.id
+    is_provider = profile is not None and booking.provider_id == profile.id
+    if not is_client and not is_provider:
+        raise HTTPException(status_code=403, detail="Access denied")
     db_message = BookingChat(
         booking_id=booking_id,
         sender_id=current_user.id,

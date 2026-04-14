@@ -12,7 +12,7 @@ const STAGES = [
 
 interface BookingStatusTimelineProps {
     currentStatus: string;
-    history?: any[];
+    history?: Record<string, unknown>[];
 }
 
 export default function BookingStatusTimeline({ currentStatus, history = [] }: BookingStatusTimelineProps) {

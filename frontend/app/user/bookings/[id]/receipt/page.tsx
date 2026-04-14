@@ -51,8 +51,8 @@ export default function ReceiptPage() {
       setComplaintModal(false);
       setComplaintReason("");
       toast.success("Complaint submitted to admin");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to file complaint");
+    } catch (err) {
+      toast.error((err as Error).message || "Failed to file complaint");
     } finally {
       setFilingComplaint(false);
     }
@@ -100,13 +100,9 @@ export default function ReceiptPage() {
 
           {/* Price breakdown */}
           <div className="space-y-3 mb-6">
-            <div className="flex justify-between text-sm text-slate-600">
-              <span>Base Price</span>
-              <span className="font-bold">₹{receipt.base_price.toLocaleString()}</span>
-            </div>
             {receipt.extra_hours > 0 && (
               <div className="flex justify-between text-sm text-slate-600">
-                <span>Extra ({receipt.extra_hours}h × ₹{receipt.hourly_rate.toFixed(0)}/h)</span>
+                <span>{receipt.extra_hours}h × ₹{receipt.hourly_rate.toFixed(0)}/h</span>
                 <span className="font-bold">₹{receipt.extra_charge.toLocaleString()}</span>
               </div>
             )}

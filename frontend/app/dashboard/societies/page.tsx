@@ -40,7 +40,7 @@ export default function SocietiesPage() {
             setSocieties(all || []);
 
             // Only check provider profile if a servicer token exists
-            const servicerToken = localStorage.getItem("hc_token_SERVICER");
+            const servicerToken = sessionStorage.getItem("hc_token_SERVICER");
             if (servicerToken) {
                 const profile = await apiFetch("/services/providers/me").catch(() => null);
                 if (profile?.society_id) {
@@ -60,8 +60,8 @@ export default function SocietiesPage() {
         try {
             await apiFetch(`/services/societies/join/${id}`, { method: "POST" });
             await fetchData();
-        } catch (err: any) {
-            alert(err.message || "Failed to join society");
+        } catch (err) {
+            alert((err as Error).message || "Failed to join society");
         } finally {
             setJoining(null);
         }
@@ -79,8 +79,8 @@ export default function SocietiesPage() {
             setShowCreate(false);
             setForm({ name: "", address: "", registration_number: "", secretary_name: "", is_legal: true, creator_role: "OWNER" });
             await fetchData();
-        } catch (err: any) {
-            setCreateMsg(err.message || "Failed to create society");
+        } catch (err) {
+            setCreateMsg((err as Error).message || "Failed to create society");
         } finally {
             setCreating(false);
         }

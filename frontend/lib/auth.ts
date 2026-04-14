@@ -38,9 +38,9 @@ export function saveAuthData(data: {
     const key = ROLE_TOKEN_KEY[data.role];
     if (!key) return;
 
-    localStorage.setItem(key, data.access_token);
-    localStorage.setItem(`hc_username_${data.role}`, data.username);
-    localStorage.setItem(`hc_uuid_${data.role}`, data.user_uuid);
+    sessionStorage.setItem(key, data.access_token);
+    sessionStorage.setItem(`hc_username_${data.role}`, data.username);
+    sessionStorage.setItem(`hc_uuid_${data.role}`, data.user_uuid);
 
     // Write role-specific cookie for middleware
     const secure = window.location.protocol === "https:" ? "; Secure" : "";
@@ -50,7 +50,7 @@ export function saveAuthData(data: {
 /** Get token for a specific role. */
 export function getTokenForRole(role: string): string | null {
     const key = ROLE_TOKEN_KEY[role];
-    return key ? localStorage.getItem(key) : null;
+    return key ? sessionStorage.getItem(key) : null;
 }
 
 /** Get token for the role matching the current URL. */
@@ -84,7 +84,7 @@ export function getRole(): string | null {
 
 /** Get username for a specific role. */
 export function getUsernameForRole(role: string): string | null {
-    return localStorage.getItem(`hc_username_${role}`);
+    return sessionStorage.getItem(`hc_username_${role}`);
 }
 
 /** Get username for the current URL's role. */
@@ -102,9 +102,9 @@ export function getRoleHome(role?: string): string {
 export function logoutRole(role: string) {
     const key = ROLE_TOKEN_KEY[role];
     if (key) {
-        localStorage.removeItem(key);
-        localStorage.removeItem(`hc_username_${role}`);
-        localStorage.removeItem(`hc_uuid_${role}`);
+        sessionStorage.removeItem(key);
+        sessionStorage.removeItem(`hc_username_${role}`);
+        sessionStorage.removeItem(`hc_uuid_${role}`);
         const secure = window.location.protocol === "https:" ? "; Secure" : "";
         document.cookie = `${key}=; path=/; Max-Age=0${secure}`;
     }
@@ -129,5 +129,5 @@ export function isSecretary(): boolean { return isRoleLoggedIn("SECRETARY"); }
 
 /** @deprecated Use saveAuthData instead */
 export function saveToken(token: string) {
-    localStorage.setItem("hc_token", token);
+    sessionStorage.setItem("hc_token", token);
 }

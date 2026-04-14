@@ -60,6 +60,8 @@ interface BookingDetailData {
     };
 }
 
+type ApiRecord = Record<string, unknown>;
+
 interface StatCardProps {
     title: string;
     value: string | number;
@@ -101,15 +103,15 @@ export default function DashboardPage() {
         verifiedExperts: 0,
         priorityTickets: 0
     });
-    const [userSociety, setUserSociety] = useState<any>(null);
+    const [userSociety, setUserSociety] = useState<ApiRecord | null>(null);
     const [userRole, setUserRole] = useState<string | null>(null);
-    const [trustedProviders, setTrustedProviders] = useState<any[]>([]);
-    const [incomingInvites, setIncomingInvites] = useState<any[]>([]);
+    const [trustedProviders, setTrustedProviders] = useState<ApiRecord[]>([]);
+    const [incomingInvites, setIncomingInvites] = useState<ApiRecord[]>([]);
 
     // Dynamic Data States
-    const [tasks, setTasks] = useState<any[]>([]);
-    const [bookings, setBookings] = useState<any[]>([]);
-    const [notifications, setNotifications] = useState<any[]>([]);
+    const [tasks, setTasks] = useState<ApiRecord[]>([]);
+    const [bookings, setBookings] = useState<ApiRecord[]>([]);
+    const [notifications, setNotifications] = useState<ApiRecord[]>([]);
 
     // UI States
     const [loading, setLoading] = useState(true);
@@ -158,7 +160,7 @@ export default function DashboardPage() {
             const me = await apiFetch("/user/me");
             setUserRole(me.role);
 
-            let userBookings: any[] = [];
+            let userBookings: ApiRecord[] = [];
             try {
                 userBookings = await apiFetch("/bookings/list");
                 setBookings(userBookings);
@@ -166,7 +168,7 @@ export default function DashboardPage() {
                 console.warn("Could not fetch bookings", e);
             }
 
-            let userTasks: any[] = [];
+            let userTasks: ApiRecord[] = [];
             try {
                 // Adjust if a different maintenance endpoint is required
                 userTasks = await apiFetch("/maintenance").catch(() => []);
@@ -175,7 +177,7 @@ export default function DashboardPage() {
                 console.warn("Could not fetch maintenance tasks", e);
             }
 
-            let userNotifs: any[] = [];
+            let userNotifs: ApiRecord[] = [];
             try {
                 userNotifs = await apiFetch("/user/notifications").catch(() => apiFetch("/notifications"));
                 setNotifications(userNotifs);
@@ -186,7 +188,7 @@ export default function DashboardPage() {
             if (me.society_id) {
                 try {
                     const societies = await apiFetch("/services/societies");
-                    const mySoc = societies.find((s: any) => s.id === me.society_id);
+                    const mySoc = societies.find((s: ApiRecord) => s.id === me.society_id);
                     setUserSociety(mySoc);
 
                     const trusted = await apiFetch(`/services/societies/${me.society_id}/trusted`);
@@ -206,10 +208,10 @@ export default function DashboardPage() {
             }
 
             setStats({
-                activeOperations: userBookings.filter((b: any) => b.status === "In Progress" || b.status === "Accepted").length,
+                activeOperations: userBookings.filter((b: ApiRecord) => b.status === "In Progress" || b.status === "Accepted").length,
                 serviceNetwork: trustedProviders.length, // Re-evaluated below safely
                 verifiedExperts: 0,
-                priorityTickets: userBookings.filter((b: any) => b.priority === "Emergency").length
+                priorityTickets: userBookings.filter((b: ApiRecord) => b.priority === "Emergency").length
             });
         } catch (err) {
             console.error("Dashboard Fetch Error:", err);
@@ -233,8 +235,8 @@ export default function DashboardPage() {
             setShowTaskModal(false);
             setNewTask({ title: "", description: "", due_date: "", priority: "Routine" });
             fetchData();
-        } catch (err: any) {
-            alert(err.message || "Failed to create log alert");
+        } catch (err) {
+            alert((err as Error).message || "Failed to create log alert");
         }
     };
 
@@ -250,8 +252,8 @@ export default function DashboardPage() {
             });
             setShowSocietyModal(false);
             fetchData();
-        } catch (err: any) {
-            alert(err.message || "Initialization failed");
+        } catch (err) {
+            alert((err as Error).message || "Initialization failed");
         }
     };
 
@@ -274,8 +276,8 @@ export default function DashboardPage() {
                 body: JSON.stringify({ status })
             });
             fetchData();
-        } catch (err: any) {
-            alert(err.message || "Failed to respond to invite");
+        } catch (err) {
+            alert((err as Error).message || "Failed to respond to invite");
         }
     };
 
@@ -374,7 +376,7 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard
                     title="Active Operations"
-                    value={bookings.filter((b: any) => b.status === "In Progress" || b.status === "Accepted").length}
+                    value={bookings.filter((b: ApiRecord) => b.status === "In Progress" || b.status === "Accepted").length}
                     icon={Activity}
                     trend="+14%"
                     color="bg-emerald-600"
@@ -602,8 +604,8 @@ export default function DashboardPage() {
                                                                         <p className="text-sm font-black text-[#000000]">{new Date(detail.date).toLocaleDateString()}</p>
                                                                     </div>
                                                                 )}
-                                                                <Link href={`/dashboard/routine?taskId=${detail.id}`} className="inline-flex items-center gap-2 text-[10px] font-black text-[#064e3b] uppercase tracking-widest hover:underline">
-                                                                    Go to Home Service <ArrowRight className="w-3 h-3" />
+                                                                <Link href="/user/providers" className="inline-flex items-center gap-2 text-[10px] font-black text-[#064e3b] uppercase tracking-widest hover:underline">
+                                                                    Find Expert <ArrowRight className="w-3 h-3" />
                                                                 </Link>
                                                             </>
                                                             );

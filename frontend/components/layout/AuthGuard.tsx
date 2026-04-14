@@ -12,11 +12,11 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         const role = getRoleFromPath(pathname);
         if (role && !isRoleLoggedIn(role)) {
-            setAuthorized(false);
+            setTimeout(() => setAuthorized(false), 0);
             router.push("/login");
             return;
         }
-        setAuthorized(true);
+        setTimeout(() => setAuthorized(true), 0);
     }, [pathname, router]);
 
     if (!authorized) {

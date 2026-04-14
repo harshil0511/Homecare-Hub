@@ -53,7 +53,7 @@ export default function ServicerProfilePage() {
     const [profileError, setProfileError] = useState("");
 
     // Certificate state
-    const [certificates, setCertificates] = useState<any[]>([]);
+    const [certificates, setCertificates] = useState<Record<string, unknown>[]>([]);
     const [showCertForm, setShowCertForm] = useState(false);
     const [certCategory, setCertCategory] = useState("");
     const [certTitle, setCertTitle] = useState("");
@@ -168,8 +168,8 @@ export default function ServicerProfilePage() {
             });
             setProfileSuccess(true);
             setTimeout(() => setProfileSuccess(false), 3000);
-        } catch (err: any) {
-            setProfileError(err.message || "Failed to update profile");
+        } catch (err) {
+            setProfileError((err as Error).message || "Failed to update profile");
         } finally {
             setSavingProfile(false);
         }
@@ -205,8 +205,8 @@ export default function ServicerProfilePage() {
             setShowCertForm(false);
             setCertCategory(""); setCertTitle(""); setCertFile(null);
             if (certFileInputRef.current) certFileInputRef.current.value = "";
-        } catch (err: any) {
-            setCertError(err.message || "Failed to upload certificate");
+        } catch (err) {
+            setCertError((err as Error).message || "Failed to upload certificate");
         } finally {
             setUploadingCert(false);
         }
@@ -217,8 +217,8 @@ export default function ServicerProfilePage() {
         try {
             await apiFetch(`/services/providers/certificates/${certId}`, { method: "DELETE" });
             setCertificates(prev => prev.filter(c => c.id !== certId));
-        } catch (err: any) {
-            alert(err.message || "Failed to delete certificate");
+        } catch (err) {
+            alert((err as Error).message || "Failed to delete certificate");
         }
     };
 
@@ -506,7 +506,7 @@ export default function ServicerProfilePage() {
                     </div>
                 ) : (
                     <div className="space-y-3">
-                        {certificates.map((cert: any) => (
+                        {(certificates as Record<string, unknown>[]).map((cert) => (
                             <div key={cert.id} className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-xl group hover:border-blue-200 transition-all">
                                 <div className="flex items-center gap-3">
                                     <div className="w-9 h-9 bg-white border border-slate-200 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">

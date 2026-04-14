@@ -11,12 +11,40 @@ import {
 } from "lucide-react";
 import BookingStatusTimeline from "@/components/bookings/BookingStatusTimeline";
 
+interface BookingProvider {
+    company_name: string;
+    [key: string]: unknown;
+}
+
+interface BookingData {
+    id: number;
+    status: string;
+    service_type: string;
+    estimated_cost: number;
+    property_details: string;
+    scheduled_at: string;
+    issue_description: string;
+    review?: unknown;
+    status_history?: unknown[];
+    chats?: ChatMessage[];
+    user_id?: unknown;
+    provider: BookingProvider;
+    [key: string]: unknown;
+}
+
+interface ChatMessage {
+    sender_id?: unknown;
+    message?: unknown;
+    timestamp?: unknown;
+    [key: string]: unknown;
+}
+
 export default function BookingDetailsPage() {
     const { id } = useParams();
     const router = useRouter();
-    const [booking, setBooking] = useState<any>(null);
+    const [booking, setBooking] = useState<BookingData | null>(null);
     const [loading, setLoading] = useState(true);
-    const [messages, setMessages] = useState<any[]>([]);
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [newMessage, setNewMessage] = useState("");
     const [showCancel, setShowCancel] = useState(false);
     const [cancelReason, setCancelReason] = useState("");
@@ -70,8 +98,8 @@ export default function BookingDetailsPage() {
                 body: JSON.stringify({ status: "Completed" })
             });
             await fetchData();
-        } catch (err: any) {
-            alert(err.message || "Failed to mark as completed");
+        } catch (err) {
+            alert((err as Error).message || "Failed to mark as completed");
         } finally {
             setCompleting(false);
         }
@@ -96,8 +124,8 @@ export default function BookingDetailsPage() {
             });
             setShowReview(false);
             await fetchData();
-        } catch (err: any) {
-            alert(err.message || "Failed to submit review");
+        } catch (err) {
+            alert((err as Error).message || "Failed to submit review");
         } finally {
             setSubmittingReview(false);
         }

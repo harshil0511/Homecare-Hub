@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ClipboardList, Clock, CheckCircle, XCircle, MessageSquare,
   Calendar, IndianRupee, Users, ChevronRight, AlertTriangle,
-  Search, X, MapPin, Star
+  X, MapPin, Star
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useToast } from "@/lib/toast-context";
@@ -90,6 +90,8 @@ interface Receipt {
   booking_id: string;
   service_type: string;
   servicer_name: string;
+  is_emergency: boolean;
+  callout_fee: number;
   base_price: number;
   extra_hours: number;
   hourly_rate: number;
@@ -115,6 +117,7 @@ export default function UserBookingsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab") as Tab | null;
+  const today = useMemo(() => new Date().toISOString().split("T")[0], []);
   const toast = useToast();
 
   const [activeTab, setActiveTab] = useState<Tab>(tabParam || "active");
@@ -184,7 +187,7 @@ export default function UserBookingsPage() {
     if (tabParam && tabParam !== activeTab) {
       setActiveTab(tabParam);
     }
-  }, [tabParam]);
+  }, [tabParam, activeTab]);
 
   const openRequests = requests.filter(r => r.status === "OPEN");
   const allResponses = requests
@@ -203,8 +206,8 @@ export default function UserBookingsPage() {
       toast.success(`Contract created with ${confirmAccept.servicerName}`);
       await loadData();
       setActiveTab("contracts");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to accept offer — please try again");
+    } catch (err) {
+      toast.error((err as Error).message || "Failed to accept offer — please try again");
     } finally {
       setAccepting(false);
     }
@@ -217,8 +220,8 @@ export default function UserBookingsPage() {
       await apiFetch(`/requests/${requestId}`, { method: "DELETE" });
       setRequests(prev => prev.filter(r => r.id !== requestId));
       toast.success("Request cancelled — providers notified");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to cancel request");
+    } catch (err) {
+      toast.error((err as Error).message || "Failed to cancel request");
     } finally {
       setCancelling(null);
     }
@@ -243,8 +246,8 @@ export default function UserBookingsPage() {
       setReceiptModal(null);
       toast.success("Payment confirmed — job complete!");
       await loadData();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to confirm payment");
+    } catch (err) {
+      toast.error((err as Error).message || "Failed to confirm payment");
     } finally {
       setConfirmingPayment(false);
     }
@@ -263,8 +266,8 @@ export default function UserBookingsPage() {
       setDisputeReason("");
       setReceiptModal(null);
       await loadData();
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to flag booking");
+    } catch (err) {
+      toast.error((err as Error)?.message || "Failed to flag booking");
     } finally {
       setFilingDispute(false);
     }
@@ -278,8 +281,8 @@ export default function UserBookingsPage() {
       toast.success("Charge rejected. Booking closed.");
       setReceiptModal(null);
       await loadData();
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to reject charge");
+    } catch (err) {
+      toast.error((err as Error)?.message || "Failed to reject charge");
     } finally {
       setRejectingCharge(false);
     }
@@ -293,8 +296,8 @@ export default function UserBookingsPage() {
       setConfirmReject(null);
       toast.success(`Offer from ${confirmReject.servicerName} declined`);
       await loadData();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to reject offer");
+    } catch (err) {
+      toast.error((err as Error).message || "Failed to reject offer");
     } finally {
       setRejecting(false);
     }
@@ -322,8 +325,8 @@ export default function UserBookingsPage() {
       setCounterMessage("");
       toast.success("Counter offer sent — waiting for servicer response");
       await loadData();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to send counter offer");
+    } catch (err) {
+      toast.error((err as Error).message || "Failed to send counter offer");
     } finally {
       setSendingCounter(false);
     }
@@ -365,7 +368,11 @@ export default function UserBookingsPage() {
             {tab.label}
             {tab.count !== undefined && tab.count > 0 && (
               <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${
-                activeTab === tab.key ? "bg-white/20" : "bg-slate-100 text-slate-600"
+                activeTab === tab.key
+                  ? "bg-white/20 text-white"
+                  : tab.key === "responses"
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-slate-100 text-slate-600"
               }`}>{tab.count}</span>
             )}
           </button>
@@ -468,7 +475,7 @@ export default function UserBookingsPage() {
                     resp.negotiation_status !== "AGREED" &&
                     !waitingForServicer &&
                     !isServicerFinalOffer &&
-                    resp.current_round < 3;
+                    resp.current_round < 1;
 
                   return (
                     <div key={`${req.id}-${resp.id}`} className={`bg-white border border-slate-200 border-l-4 ${isServicerFinalOffer ? "border-l-rose-500 border-rose-200" : urgencyColor} rounded-2xl p-6`}>
@@ -664,21 +671,27 @@ export default function UserBookingsPage() {
             </div>
 
             <div className="space-y-3 mb-6">
-              {receiptModal.booking.priority === "Emergency" ? (
-                /* Emergency billing: hours × rate, no base price */
+              {receiptModal.receipt.is_emergency ? (
+                /* Emergency billing: callout_fee (first hour) + extra_hours × hourly_rate */
                 <>
                   <div className="flex justify-between text-sm text-slate-600">
-                    <span>Hours Worked ({receiptModal.receipt.extra_hours}h × ₹{receiptModal.receipt.hourly_rate.toFixed(0)}/h)</span>
-                    <span className="font-bold">₹{receiptModal.receipt.final_amount.toLocaleString("en-IN")}</span>
+                    <span>Callout fee (first hour)</span>
+                    <span className="font-bold">₹{receiptModal.receipt.callout_fee.toLocaleString("en-IN")}</span>
                   </div>
+                  {receiptModal.receipt.extra_hours > 0 && (
+                    <div className="flex justify-between text-sm text-slate-600">
+                      <span>Extra time ({receiptModal.receipt.extra_hours.toFixed(1)}h × ₹{receiptModal.receipt.hourly_rate.toFixed(0)}/h)</span>
+                      <span className="font-bold">₹{receiptModal.receipt.extra_charge.toLocaleString("en-IN")}</span>
+                    </div>
+                  )}
                 </>
               ) : (
-                /* Regular billing: show actual hours and charge amount directly */
+                /* Regular billing: hours × rate = total */
                 <>
-                  {receiptModal.booking.actual_hours != null && (
+                  {receiptModal.receipt.extra_hours > 0 && (
                     <div className="flex justify-between text-sm text-slate-600">
-                      <span>Hours worked</span>
-                      <span className="font-bold">{receiptModal.booking.actual_hours}h</span>
+                      <span>{receiptModal.receipt.extra_hours}h × ₹{receiptModal.receipt.hourly_rate.toFixed(0)}/h</span>
+                      <span className="font-bold">₹{receiptModal.receipt.extra_charge.toLocaleString("en-IN")}</span>
                     </div>
                   )}
                   {receiptModal.booking.completion_notes && (
@@ -815,7 +828,7 @@ export default function UserBookingsPage() {
               To: <span className="font-bold text-slate-700">{counterOffer.servicerName}</span>
             </p>
             <p className="text-[10px] text-slate-400 mb-4 uppercase tracking-widest">
-              Round {counterOffer.currentRound + 1} of 3
+              One counter offer allowed — servicer will accept or reject
             </p>
 
             {/* Their current offer */}
@@ -833,6 +846,7 @@ export default function UserBookingsPage() {
                 <input
                   type="date"
                   value={counterDate}
+                  min={today}
                   onChange={e => setCounterDate(e.target.value)}
                   className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
