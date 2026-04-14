@@ -400,7 +400,6 @@ ServiceProvider ───── 1:N ── EmergencyStarAdjustment
 | :--- | :--- |
 | `http://localhost:8000/api/v1/docs` | Live Swagger UI (backend running) |
 | [`backend/BACKEND.md`](backend/BACKEND.md) | Backend quick-reference: import rules, router table, patterns |
-| [`CLAUDE.md`](CLAUDE.md) | Full project playbook for AI-assisted development (architecture, models, endpoints, business rules) |
 
 ---
 
