@@ -59,11 +59,18 @@ export default function ProviderPaymentPage() {
     const handleQrFile = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        if (file.size > 2 * 1024 * 1024) {
+            setError("QR image must be under 2 MB. Please upload a smaller image.");
+            return;
+        }
         const reader = new FileReader();
         reader.onload = () => {
             const base64 = reader.result as string;
             setUpiQr(base64);
             setQrPreview(base64);
+        };
+        reader.onerror = () => {
+            setError("Failed to read image file. Please try again.");
         };
         reader.readAsDataURL(file);
     };
