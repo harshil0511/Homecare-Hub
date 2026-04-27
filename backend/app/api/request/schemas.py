@@ -17,6 +17,7 @@ class ServiceRequestCreate(BaseModel):
     photos: Optional[List[str]] = []
     preferred_dates: Optional[List[str]] = []
     urgency: str = "Normal"
+    flow_type: str = "systematic"
 
     @field_validator("provider_ids")
     @classmethod
@@ -33,6 +34,13 @@ class ServiceRequestCreate(BaseModel):
         allowed = {"Normal", "High", "Emergency"}
         if v not in allowed:
             raise ValueError(f"urgency must be one of: {', '.join(sorted(allowed))}")
+        return v
+
+    @field_validator("flow_type")
+    @classmethod
+    def validate_flow_type(cls, v: str) -> str:
+        if v not in ("direct", "systematic"):
+            raise ValueError("flow_type must be 'direct' or 'systematic'")
         return v
 
 
@@ -135,6 +143,7 @@ class ServiceRequestRead(BaseModel):
     preferred_dates: Optional[List[str]] = []
     urgency: str
     status: str
+    flow_type: str = "systematic"
     expires_at: datetime
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -173,6 +182,7 @@ class IncomingServiceRequestRead(BaseModel):
     preferred_dates: Optional[List[str]] = []
     urgency: str
     status: str
+    flow_type: str = "systematic"
     expires_at: datetime
     created_at: Optional[datetime] = None
     is_read: bool = False

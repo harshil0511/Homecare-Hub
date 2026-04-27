@@ -24,12 +24,20 @@ class BookingBase(BaseModel):
     issue_description: Optional[str] = None
     property_details: Optional[str] = None
     estimated_cost: float = 0.0
+    flow_type: str = "systematic"
 
     @field_validator("estimated_cost")
     @classmethod
     def estimated_cost_non_negative(cls, v: float) -> float:
         if v < 0:
             raise ValueError("Estimated cost cannot be negative.")
+        return v
+
+    @field_validator("flow_type")
+    @classmethod
+    def validate_flow_type(cls, v: str) -> str:
+        if v not in ("direct", "systematic"):
+            raise ValueError("flow_type must be 'direct' or 'systematic'")
         return v
 
 
@@ -118,6 +126,7 @@ class BookingRead(BookingBase):
     completion_photos: Optional[str] = None
     completed_at: Optional[datetime] = None
     is_flagged: bool = False
+    flow_type: str = "systematic"
     created_at: datetime
     updated_at: datetime
 
