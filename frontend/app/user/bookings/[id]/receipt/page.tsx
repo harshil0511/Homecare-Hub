@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { CheckCircle, Clock, AlertTriangle, X, ArrowLeft } from "lucide-react";
+import { CheckCircle, Clock, AlertTriangle, X, ArrowLeft, CreditCard } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useToast } from "@/lib/toast-context";
 import Spinner from "@/components/ui/Spinner";
@@ -18,6 +18,8 @@ interface Receipt {
   final_amount: number;
   completed_at: string | null;
   negotiated: boolean;
+  flow_type: string;
+  provider_id: string | null;
 }
 
 export default function ReceiptPage() {
@@ -31,11 +33,30 @@ export default function ReceiptPage() {
   const [complaintModal, setComplaintModal] = useState(false);
   const [complaintReason, setComplaintReason] = useState("");
   const [filingComplaint, setFilingComplaint] = useState(false);
+  const [payDetails, setPayDetails] = useState<{
+    account_holder_name: string;
+    account_number_masked: string;
+    account_number_last4: string;
+    ifsc_code: string;
+    upi_id: string | null;
+    upi_qr_image_url: string | null;
+    has_upi: boolean;
+    has_qr: boolean;
+  } | null>(null);
+  const [payTab, setPayTab] = useState<"bank" | "upi" | "qr">("bank");
+  const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {
     if (!id) return;
     apiFetch(`/bookings/${id}/receipt`)
-      .then(data => setReceipt(data))
+      .then(data => {
+        setReceipt(data);
+        if (data.flow_type === "systematic" && data.provider_id) {
+          apiFetch(`/payment/provider/${data.provider_id}/pay-details`)
+            .then(setPayDetails)
+            .catch(() => {});
+        }
+      })
       .catch(() => toast.error("Failed to load receipt"))
       .finally(() => setLoading(false));
   }, [id]);
@@ -95,6 +116,84 @@ export default function ReceiptPage() {
           {receipt.negotiated && (
             <div className="bg-blue-50 text-blue-700 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg mb-4 inline-block">
               Negotiated Price
+            </div>
+          )}
+
+          {receipt.flow_type === "systematic" && payDetails && (
+            <div className="bg-white border border-slate-200 rounded-[2rem] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] mb-4">
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-100">
+                        <CreditCard className="w-5 h-5 text-[#064e3b]" />
+                    </div>
+                    <div>
+                        <h3 className="text-base font-black text-slate-900 uppercase tracking-tight">Pay Your Provider</h3>
+                        <p className="text-[11px] text-slate-500 font-medium mt-0.5">Choose how you&apos;d like to transfer payment</p>
+                    </div>
+                </div>
+
+                <div className="flex gap-2 mb-6">
+                    {(["bank", "upi", "qr"] as const).map((tab) => {
+                        const isDisabled = (tab === "upi" && !payDetails.has_upi) || (tab === "qr" && !payDetails.has_qr);
+                        const labels = { bank: "Bank Transfer", upi: "UPI", qr: "QR Scanner" };
+                        return (
+                            <button
+                                key={tab}
+                                onClick={() => !isDisabled && setPayTab(tab)}
+                                disabled={isDisabled}
+                                className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                    payTab === tab
+                                        ? "bg-[#064e3b] text-white shadow-md"
+                                        : isDisabled
+                                        ? "bg-slate-50 text-slate-300 border border-slate-100 cursor-not-allowed"
+                                        : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                }`}
+                            >
+                                {labels[tab]}
+                            </button>
+                        );
+                    })}
+                </div>
+
+                {payTab === "bank" && (
+                    <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-3">
+                        <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Account Holder</span>
+                            <span className="text-sm font-black text-slate-900">{payDetails.account_holder_name}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Account Number</span>
+                            <button
+                                onClick={() => setRevealed(!revealed)}
+                                className="text-sm font-mono font-black text-slate-900 hover:text-[#064e3b] transition-colors"
+                            >
+                                {revealed ? payDetails.account_number_masked : "XXXXXX••••"}
+                            </button>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">IFSC Code</span>
+                            <span className="text-sm font-mono font-black text-slate-900">{payDetails.ifsc_code}</span>
+                        </div>
+                        {!revealed && (
+                            <p className="text-[10px] text-slate-400 font-medium text-center pt-1">Tap account number to reveal last 4 digits</p>
+                        )}
+                    </div>
+                )}
+
+                {payTab === "upi" && payDetails.has_upi && (
+                    <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5">
+                        <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">UPI ID</span>
+                            <span className="text-sm font-mono font-black text-slate-900">{payDetails.upi_id}</span>
+                        </div>
+                    </div>
+                )}
+
+                {payTab === "qr" && payDetails.has_qr && payDetails.upi_qr_image_url && (
+                    <div className="flex flex-col items-center bg-slate-50 border border-slate-100 rounded-2xl p-6">
+                        <img src={payDetails.upi_qr_image_url} alt="UPI QR Code" className="w-48 h-48 object-contain rounded-xl" />
+                        <p className="text-[10px] text-slate-500 font-medium mt-3">Scan with any UPI app to pay</p>
+                    </div>
+                )}
             </div>
           )}
 
