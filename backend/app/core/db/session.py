@@ -62,6 +62,7 @@ def _apply_engine(eng):
         from app.notification.domain import model as _notification  # noqa
         from app.request.domain import model as _request  # noqa
         from app.emergency.domain import model as _emergency  # noqa
+        from app.payment.domain import model as _payment  # noqa
 
         Base.metadata.create_all(bind=engine)
         logger.info("✅ Database tables created/verified.")

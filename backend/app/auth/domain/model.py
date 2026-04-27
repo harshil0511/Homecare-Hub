@@ -35,6 +35,7 @@ class User(Base):
     notifications = relationship("Notification", back_populates="user")
     service_requests = relationship("ServiceRequest", back_populates="user")
     emergency_requests = relationship("EmergencyRequest", back_populates="user")
+    payment_profile = relationship("PaymentProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
 
 
 class Society(Base):
