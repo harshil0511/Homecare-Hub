@@ -217,6 +217,7 @@ function ProvidersContent() {
     const [reqDateStart, setReqDateStart] = useState("");
     const [reqDateEnd, setReqDateEnd] = useState("");
     const [reqUrgency, setReqUrgency] = useState<"Normal" | "High" | "Emergency">("Normal");
+    const [reqFlowType, setReqFlowType] = useState<"direct" | "systematic">("systematic");
 
     // ── URL params on mount ──────────────────────────────────────────────────
     useEffect(() => {
@@ -352,13 +353,14 @@ function ProvidersContent() {
                     description: reqDescription,
                     preferred_dates: reqDateStart ? [reqDateStart, reqDateEnd].filter(Boolean) : [],
                     urgency: reqUrgency,
+                    flow_type: reqFlowType,
                 }),
             });
             setShowRequestModal(false);
             setSelectedIds(new Set());
             setReqName(""); setReqMobile(""); setReqLocation("");
             setReqProblemType(""); setReqDescription("");
-            setReqDateStart(""); setReqDateEnd(""); setReqUrgency("Normal");
+            setReqDateStart(""); setReqDateEnd(""); setReqUrgency("Normal"); setReqFlowType("systematic");
             toast.success(`Request sent to ${selectedIds.size} provider${selectedIds.size !== 1 ? "s" : ""}! Waiting for their offers.`);
             router.push("/user/bookings");
         } catch (err) {
@@ -785,6 +787,47 @@ function ProvidersContent() {
                                                 {u === "High" ? "Urgent" : u}
                                             </button>
                                         ))}
+                                    </div>
+                                </div>
+
+                                {/* Flow Type Selector */}
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">
+                                        Payment Method *
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <label className={`flex flex-col gap-1.5 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                                            reqFlowType === "systematic"
+                                                ? "border-[#064e3b] bg-emerald-50"
+                                                : "border-slate-200 hover:border-slate-300"
+                                        }`}>
+                                            <input
+                                                type="radio"
+                                                name="flow_type"
+                                                value="systematic"
+                                                checked={reqFlowType === "systematic"}
+                                                onChange={() => setReqFlowType("systematic")}
+                                                className="sr-only"
+                                            />
+                                            <span className="text-xs font-black text-slate-900">Systematic</span>
+                                            <span className="text-[10px] text-slate-500 leading-tight">Pay through the app. Hours are tracked and confirmed.</span>
+                                        </label>
+                                        <label className={`flex flex-col gap-1.5 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                                            reqFlowType === "direct"
+                                                ? "border-[#064e3b] bg-emerald-50"
+                                                : "border-slate-200 hover:border-slate-300"
+                                        }`}>
+                                            <input
+                                                type="radio"
+                                                name="flow_type"
+                                                value="direct"
+                                                checked={reqFlowType === "direct"}
+                                                onChange={() => setReqFlowType("direct")}
+                                                className="sr-only"
+                                            />
+                                            <span className="text-xs font-black text-slate-900">Direct</span>
+                                            <span className="text-[10px] text-slate-500 leading-tight">Pay the provider directly. No hour tracking through the app.</span>
+                                        </label>
                                     </div>
                                 </div>
                             </div>
