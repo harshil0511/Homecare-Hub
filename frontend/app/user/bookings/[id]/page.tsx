@@ -223,6 +223,10 @@ export default function BookingDetailsPage() {
         chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
+    useEffect(() => {
+        if (payTab !== "qr") setScannedQrData("");
+    }, [payTab]);
+
     const handleSendMessage = async () => {
         if (!newMessage.trim()) return;
         try {
