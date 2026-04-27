@@ -175,6 +175,7 @@ def create_service_request(
         photos=json.dumps(request_in.photos) if request_in.photos else None,
         preferred_dates=json.dumps(request_in.preferred_dates) if request_in.preferred_dates else None,
         urgency=request_in.urgency,
+        flow_type=request_in.flow_type,
         status="OPEN",
         expires_at=now + timedelta(hours=24),
         created_at=now,
@@ -389,6 +390,7 @@ def accept_response(
         estimated_cost=chosen.proposed_price,
         photos=req.photos,
         status="Accepted",
+        flow_type=req.flow_type,
     )
     db.add(booking)
     db.flush()
@@ -699,6 +701,7 @@ def accept_counter_offer(
         photos=req.photos,
         status="Accepted",
         source_type="negotiated",
+        flow_type=req.flow_type,
     )
     db.add(booking)
     db.flush()
