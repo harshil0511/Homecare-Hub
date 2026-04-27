@@ -98,6 +98,9 @@ export default function BookingDetailsPage() {
     } | null>(null);
     const [payTab, setPayTab] = useState<"bank" | "upi" | "qr">("bank");
     const [revealed, setRevealed] = useState(false);
+    const [showReceiptModal, setShowReceiptModal] = useState(false);
+    const [paymentMethodUsed, setPaymentMethodUsed] = useState<string>("");
+    const [paying, setPaying] = useState(false);
 
     const fetchData = async () => {
         try {
@@ -146,6 +149,28 @@ export default function BookingDetailsPage() {
             toast.error((err as Error).message || "Failed to confirm");
         } finally {
             setConfirming(false);
+        }
+    };
+
+    const handlePayNow = async () => {
+        const method = payTab === "bank" ? "Bank Transfer" : payTab === "upi" ? "UPI" : "QR Code";
+        setPaying(true);
+        try {
+            await apiFetch(`/bookings/${id}/confirm`, { method: "POST" });
+            setPaymentMethodUsed(method);
+            await fetchData();
+            setShowReceiptModal(true);
+        } catch (err) {
+            toast.error((err as Error).message || "Failed to confirm payment");
+        } finally {
+            setPaying(false);
+        }
+    };
+
+    const handleCloseReceipt = () => {
+        setShowReceiptModal(false);
+        if (!booking?.review) {
+            setShowReview(true);
         }
     };
 
@@ -462,11 +487,11 @@ export default function BookingDetailsPage() {
                                             Dispute
                                         </button>
                                         <button
-                                            onClick={handleConfirm}
-                                            disabled={confirming}
+                                            onClick={handlePayNow}
+                                            disabled={paying}
                                             className="flex-1 py-3 bg-[#064e3b] text-white rounded-2xl text-sm font-black uppercase hover:bg-emerald-800 disabled:opacity-50"
                                         >
-                                            {confirming ? "Confirming..." : "Confirm Payment"}
+                                            {paying ? "Processing..." : "Pay Now"}
                                         </button>
                                     </div>
                                 ) : (
@@ -547,52 +572,52 @@ export default function BookingDetailsPage() {
                                 )}
                             </div>
                         )}
-                    </div>
 
-                    {/* Payment Receipt Card */}
-                    {booking.status === "Completed" && receipt && (
-                        <div className="bg-emerald-50 border border-emerald-200 rounded-[2.5rem] p-10">
-                            <h2 className="text-[10px] font-black text-emerald-700 uppercase tracking-widest mb-6 flex items-center gap-2">
-                                <FileText size={12} /> Payment Receipt
-                            </h2>
-                            <div className="grid grid-cols-2 gap-4 text-xs">
-                                <div>
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Job ID</p>
-                                    <p className="font-black text-slate-900">#{String(receipt.booking_id).padStart(5, "0")}</p>
-                                </div>
-                                <div>
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Service</p>
-                                    <p className="font-black text-slate-900">{receipt.service_type}</p>
-                                </div>
-                                <div>
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Expert</p>
-                                    <p className="font-black text-slate-900">{receipt.servicer_name}</p>
-                                </div>
-                                <div>
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Date</p>
-                                    <p className="font-black text-slate-900">
-                                        {new Date(receipt.completed_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-                                    </p>
-                                </div>
-                                {(receipt.extra_hours ?? 0) > 0 && (
+                        {/* Payment Receipt — inline below completion details */}
+                        {booking.status === "Completed" && receipt && (
+                            <div className="mt-6 bg-emerald-50 border border-emerald-200 rounded-3xl p-8">
+                                <h2 className="text-[10px] font-black text-emerald-700 uppercase tracking-widest mb-6 flex items-center gap-2">
+                                    <FileText size={12} /> Payment Receipt
+                                </h2>
+                                <div className="grid grid-cols-2 gap-4 text-xs">
                                     <div>
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Extra Hours</p>
-                                        <p className="font-black text-slate-900">{receipt.extra_hours}h</p>
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Job ID</p>
+                                        <p className="font-black text-slate-900">#{String(receipt.booking_id).padStart(5, "0")}</p>
                                     </div>
-                                )}
-                                <div>
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Base Price</p>
-                                    <p className="font-black text-slate-500">₹{Number(receipt.base_price).toLocaleString("en-IN")}</p>
-                                </div>
-                                <div className="col-span-2 mt-2 pt-4 border-t border-emerald-200">
-                                    <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Final Amount Paid</p>
-                                    <p className="text-3xl font-black text-emerald-700 tracking-tight">
-                                        ₹{Number(receipt.final_amount).toLocaleString("en-IN")}
-                                    </p>
+                                    <div>
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Service</p>
+                                        <p className="font-black text-slate-900">{receipt.service_type}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Expert</p>
+                                        <p className="font-black text-slate-900">{receipt.servicer_name}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Date</p>
+                                        <p className="font-black text-slate-900">
+                                            {new Date(receipt.completed_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                                        </p>
+                                    </div>
+                                    {(receipt.extra_hours ?? 0) > 0 && (
+                                        <div>
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Extra Hours</p>
+                                            <p className="font-black text-slate-900">{receipt.extra_hours}h</p>
+                                        </div>
+                                    )}
+                                    <div>
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Base Price</p>
+                                        <p className="font-black text-slate-500">₹{Number(receipt.base_price).toLocaleString("en-IN")}</p>
+                                    </div>
+                                    <div className="col-span-2 mt-2 pt-4 border-t border-emerald-200">
+                                        <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Final Amount Paid</p>
+                                        <p className="text-3xl font-black text-emerald-700 tracking-tight">
+                                            ₹{Number(receipt.final_amount).toLocaleString("en-IN")}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
 
                 {/* Right Column: Provider & Chat */}
@@ -674,6 +699,71 @@ export default function BookingDetailsPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Payment Receipt Modal */}
+            {showReceiptModal && receipt && payDetails && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 space-y-6 animate-in fade-in zoom-in duration-200">
+                        {/* Header */}
+                        <div className="bg-slate-900 -mx-10 -mt-10 px-10 py-8 rounded-t-[2.5rem] flex items-center justify-between">
+                            <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <FileText className="w-4 h-4 text-emerald-400" />
+                                    <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Payment Receipt</span>
+                                </div>
+                                <h2 className="text-xl font-black text-white tracking-tight">{booking?.service_type} Service</h2>
+                            </div>
+                            <div className="bg-emerald-500/20 border border-emerald-500/30 rounded-2xl px-3 py-2 text-center">
+                                <CheckCircle2 className="w-5 h-5 text-emerald-400 mx-auto mb-1" />
+                                <p className="text-[9px] font-black text-emerald-300 uppercase tracking-widest">Paid</p>
+                            </div>
+                        </div>
+
+                        {/* Details grid */}
+                        <div className="grid grid-cols-2 gap-3">
+                            {[
+                                { label: "Provider", value: receipt.servicer_name },
+                                { label: "Account Holder", value: payDetails.account_holder_name },
+                                {
+                                    label: "Date",
+                                    value: receipt.completed_at
+                                        ? new Date(receipt.completed_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+                                        : new Date(booking?.scheduled_at ?? "").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+                                },
+                                {
+                                    label: "Time",
+                                    value: receipt.completed_at
+                                        ? new Date(receipt.completed_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                                        : new Date(booking?.scheduled_at ?? "").toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                                },
+                                { label: "Service", value: booking?.service_type ?? "—" },
+                                { label: "Hours Worked", value: booking?.actual_hours ? `${booking.actual_hours}h` : "—" },
+                                { label: "Payment Via", value: paymentMethodUsed },
+                            ].map(({ label, value }) => (
+                                <div key={label} className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+                                    <p className="text-sm font-black text-slate-900 leading-tight">{value}</p>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Total */}
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-6 py-5 flex items-center justify-between">
+                            <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Amount Paid</p>
+                            <p className="text-3xl font-black text-emerald-700 tracking-tight">
+                                ₹{Number(receipt.final_amount).toLocaleString("en-IN")}
+                            </p>
+                        </div>
+
+                        <button
+                            onClick={handleCloseReceipt}
+                            className="w-full py-4 bg-[#064e3b] text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-800 transition-colors"
+                        >
+                            Done — Rate Provider
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Cancel Modal */}
             {showCancel && (
