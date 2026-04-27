@@ -60,6 +60,7 @@ export default function QRScanner({ onScan, onClose, onTimeout }: QRScannerProps
                         return s - 1;
                     });
                 }, 1000);
+                timeoutRef.current = countdownInterval;
 
                 // Frame scan loop
                 const scan = () => {
