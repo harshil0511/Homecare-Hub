@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import {
     Briefcase, Clock, Star, TrendingUp, CheckCircle2,
     ChevronRight, MapPin, DollarSign, Calendar, GraduationCap,
-    ShieldCheck, Building2, Phone, AlertTriangle, User
+    ShieldCheck, Building2, Phone, AlertTriangle, User, CreditCard
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import Image from "next/image";
@@ -23,6 +23,7 @@ export default function ServicerDashboard() {
     const [updatingStatus, setUpdatingStatus] = useState(false);
     const [filterStatus, setFilterStatus] = useState("ACTIVE");
     const [fetchError, setFetchError] = useState<string | null>(null);
+    const [hasPaymentProfile, setHasPaymentProfile] = useState<boolean | null>(null);
 
     const fetchData = async () => {
         try {
@@ -36,6 +37,9 @@ export default function ServicerDashboard() {
             setProfile(myProfile);
             setJobs(jobsData || []);
             setInvitations(invitesData || []);
+            apiFetch("/payment/provider")
+                .then(() => setHasPaymentProfile(true))
+                .catch(() => setHasPaymentProfile(false));
         } catch (err) {
             const errMsg = err instanceof Error ? err.message.toLowerCase() : "";
             if ((err instanceof TypeError && errMsg.includes("failed to fetch")) || errMsg.includes("timed out") || errMsg.includes("request timed out")) {
@@ -92,6 +96,27 @@ export default function ServicerDashboard() {
 
     return (
         <div className="space-y-8 pb-12">
+
+            {/* Missing Payment Profile Banner */}
+            {hasPaymentProfile === false && (
+                <div className="mb-6 bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-amber-100 rounded-xl">
+                            <CreditCard className="w-5 h-5 text-amber-700" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-black text-amber-900">Add your bank details to start accepting jobs</p>
+                            <p className="text-[11px] text-amber-700 font-medium mt-0.5">Residents cannot send you service requests until your payment details are set up.</p>
+                        </div>
+                    </div>
+                    <a
+                        href="/service/payment"
+                        className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl transition-colors"
+                    >
+                        Complete Setup
+                    </a>
+                </div>
+            )}
 
             {/* Fetch error */}
             {fetchError && (
@@ -268,7 +293,7 @@ export default function ServicerDashboard() {
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Services Offered</p>
                                     <div className="flex flex-wrap gap-2">
                                         {profile.categories.map((cat: string) => (
-                                            <span key={cat} className="bg-emerald-50 text-emerald-700 border border-emerald-100 text-[9px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide">{cat}</span>
+                                            <span key={cat} className="bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide">{cat}</span>
                                         ))}
                                     </div>
                                 </div>
@@ -282,7 +307,7 @@ export default function ServicerDashboard() {
                                     <GraduationCap className="w-4 h-4 text-blue-600" />
                                 </div>
                                 <div>
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Education</p>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Education</p>
                                     <p className="text-xs font-black text-slate-900 uppercase">{profile?.education || "N/A"}</p>
                                 </div>
                             </div>
@@ -291,7 +316,7 @@ export default function ServicerDashboard() {
                                     <Clock className="w-4 h-4 text-blue-600" />
                                 </div>
                                 <div>
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Experience</p>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Experience</p>
                                     <p className="text-xs font-black text-slate-900 uppercase">{profile?.experience_years || 0} Years</p>
                                 </div>
                             </div>
@@ -300,12 +325,12 @@ export default function ServicerDashboard() {
                                     <ShieldCheck className="w-4 h-4 text-blue-600" />
                                 </div>
                                 <div>
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Certificates</p>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Certificates</p>
                                     <p className="text-xs font-black text-slate-900 uppercase">{profile?.certificates?.length || 0} Uploaded</p>
                                 </div>
                             </div>
                             <div className="pt-4 border-t border-slate-200">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Your Rate</p>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Your Rate</p>
                                 <p className="text-2xl font-black text-slate-900 uppercase tracking-tighter">₹{profile?.hourly_rate || 0}.00 <span className="text-[10px] text-slate-400">/ HR</span></p>
                             </div>
                         </div>
@@ -325,7 +350,7 @@ export default function ServicerDashboard() {
                             <button
                                 key={status}
                                 onClick={() => setFilterStatus(status)}
-                                className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                                className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
                                     filterStatus === status
                                         ? "bg-[#064e3b] text-white shadow-lg shadow-emerald-900/10"
                                         : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
