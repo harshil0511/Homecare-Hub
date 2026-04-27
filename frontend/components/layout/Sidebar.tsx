@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -8,7 +8,7 @@ import {
   LogOut, Briefcase, Star, Users, ShieldCheck, ShieldAlert,
   BarChart3, ClipboardList, UserCheck, ChevronRight,
   User, Lock, BellRing, Search, TrendingUp,
-  PanelLeftClose, PanelLeftOpen,
+  PanelLeftClose, PanelLeftOpen, CreditCard,
 } from "lucide-react";
 import { logout, getRole, getUsername } from "@/lib/auth";
 
@@ -17,6 +17,7 @@ const USER_SETTINGS = [
   { name: "Password", icon: Lock, path: "/user/settings/password" },
   { name: "Notifications", icon: BellRing, path: "/user/settings/notifications" },
   { name: "Account", icon: ShieldCheck, path: "/user/settings/account" },
+  { name: "Payment", icon: CreditCard, path: "/user/settings/payment" },
 ];
 
 const ADMIN_SETTINGS = [
@@ -31,6 +32,7 @@ const SERVICE_SETTINGS = [
   { name: "Password", icon: Lock, path: "/service/settings/password" },
   { name: "Notifications", icon: BellRing, path: "/service/settings/notifications" },
   { name: "Account", icon: ShieldCheck, path: "/service/settings/account" },
+  { name: "Payment", icon: CreditCard, path: "/service/settings/payment" },
 ];
 
 const SECRETARY_SETTINGS = [
@@ -163,7 +165,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
               </div>
               <div>
                 <p className="font-black text-[#064e3b] text-sm leading-tight tracking-tight">Homecare Hub</p>
-                <p className="text-[9px] text-emerald-600 font-black uppercase tracking-[0.2em]">Control Center</p>
+                <p className="text-[10px] text-emerald-600 font-black uppercase tracking-[0.2em]">Control Center</p>
               </div>
             </div>
             <button
@@ -184,7 +186,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-black text-[#000000] truncate leading-tight uppercase tracking-tight">{username || "User"}</p>
                 {badge && (
-                  <p className={`text-[9px] font-black mt-1 px-1.5 py-0.5 rounded-md w-fit uppercase tracking-tighter ${badge.color}`}>
+                  <p className={`text-[10px] font-black mt-1 px-2 py-0.5 rounded-md w-fit uppercase tracking-tight ${badge.color}`}>
                     {badge.label}
                   </p>
                 )}
@@ -193,7 +195,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
           </div>
 
           <div className="px-7 mb-4">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Module Index</p>
+            <p className="text-xs font-black text-slate-400 uppercase tracking-[0.3em]">Module Index</p>
           </div>
 
           {/* Full Navigation */}
@@ -252,13 +254,13 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                             key={sub.path}
                             href={sub.path}
                             onClick={handleNavClick}
-                            className={`group flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-black transition-all ${
+                            className={`group flex items-center gap-2.5 px-3 py-3 rounded-lg text-xs font-black transition-all ${
                               isSubActive
                                 ? "bg-emerald-50 text-[#064e3b]"
                                 : "text-slate-400 hover:text-[#064e3b] hover:bg-slate-50"
                             }`}
                           >
-                            <SubIcon className={`w-3.5 h-3.5 ${isSubActive ? "text-[#064e3b]" : "text-slate-300 group-hover:text-[#064e3b]"}`} />
+                            <SubIcon className={`w-4 h-4 ${isSubActive ? "text-[#064e3b]" : "text-slate-300 group-hover:text-[#064e3b]"}`} />
                             <span className="tracking-tight">{sub.name}</span>
                           </Link>
                         );
