@@ -8,9 +8,10 @@ import {
     Clock as ClockIcon, Calendar,
     ChevronLeft, Settings, AlertTriangle,
     ShieldCheck, Send, Phone, MapPin,
-    X, FileText, Star, CheckCircle2, IndianRupee, CreditCard
+    X, FileText, Star, CheckCircle2, IndianRupee, CreditCard, Camera
 } from "lucide-react";
 import BookingStatusTimeline from "@/components/bookings/BookingStatusTimeline";
+import QRScanner from "@/components/ui/QRScanner";
 
 interface BookingProvider {
     company_name?: string;
@@ -100,6 +101,8 @@ export default function BookingDetailsPage() {
     const [showReceiptModal, setShowReceiptModal] = useState(false);
     const [paymentMethodUsed, setPaymentMethodUsed] = useState<string>("");
     const [paying, setPaying] = useState(false);
+    const [showQrScanner, setShowQrScanner] = useState(false);
+    const [scannedQrData, setScannedQrData] = useState<string>("");
 
     const fetchData = async () => {
         try {
@@ -158,6 +161,17 @@ export default function BookingDetailsPage() {
         if (!booking?.review) {
             setShowReview(true);
         }
+    };
+
+    const handleQrScan = (data: string) => {
+        setShowQrScanner(false);
+        setScannedQrData(data);
+        toast.success("QR code scanned successfully");
+    };
+
+    const handleQrTimeout = () => {
+        setShowQrScanner(false);
+        toast.error("Scanner timed out — please try again");
     };
 
     const handleDispute = async () => {
@@ -422,10 +436,23 @@ export default function BookingDetailsPage() {
 
                                 {/* QR tab */}
                                 {payTab === "qr" && payDetails.has_qr && payDetails.upi_qr_image_url && (
-                                    <div className="flex flex-col items-center bg-slate-50 border border-slate-100 rounded-2xl p-6">
+                                    <div className="flex flex-col items-center bg-slate-50 border border-slate-100 rounded-2xl p-6 gap-4">
                                         {/* eslint-disable-next-line @next/next/no-img-element */}
                                         <img src={payDetails.upi_qr_image_url} alt="UPI QR Code" className="w-48 h-48 object-contain rounded-xl" />
-                                        <p className="text-[10px] text-slate-500 font-medium mt-3">Scan with any UPI app to pay</p>
+                                        <p className="text-[10px] text-slate-500 font-medium">Scan with any UPI app to pay</p>
+                                        <button
+                                            type="button"
+                                            onClick={() => { setScannedQrData(""); setShowQrScanner(true); }}
+                                            className="flex items-center gap-2 px-5 py-2.5 bg-[#064e3b] text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-800 transition-colors"
+                                        >
+                                            <Camera className="w-3.5 h-3.5" /> Scan QR Code
+                                        </button>
+                                        {scannedQrData && (
+                                            <div className="w-full bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
+                                                <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Scanned</p>
+                                                <p className="text-sm font-mono font-black text-emerald-800 break-all">{scannedQrData}</p>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -908,6 +935,14 @@ export default function BookingDetailsPage() {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {showQrScanner && (
+                <QRScanner
+                    onScan={handleQrScan}
+                    onClose={() => setShowQrScanner(false)}
+                    onTimeout={handleQrTimeout}
+                />
             )}
         </div>
     );
