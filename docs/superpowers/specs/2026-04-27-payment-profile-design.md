@@ -1,12 +1,12 @@
 # Payment Profile — Phase A Design Spec
 **Date:** 2026-04-27
-**Scope:** Bank details storage, settings UI, and provider eligibility gates. No live payment processing (PayPal/UPI transfers deferred to Phase B).
+**Scope:** Bank details storage, settings UI, provider eligibility gates, `flow_type` on bookings, and a secure "Pay Provider" panel on the receipt page. No live payment processing (PayPal/UPI transfers deferred to Phase B).
 
 ---
 
 ## 1. Goal
 
-Allow users and providers to save their bank/UPI payment details once. Use those details as an eligibility gate: a user cannot send a service request to a provider who has not yet filled in their bank details.
+Allow users and providers to save their bank/UPI payment details once. Use those details as an eligibility gate: a user cannot send a service request to a provider who has not yet filled in their bank details. At the end of a **systematic flow** booking (regular or emergency), the receipt page shows the user a secure "Pay Provider" panel with three options so they know exactly how to transfer the money — without ever exposing the full account number outside of a deliberate tap-to-reveal interaction.
 
 ---
 
@@ -51,8 +51,22 @@ def has_bank_details(self) -> bool:
     )
 ```
 
-### Migration
-File: `backend/alembic/versions/27_04_2026_add_payment_profiles.py`
+### `flow_type` on `ServiceBooking`
+
+Add a new nullable column `flow_type` (String, default `"direct"`) to the existing `service_bookings` table.
+
+| Value | Meaning |
+|---|---|
+| `"direct"` | Payment is fully offline/cash — no payment panel shown on receipt |
+| `"systematic"` | System facilitates payment display — Pay Provider panel shown on receipt |
+
+Migration file: `27_04_2026_add_flow_type_to_bookings.py`
+
+The booking creation endpoint (`POST /bookings/create`) accepts an optional `flow_type` field (defaults to `"direct"` if omitted — backward-compatible, no existing booking breaks).
+
+### Migrations
+- `27_04_2026_add_payment_profiles.py` — new `payment_profiles` table
+- `27_04_2026_add_flow_type_to_bookings.py` — add `flow_type` column to `service_bookings`
 
 ---
 
@@ -118,6 +132,26 @@ provider_id: UUID
 has_payment_profile: bool
 ```
 
+**New endpoint — provider payment details for receipt (USER role, systematic flow only):**
+
+```
+GET /payment/provider/{provider_id}/pay-details
+```
+- Protected: USER role only.
+- Only callable when the booking's `flow_type = "systematic"` (enforced on frontend by reading `flow_type` from booking detail).
+- Returns **only the fields needed to display payment options** — never full account number:
+```
+account_holder_name: str
+account_number_masked: str        # "XXXXXX1234"
+account_number_last4: str         # "1234" — for tap-to-reveal hint
+ifsc_code: str                    # shown only when Bank Transfer selected
+upi_id: Optional[str]             # shown only when UPI selected
+upi_qr_image_url: Optional[str]  # shown only when QR Scanner selected
+has_upi: bool
+has_qr: bool
+```
+- Full account number is **never decrypted or returned**. The masked value + last4 is the maximum exposure.
+
 ---
 
 ## 5. Provider List Annotation
@@ -176,7 +210,35 @@ No change to the backend booking creation or request submission logic.
 
 ---
 
-## 9. Validation Rules
+## 9. Receipt Page — "Pay Provider" Panel
+
+### When it appears
+- Booking detail page (`/user/bookings/[id]`) and booking receipt page (`/user/bookings/[id]/receipt`)
+- Condition: `booking.flow_type === "systematic"` AND `booking.status === "Pending Confirmation"` (i.e. servicer has submitted hours and final amount is calculated)
+- Also applies to emergency SOS bookings at the same status gate — the price is admin-fixed (callout_fee + extra_hours × emergency_rate), already calculated server-side
+
+### Panel layout
+A card titled **"Pay your provider"** with the calculated `final_amount` displayed prominently. Three selector tabs underneath:
+
+| Tab | Label | What is revealed |
+|---|---|---|
+| 1 | Bank Transfer | Account holder name, IFSC code, masked account number with a "Tap to reveal last 4" hint |
+| 2 | UPI | UPI ID (copyable). Tab disabled with tooltip if provider has no UPI ID |
+| 3 | QR Scanner | UPI QR image displayed full-size for phone scanning. Tab disabled if provider has no QR uploaded |
+
+**Security rules for the panel:**
+- Default state: all sensitive values hidden (account number shown as `XXXXXX••••`, IFSC shown normally — it is not sensitive)
+- Tap-to-reveal: tapping the masked account number shows `XXXXXX1234` (last4 only — full number is never sent by API)
+- UPI ID is shown in full (it's a public handle, not sensitive)
+- QR image is shown in full (it's a public scan image)
+- After the user confirms payment (taps "I've sent the payment"), the booking confirm endpoint (`POST /bookings/{id}/confirm`) is called — same existing endpoint, no change
+
+### Emergency SOS receipt
+Same panel. Price shown = `callout_fee + (extra_hours × emergency_hourly_rate)` — already returned by the existing receipt endpoint. No additional backend changes needed.
+
+---
+
+## 10. Validation Rules
 
 | Field | Rule |
 |---|---|
@@ -189,7 +251,7 @@ No change to the backend booking creation or request submission logic.
 
 ---
 
-## 10. What Does NOT Change
+## 11. What Does NOT Change
 
 - Booking creation logic (`POST /bookings/create`)
 - Booking status flow (Pending → Accepted → In Progress → Completed)
@@ -201,19 +263,22 @@ No change to the backend booking creation or request submission logic.
 
 ---
 
-## 11. Files Created / Modified
+## 12. Files Created / Modified
 
 ### New
 - `backend/app/payment/domain/model.py` — `PaymentProfile` model
-- `backend/app/api/payment/endpoints.py` — router
+- `backend/app/api/payment/endpoints.py` — router (user, provider, status, pay-details endpoints)
 - `backend/app/api/payment/schemas.py` — Pydantic schemas
 - `backend/app/core/encryption.py` — Fernet helpers
 - `backend/alembic/versions/27_04_2026_add_payment_profiles.py`
+- `backend/alembic/versions/27_04_2026_add_flow_type_to_bookings.py`
 - `frontend/app/user/settings/payment/page.tsx`
 - `frontend/app/service/settings/payment/page.tsx`
 
 ### Modified
 - `backend/app/auth/domain/model.py` — add `payment_profile` relationship to `User`
+- `backend/app/booking/domain/model.py` — add `flow_type` column to `ServiceBooking`
+- `backend/app/api/booking/schemas.py` — add `flow_type` to `BookingCreate` and `BookingRead`
 - `backend/app/core/config.py` — add `PAYMENT_ENCRYPTION_KEY`
 - `backend/app/main.py` — register payment router
 - `backend/requirements.txt` — ensure `cryptography` is listed
@@ -222,11 +287,13 @@ No change to the backend booking creation or request submission logic.
 - `frontend/app/service/settings/*/page.tsx` — add Payment tab to tab bar
 - `frontend/app/service/dashboard/page.tsx` — add missing-payment-details banner
 - `frontend/app/user/providers/page.tsx` — eligibility gate on provider cards
+- `frontend/app/user/bookings/[id]/page.tsx` — Pay Provider panel (systematic flow only)
+- `frontend/app/user/bookings/[id]/receipt/page.tsx` — Pay Provider panel (systematic flow only)
 - Provider list schema/endpoint — add `has_payment_profile` annotation
 
 ---
 
-## 12. Out of Scope (Phase B)
+## 13. Out of Scope (Phase B)
 
 - PayPal OAuth connect
 - Live payment transfer (Systematic Flow)
