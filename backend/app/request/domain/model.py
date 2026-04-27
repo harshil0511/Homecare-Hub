@@ -19,6 +19,7 @@ class ServiceRequest(Base):
     photos = Column(Text, nullable=True)
     preferred_dates = Column(Text, nullable=True)
     urgency = Column(String, default="Normal")
+    flow_type = Column(String, default="systematic", nullable=False, server_default="systematic")
     status = Column(String, default="OPEN")
     expires_at = Column(DateTime, nullable=False)
     resulting_booking_id = Column(PG_UUID(as_uuid=True), ForeignKey("service_bookings.id"), nullable=True)
