@@ -99,7 +99,7 @@ export default function ProviderPaymentPage() {
                     ifsc_code: ifsc.toUpperCase(),
                     branch,
                     upi_id: upiId.trim() || null,
-                    upi_qr_image_url: upiQr.trim() || null,
+                    upi_qr_image_url: upiQr || null,
                 }),
             });
             setProfile(data);

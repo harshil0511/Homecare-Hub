@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { useToast } from "@/lib/toast-context";
@@ -49,7 +49,7 @@ interface ReceiptData {
     booking_id: string | number;
     service_type: string;
     servicer_name: string;
-    completed_at: string;
+    completed_at: string | null;
     is_emergency?: boolean;
     callout_fee?: number;
     extra_hours?: number;
@@ -163,16 +163,16 @@ export default function BookingDetailsPage() {
         }
     };
 
-    const handleQrScan = (data: string) => {
+    const handleQrScan = useCallback((data: string) => {
         setShowQrScanner(false);
         setScannedQrData(data);
         toast.success("QR code scanned successfully");
-    };
+    }, [toast]);
 
-    const handleQrTimeout = () => {
+    const handleQrTimeout = useCallback(() => {
         setShowQrScanner(false);
         toast.error("Scanner timed out — please try again");
-    };
+    }, [toast]);
 
     const handleDispute = async () => {
         if (!disputeReason.trim()) return;
@@ -612,7 +612,7 @@ export default function BookingDetailsPage() {
                                     <div>
                                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Date</p>
                                         <p className="font-black text-slate-900">
-                                            {new Date(receipt.completed_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                                            {receipt.completed_at ? new Date(receipt.completed_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
                                         </p>
                                     </div>
                                     {(receipt.extra_hours ?? 0) > 0 && (
