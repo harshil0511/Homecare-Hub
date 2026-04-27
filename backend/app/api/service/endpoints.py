@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, timedelta
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.common import deps
@@ -13,6 +13,7 @@ from app.common.constants import ALLOWED_CATEGORIES
 from app.auth.domain.model import User, Society
 from app.auth.domain.model import society_trusted_providers
 from app.service.domain.model import ServiceProvider, ServiceCertificate, SocietyRequest, ProviderPoints
+from app.payment.domain.model import PaymentProfile
 from app.booking.domain.model import ServiceBooking, BookingReview
 from app.api.service.schemas import (
     SocietyCreate, SocietyResponse, SocietyUpdate,
@@ -241,6 +242,21 @@ def get_providers(
             .all()
         )
 
+    # Batch query: which providers have complete payment profiles
+    provider_user_ids = [str(p.user_id) for p in providers]
+    payment_ready_user_ids: set = set()
+    if provider_user_ids:
+        payment_profiles_q = db.execute(
+            select(PaymentProfile.user_id).where(
+                PaymentProfile.user_id.in_(provider_user_ids),
+                PaymentProfile.account_number_encrypted != "",
+                PaymentProfile.account_holder_name != "",
+                PaymentProfile.ifsc_code != "",
+                PaymentProfile.branch != "",
+            )
+        ).scalars().all()
+        payment_ready_user_ids = set(payment_profiles_q)
+
     # Time-based availability: if scheduled_at provided, check for booking conflicts
     availability_overrides: dict = {}
     if scheduled_at:
@@ -262,6 +278,7 @@ def get_providers(
         r = ProviderResponse.model_validate(p)
         r.completed_jobs = counts.get(p.id, 0)
         r.emergency_jobs = emergency_counts.get(p.id, 0)
+        r.has_payment_profile = str(p.user_id) in payment_ready_user_ids
         if p.id in availability_overrides:
             r.availability_status = availability_overrides[p.id]
         result.append(r)

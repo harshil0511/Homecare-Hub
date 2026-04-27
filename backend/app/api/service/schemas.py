@@ -103,6 +103,7 @@ class ProviderResponse(ProviderBase):
     rating: Optional[float] = 0.0
     completed_jobs: Optional[int] = 0
     emergency_jobs: Optional[int] = 0
+    has_payment_profile: Optional[bool] = False
     certificates: List[CertificateResponse] = []
 
     @field_validator('categories', mode='before')
