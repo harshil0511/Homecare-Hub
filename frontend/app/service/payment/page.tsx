@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { apiFetch } from "@/lib/api";
 import { CreditCard, Building2, Hash, MapPin, CheckCircle2, AlertCircle, Pencil, Smartphone, QrCode } from "lucide-react";
 
@@ -43,6 +43,8 @@ export default function ProviderPaymentPage() {
     const [branch, setBranch] = useState("");
     const [upiId, setUpiId] = useState("");
     const [upiQr, setUpiQr] = useState("");
+    const [qrPreview, setQrPreview] = useState<string>("");
+    const qrFileRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         apiFetch("/payment/provider")
@@ -53,6 +55,18 @@ export default function ProviderPaymentPage() {
                 setEditing(true);
             });
     }, []);
+
+    const handleQrFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            const base64 = reader.result as string;
+            setUpiQr(base64);
+            setQrPreview(base64);
+        };
+        reader.readAsDataURL(file);
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -99,6 +113,7 @@ export default function ProviderPaymentPage() {
             setBranch(profile.branch);
             setUpiId(profile.upi_id ?? "");
             setUpiQr(profile.upi_qr_image_url ?? "");
+            setQrPreview(profile.upi_qr_image_url ?? "");
         }
         setAccountNumber("");
         setConfirmAccount("");
@@ -179,9 +194,14 @@ export default function ProviderPaymentPage() {
                                     </div>
                                 )}
                                 {profile.upi_qr_image_url && (
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">QR Image</span>
-                                        <span className="text-[11px] font-black text-emerald-700">Uploaded</span>
+                                    <div className="flex flex-col items-center gap-2 pt-2">
+                                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] self-start">QR Image</p>
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                            src={profile.upi_qr_image_url}
+                                            alt="UPI QR Code"
+                                            className="w-32 h-32 object-contain rounded-xl border border-slate-200"
+                                        />
                                     </div>
                                 )}
                             </div>
@@ -256,18 +276,44 @@ export default function ProviderPaymentPage() {
                                 </div>
 
                                 <div className="space-y-2">
-                                    <label className="block text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] ml-1">UPI QR Image URL</label>
-                                    <div className="relative group">
-                                        <QrCode className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-[#064e3b] transition-colors" />
-                                        <input className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-14 pr-6 text-slate-900 outline-none focus:ring-2 focus:ring-[#064e3b] focus:bg-white transition-all font-bold tracking-tight shadow-inner shadow-black/[0.01]" placeholder="https://..." value={upiQr} onChange={(e) => setUpiQr(e.target.value)} />
-                                    </div>
+                                    <label className="block text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] ml-1">
+                                        UPI QR Code Image
+                                    </label>
+                                    <input
+                                        ref={qrFileRef}
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={handleQrFile}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => qrFileRef.current?.click()}
+                                        className="w-full flex items-center justify-center gap-3 bg-slate-50 border border-dashed border-slate-300 rounded-2xl py-4 text-slate-600 hover:bg-slate-100 hover:border-slate-400 transition-all font-bold text-sm"
+                                    >
+                                        <QrCode className="w-4 h-4 text-slate-400" />
+                                        {upiQr ? "Replace QR Image" : "Upload QR Image"}
+                                    </button>
+                                    {qrPreview && (
+                                        <div className="flex flex-col items-center gap-2 mt-2">
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img src={qrPreview} alt="QR Preview" className="w-32 h-32 object-contain rounded-xl border border-slate-200" />
+                                            <button
+                                                type="button"
+                                                onClick={() => { setUpiQr(""); setQrPreview(""); if (qrFileRef.current) qrFileRef.current.value = ""; }}
+                                                className="text-[10px] font-black text-rose-500 uppercase tracking-widest hover:text-rose-700"
+                                            >
+                                                Remove QR
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
 
                         <div className="flex gap-3 pt-2">
                             {profile && (
-                                <button type="button" onClick={() => setEditing(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black py-4 rounded-2xl transition-all text-xs uppercase tracking-[0.2em]">
+                                <button type="button" onClick={() => { setEditing(false); setQrPreview(""); }} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black py-4 rounded-2xl transition-all text-xs uppercase tracking-[0.2em]">
                                     Cancel
                                 </button>
                             )}
