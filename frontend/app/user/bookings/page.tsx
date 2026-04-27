@@ -79,6 +79,7 @@ interface ActiveBooking {
   completion_notes?: string | null;
   is_flagged?: boolean;
   source_type?: string | null;
+  flow_type?: string;
   provider?: {
     first_name?: string;
     last_name?: string;
@@ -110,6 +111,7 @@ interface HistoryBooking {
   scheduled_at?: string;
   estimated_cost?: number;
   final_cost?: number;
+  flow_type?: string;
   provider?: { first_name?: string; last_name?: string; company_name?: string };
 }
 
@@ -602,23 +604,33 @@ export default function UserBookingsPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-3">
+                      {/* flow type badge */}
+                      {b.flow_type && (
+                        <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase ${
+                          b.flow_type === "direct"
+                            ? "bg-slate-100 text-slate-600"
+                            : "bg-blue-50 text-blue-700"
+                        }`}>
+                          {b.flow_type === "direct" ? "Direct" : "Systematic"}
+                        </span>
+                      )}
                       {(b.final_cost || b.estimated_cost) && (
                         <span className="text-sm font-black text-slate-700">
                           ₹{(b.final_cost || b.estimated_cost || 0).toLocaleString("en-IN")}
                         </span>
                       )}
-                      {b.status === "Pending Confirmation" ? (
+                      {b.status === "Pending Confirmation" && b.flow_type !== "direct" ? (
                         <button
                           onClick={() => handleOpenReceipt(b)}
                           className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 text-white rounded-lg text-[10px] font-black uppercase hover:bg-amber-600 transition-colors animate-pulse"
                         >
                           <IndianRupee className="w-3 h-3" /> Confirm Receipt
                         </button>
-                      ) : (
+                      ) : b.status !== "Pending Confirmation" ? (
                         <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase ${
                           b.status === "Accepted" ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700"
                         }`}>{b.status}</span>
-                      )}
+                      ) : null}
                       <button onClick={() => router.push(`/user/bookings/${b.id}`)} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
                         <ChevronRight className="w-4 h-4 text-slate-400" />
                       </button>
@@ -647,6 +659,15 @@ export default function UserBookingsPage() {
                     <div className="flex items-center gap-3">
                       {(b.final_cost || b.estimated_cost) && (
                         <span className="text-sm font-black text-slate-700">₹{(b.final_cost || b.estimated_cost || 0).toLocaleString("en-IN")}</span>
+                      )}
+                      {b.flow_type && (
+                        <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase ${
+                          b.flow_type === "direct"
+                            ? "bg-slate-100 text-slate-500"
+                            : "bg-blue-50 text-blue-600"
+                        }`}>
+                          {b.flow_type === "direct" ? "Direct" : "Systematic"}
+                        </span>
                       )}
                       <span className="px-2 py-1 bg-slate-100 text-slate-500 rounded-lg text-[10px] font-black uppercase">{b.status}</span>
                       <button onClick={() => router.push(`/user/bookings/${b.id}`)} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
