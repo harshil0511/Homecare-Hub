@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -32,6 +32,7 @@ interface Provider {
     location: string | null;
     bio: string | null;
     certificates: { id: string; category: string; certificate_url: string; is_verified: boolean; uploaded_at: string }[];
+    has_payment_profile: boolean;
 }
 
 const CATEGORIES = [
@@ -62,6 +63,135 @@ function matchesSearch(p: Provider, q: string): boolean {
     return name.includes(lower) || location.includes(lower) || cats.includes(lower);
 }
 
+const AVATAR_COLORS = [
+    "bg-emerald-100 text-emerald-700",
+    "bg-sky-100 text-sky-700",
+    "bg-violet-100 text-violet-700",
+    "bg-amber-100 text-amber-700",
+    "bg-rose-100 text-rose-700",
+    "bg-teal-100 text-teal-700",
+];
+
+function avatarColor(name: string) {
+    let sum = 0;
+    for (let i = 0; i < name.length; i++) sum += name.charCodeAt(i);
+    return AVATAR_COLORS[sum % AVATAR_COLORS.length];
+}
+
+function ProviderCard({
+    p, isSelected, isFocused, onToggle, onDetails, onRequest, displayName, getPhotoUrl,
+}: {
+    p: Provider; isSelected: boolean; isFocused: boolean;
+    onToggle: (id: string) => void; onDetails: (p: Provider) => void;
+    onRequest: (p: Provider) => void;
+    displayName: (p: Provider) => string; getPhotoUrl: (url: string | null) => string | null;
+}) {
+    const name = displayName(p);
+    const photoUrl = getPhotoUrl(p.profile_photo_url);
+    const initials = name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+    const color = avatarColor(name);
+
+    return (
+        <div className={`bg-white border rounded-2xl p-5 transition-all flex flex-col gap-4 ${
+            isSelected ? "border-[#064e3b] bg-emerald-50/40 shadow-sm shadow-emerald-100"
+            : isFocused ? "border-slate-300 bg-slate-50"
+            : "border-slate-200 hover:border-slate-300 hover:shadow-sm"
+        }`}>
+            {/* Top row: avatar + info + checkbox */}
+            <div className="flex items-start gap-3">
+                <div className={`w-11 h-11 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center ${photoUrl ? "" : color}`}>
+                    {photoUrl
+                        // eslint-disable-next-line @next/next/no-img-element
+                        ? <img src={photoUrl} alt={name} className="w-full h-full object-cover" />
+                        : <span className="text-sm font-black">{initials}</span>
+                    }
+                </div>
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-sm font-black text-slate-900 uppercase tracking-tight leading-tight truncate">{name}</span>
+                        {p.is_verified && <ShieldCheck size={14} className="text-emerald-600 flex-shrink-0" />}
+                        <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${STATUS_COLORS[p.availability_status] || "bg-slate-300"}`} />
+                    </div>
+                    <p className="text-xs text-slate-400 font-semibold truncate">{p.company_name}{p.is_verified ? " · Verified" : ""}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-sm font-black text-amber-500">
+                            {p.rating > 0 ? `★ ${p.rating.toFixed(1)}` : "★ New"}
+                        </span>
+                        {p.completed_jobs > 0 && (
+                            <span className="text-[10px] text-slate-400 font-bold">({p.completed_jobs} jobs)</span>
+                        )}
+                    </div>
+                </div>
+                <button
+                    onClick={() => p.has_payment_profile && onToggle(p.id)}
+                    className={`flex-shrink-0 p-1 transition-colors mt-0.5 rounded-lg ${p.has_payment_profile ? "text-slate-300 hover:text-[#064e3b] hover:bg-emerald-50" : "opacity-50 cursor-not-allowed text-slate-300"}`}
+                >
+                    {isSelected ? <CheckSquare size={18} className="text-[#064e3b]" /> : <Square size={18} />}
+                </button>
+            </div>
+
+            {/* Categories */}
+            {(p.categories?.length > 0 || p.category) && (
+                <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Categories</p>
+                    <div className="flex flex-wrap gap-1">
+                        {(p.categories?.length > 0 ? p.categories : [p.category]).slice(0, 3).map(cat => (
+                            <span key={cat} className="text-[10px] font-black bg-slate-100 text-slate-600 px-2.5 py-1 rounded-lg uppercase tracking-wide">{cat}</span>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Rate + availability */}
+            <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-wide">
+                <div>
+                    <p className="text-slate-400 mb-0.5">Rate</p>
+                    <p className="text-slate-900">{p.hourly_rate > 0 ? `₹${p.hourly_rate}/hr` : "₹0/hr"}</p>
+                </div>
+                {p.location && (
+                    <div>
+                        <p className="text-slate-400 mb-0.5">Location</p>
+                        <p className="text-slate-900 truncate max-w-[100px]">{p.location}</p>
+                    </div>
+                )}
+                {p.availability_status === "AVAILABLE" && (
+                    <span className="ml-auto text-[10px] font-black text-emerald-600">Available now</span>
+                )}
+                {p.availability_status === "WORKING" && (
+                    <span className="ml-auto text-[10px] font-black text-amber-500">Working</span>
+                )}
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-2 pt-2 border-t border-slate-100">
+                <button
+                    onClick={() => onDetails(p)}
+                    className="flex-1 py-3 border border-slate-200 rounded-xl text-xs font-black uppercase tracking-wide text-slate-600 hover:border-[#064e3b] hover:text-[#064e3b] transition-all"
+                >
+                    View Profile
+                </button>
+                {p.has_payment_profile ? (
+                    <button
+                        onClick={() => onRequest(p)}
+                        className="flex-1 py-3 bg-[#064e3b] text-white rounded-xl text-xs font-black uppercase tracking-wide hover:bg-emerald-800 transition-all"
+                    >
+                        Book Now →
+                    </button>
+                ) : (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl text-[10px] font-black uppercase tracking-widest">
+                        Not Yet Accepting Bookings
+                    </span>
+                )}
+            </div>
+        </div>
+    );
+}
+
+const CATEGORY_ORDER = [
+    "Plumbing", "Electrical", "Cleaning", "Mechanical", "Carpentry",
+    "Painting", "Gardening", "HVAC", "Pest Control", "Appliance Repair",
+];
+
 function ProviderDetailModal({ provider, onClose, onSOS }: { provider: Provider; onClose: () => void; onSOS: (provider: Provider) => void }) {
     const photoUrl = provider.profile_photo_url
         ? provider.profile_photo_url.startsWith("/")
@@ -76,9 +206,9 @@ function ProviderDetailModal({ provider, onClose, onSOS }: { provider: Provider;
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 relative animate-in zoom-in-95 duration-150" onClick={e => e.stopPropagation()}>
                 <button
                     onClick={onClose}
-                    className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 transition-all"
+                    className="absolute top-5 right-5 w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 transition-all"
                 >
-                    <X size={16} />
+                    <X size={18} />
                 </button>
 
                 <div className="flex items-start gap-4 mb-6">
@@ -94,8 +224,8 @@ function ProviderDetailModal({ provider, onClose, onSOS }: { provider: Provider;
                         <div className="flex items-center gap-2 flex-wrap">
                             <h2 className="text-lg font-black text-[#000000] uppercase tracking-tight">{name}</h2>
                             {provider.is_verified && (
-                                <span className="flex items-center gap-1 text-[9px] font-black text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-wide">
-                                    <ShieldCheck size={10} /> Verified
+                                <span className="flex items-center gap-1 text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-full uppercase tracking-wide">
+                                    <ShieldCheck size={12} /> Verified
                                 </span>
                             )}
                         </div>
@@ -116,7 +246,7 @@ function ProviderDetailModal({ provider, onClose, onSOS }: { provider: Provider;
                 {provider.categories?.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mb-5">
                         {provider.categories.map((cat: string) => (
-                            <span key={cat} className="text-[9px] font-black bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-lg uppercase tracking-wide">
+                            <span key={cat} className="text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-100 px-2.5 py-1 rounded-lg uppercase tracking-wide">
                                 {cat}
                             </span>
                         ))}
@@ -476,7 +606,7 @@ function ProvidersContent() {
                     <SlidersHorizontal size={15} />
                     Filters
                     {activeFilterCount > 0 && (
-                        <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center">
+                        <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center">
                             {activeFilterCount}
                         </span>
                     )}
@@ -487,8 +617,8 @@ function ProvidersContent() {
             {showFilterPanel && (
                 <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-6 shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="flex items-center justify-between">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Advanced Filters</p>
-                        <button onClick={resetDrafts} className="text-[10px] font-black text-rose-500 uppercase tracking-widest hover:text-rose-700">
+                        <p className="text-xs font-black uppercase tracking-widest text-slate-500">Advanced Filters</p>
+                        <button onClick={resetDrafts} className="text-xs font-black text-rose-500 uppercase tracking-widest hover:text-rose-700">
                             Reset
                         </button>
                     </div>
@@ -579,7 +709,7 @@ function ProvidersContent() {
                     <button
                         key={cat}
                         onClick={() => { setActiveCategory(cat); setFocusedIndex(-1); }}
-                        className={`flex-shrink-0 px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeCategory === cat
+                        className={`flex-shrink-0 px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all ${activeCategory === cat
                             ? "bg-[#064e3b] text-white shadow-lg shadow-emerald-900/10 ring-2 ring-[#064e3b]/20 scale-105"
                             : "bg-white border border-slate-200 text-slate-500 hover:border-[#064e3b] hover:text-[#064e3b]"
                             }`}
@@ -601,7 +731,7 @@ function ProvidersContent() {
                     {(activeCategory !== "All" || searchQuery || activeFilterCount > 0) && (
                         <button
                             onClick={clearAllFilters}
-                            className="text-[9px] font-black text-rose-400 uppercase tracking-widest hover:text-rose-600 transition-colors flex items-center gap-1"
+                            className="text-[10px] font-black text-rose-400 uppercase tracking-widest hover:text-rose-600 transition-colors flex items-center gap-1"
                         >
                             <X size={10} /> Clear All
                         </button>
@@ -649,62 +779,21 @@ function ProvidersContent() {
                     )}
                 </div>
             ) : (
-                <div className="flex flex-col gap-2">
-                    {filteredProviders.map((p, idx) => {
-                        const name = displayName(p);
-                        const photoUrl = getPhotoUrl(p.profile_photo_url);
-                        const isSelected = selectedIds.has(p.id);
-                        const isFocused = focusedIndex === idx;
-                        return (
-                            <div
-                                key={p.id}
-                                className={`flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all ${isSelected ? "border-[#064e3b] bg-emerald-50/50"
-                                    : isFocused ? "border-slate-300 bg-slate-50"
-                                        : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50"
-                                    }`}
-                            >
-                                <button onClick={() => toggleSelect(p.id)} className="flex-shrink-0 text-slate-300 hover:text-[#064e3b] transition-colors">
-                                    {isSelected ? <CheckSquare size={16} className="text-[#064e3b]" /> : <Square size={16} />}
-                                </button>
-                                <div className="w-9 h-9 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex-shrink-0 flex items-center justify-center">
-                                    {photoUrl ? (
-                                        // eslint-disable-next-line @next/next/no-img-element
-                                        <img src={photoUrl} alt={name} className="w-full h-full object-cover" />
-                                    ) : (
-                                        <span className="text-sm font-black text-slate-300">{name.charAt(0).toUpperCase()}</span>
-                                    )}
-                                </div>
-                                <div className="flex items-center gap-2 flex-1 min-w-0">
-                                    <span className="text-sm font-black text-[#000000] uppercase tracking-tight truncate">{name}</span>
-                                    {p.is_verified && <ShieldCheck size={13} className="text-emerald-600 flex-shrink-0" />}
-                                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_COLORS[p.availability_status] || "bg-slate-300"}`} />
-                                </div>
-                                <div className="flex items-center gap-1 flex-shrink-0">
-                                    <span className="text-xs font-black text-amber-500">
-                                        {p.rating > 0 ? `★ ${p.rating.toFixed(1)}` : "★ 0.0"}
-                                    </span>
-                                </div>
-                                <span className="hidden md:block text-[9px] font-black bg-slate-100 text-slate-500 px-2 py-0.5 rounded-lg uppercase tracking-wide flex-shrink-0">
-                                    {p.category}
-                                </span>
-                                <span className="hidden lg:block text-[10px] font-black text-slate-500 flex-shrink-0">
-                                    ₹{p.hourly_rate}/hr
-                                </span>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); setSelectedProvider(p); }}
-                                    className="flex-shrink-0 text-[9px] font-black text-[#064e3b] bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-xl hover:bg-emerald-100 transition-all uppercase tracking-wide"
-                                >
-                                    Details
-                                </button>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); setSelectedIds(new Set([p.id])); setShowRequestModal(true); }}
-                                    className="flex-shrink-0 text-[9px] font-black text-white bg-[#064e3b] border border-[#064e3b] px-3 py-1.5 rounded-xl hover:bg-emerald-800 transition-all uppercase tracking-wide"
-                                >
-                                    Request
-                                </button>
-                            </div>
-                        );
-                    })}
+                /* Flat card grid — all providers or filtered by category */
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {filteredProviders.map((p, idx) => (
+                        <ProviderCard
+                            key={p.id}
+                            p={p}
+                            isSelected={selectedIds.has(p.id)}
+                            isFocused={focusedIndex === idx}
+                            onToggle={toggleSelect}
+                            onDetails={p => setSelectedProvider(p)}
+                            onRequest={p => { setSelectedIds(new Set([p.id])); setShowRequestModal(true); }}
+                            displayName={displayName}
+                            getPhotoUrl={getPhotoUrl}
+                        />
+                    ))}
                 </div>
             )}
 
