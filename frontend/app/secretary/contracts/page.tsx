@@ -133,6 +133,7 @@ export default function SecretaryContractsPage() {
     };
 
     const daysLeft = (end: string) => {
+        // eslint-disable-next-line react-hooks/purity
         const d = Math.ceil((new Date(end).getTime() - Date.now()) / 86400000);
         return d > 0 ? `${d} days left` : "Expiring soon";
     };

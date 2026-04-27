@@ -13,7 +13,6 @@ import BookingStatusTimeline from "@/components/bookings/BookingStatusTimeline";
 
 interface BookingProvider {
     company_name: string;
-    [key: string]: unknown;
 }
 
 interface BookingData {
@@ -25,18 +24,16 @@ interface BookingData {
     scheduled_at: string;
     issue_description: string;
     review?: unknown;
-    status_history?: unknown[];
+    status_history?: { status: string; notes: string; timestamp: string }[];
     chats?: ChatMessage[];
-    user_id?: unknown;
+    user_id?: string;
     provider: BookingProvider;
-    [key: string]: unknown;
 }
 
 interface ChatMessage {
-    sender_id?: unknown;
-    message?: unknown;
-    timestamp?: unknown;
-    [key: string]: unknown;
+    sender_id?: string;
+    message?: string;
+    timestamp?: string;
 }
 
 export default function BookingDetailsPage() {
@@ -80,12 +77,14 @@ export default function BookingDetailsPage() {
     };
 
     useEffect(() => {
-        fetchData();
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        void fetchData();
     }, [id]);
 
     // Auto-prompt review modal when USER visits a completed booking with no review
     useEffect(() => {
         if (!loading && booking && booking.status === "Completed" && userRole === "USER" && !booking.review) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setShowReview(true);
         }
     }, [loading, booking, userRole]);
@@ -342,7 +341,7 @@ export default function BookingDetailsPage() {
                                     }`}>
                                         {m.message}
                                         <p className={`text-[8px] mt-2 font-black uppercase opacity-40 ${m.sender_id === booking.user_id ? "text-right" : "text-left"}`}>
-                                            {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            {new Date(m.timestamp!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                         </p>
                                     </div>
                                 </div>

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from uuid import UUID
 from typing import List
+from pydantic import BaseModel
 from app.common import deps
 from app.auth.domain.model import User, Society
 from app.maintenance.domain.model import MaintenanceTask
@@ -11,6 +12,11 @@ from app.notification.domain.model import Notification
 from app.api.auth.schemas import UserResponse
 from app.api.service.schemas import SocietyResponse, SocietyUpdate, ProviderResponse, SocietyRequestResponse, SocietyRequestAction
 from app.api.secretary.schemas import HomeAssign, SecretaryComplaintCreate, SecretaryComplaintRead, HomeMemberCreate, HomeMemberRead
+
+
+class BroadcastNoticeIn(BaseModel):
+    title: str
+    message: str
 
 
 router = APIRouter(tags=["Secretary API"])
@@ -254,3 +260,29 @@ def delete_home_member(
         raise HTTPException(status_code=404, detail="Home member not found.")
     db.delete(member)
     db.commit()
+
+
+@router.post("/broadcast")
+def broadcast_notice(
+    body: BroadcastNoticeIn,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(secretary_only),
+):
+    """Send a broadcast notification to all members of the secretary's society."""
+    if not current_user.society_id:
+        raise HTTPException(status_code=404, detail="No society assigned to this secretary.")
+    members = db.query(User).filter(
+        User.society_id == current_user.society_id,
+        User.role == "USER",
+    ).all()
+    for member in members:
+        db.add(Notification(
+            user_id=member.id,
+            title=body.title,
+            message=body.message,
+            notification_type="INFO",
+            link="/user/alerts",
+        ))
+    db.commit()
+    count = len(members)
+    return {"sent": count, "message": f"Broadcast sent to {count} members"}

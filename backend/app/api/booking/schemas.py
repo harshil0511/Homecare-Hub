@@ -25,6 +25,13 @@ class BookingBase(BaseModel):
     property_details: Optional[str] = None
     estimated_cost: float = 0.0
 
+    @field_validator("estimated_cost")
+    @classmethod
+    def estimated_cost_non_negative(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError("Estimated cost cannot be negative.")
+        return v
+
 
 class BookingCreate(BookingBase):
     task_id: Optional[UUID] = None

@@ -6,17 +6,21 @@ import { User, Shield, CheckCircle2, AlertCircle, ShieldCheck } from "lucide-rea
 
 export default function ProfilePage() {
     const [username, setUsername] = useState("");
+    const [savedUsername, setSavedUsername] = useState("");
     const [email, setEmail] = useState("");
     const [role, setRole] = useState("");
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
     const [error, setError] = useState("");
 
+    const isDirty = username !== savedUsername && savedUsername !== "";
+
     useEffect(() => {
         const fetchUser = async () => {
             try {
                 const data = await apiFetch("/user/me");
                 setUsername(data.username);
+                setSavedUsername(data.username);
                 setEmail(data.email);
                 setRole(data.role);
             } catch (err) {
@@ -25,6 +29,17 @@ export default function ProfilePage() {
         };
         fetchUser();
     }, []);
+
+    useEffect(() => {
+        const handler = (e: BeforeUnloadEvent) => {
+            if (isDirty) {
+                e.preventDefault();
+                e.returnValue = "";
+            }
+        };
+        window.addEventListener("beforeunload", handler);
+        return () => window.removeEventListener("beforeunload", handler);
+    }, [isDirty]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -36,6 +51,7 @@ export default function ProfilePage() {
                 method: "PATCH",
                 body: JSON.stringify({ username }),
             });
+            setSavedUsername(username);
             setSuccess(true);
             setTimeout(() => setSuccess(false), 3000);
         } catch (err) {
@@ -57,11 +73,18 @@ export default function ProfilePage() {
     return (
         <div className="max-w-2xl mx-auto py-12">
             <div className="bg-white border border-slate-200 rounded-[2rem] p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-                <div className="flex items-center gap-3 mb-8">
-                    <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-100">
-                        <User className="w-5 h-5 text-[#064e3b]" />
+                <div className="flex items-center justify-between gap-3 mb-8">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-100">
+                            <User className="w-5 h-5 text-[#064e3b]" />
+                        </div>
+                        <h2 className="text-lg font-black text-[#000000] uppercase tracking-tight">Profile Information</h2>
                     </div>
-                    <h2 className="text-lg font-black text-[#000000] uppercase tracking-tight">Profile Information</h2>
+                    {isDirty && (
+                        <span className="text-[9px] font-black uppercase tracking-widest text-amber-600 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-lg">
+                            Unsaved Changes
+                        </span>
+                    )}
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">

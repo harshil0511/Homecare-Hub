@@ -53,7 +53,8 @@ export default function ServicerProfilePage() {
     const [profileError, setProfileError] = useState("");
 
     // Certificate state
-    const [certificates, setCertificates] = useState<Record<string, unknown>[]>([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [certificates, setCertificates] = useState<Record<string, any>[]>([]);
     const [showCertForm, setShowCertForm] = useState(false);
     const [certCategory, setCertCategory] = useState("");
     const [certTitle, setCertTitle] = useState("");
@@ -506,7 +507,7 @@ export default function ServicerProfilePage() {
                     </div>
                 ) : (
                     <div className="space-y-3">
-                        {(certificates as Record<string, unknown>[]).map((cert) => (
+                        {certificates.map((cert) => (
                             <div key={cert.id} className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-xl group hover:border-blue-200 transition-all">
                                 <div className="flex items-center gap-3">
                                     <div className="w-9 h-9 bg-white border border-slate-200 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">

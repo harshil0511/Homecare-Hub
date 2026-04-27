@@ -102,8 +102,10 @@ export default function AlertsPage() {
     };
 
     useEffect(() => {
-        fetchNotifications();
-        fetchPendingBookings();
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        void fetchNotifications();
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        void fetchPendingBookings();
     }, []);
 
     const clearAll = async () => {

@@ -65,6 +65,7 @@ export default function AdminEmergencyPage() {
     // ── Data loaders ───────────────────────────────────────────────────────────
     useEffect(() => {
         if (activeTab === "pricing") {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setConfigsLoading(true);
             adminEmergencyApi.getConfigs()
                 .then(setConfigs)
@@ -75,6 +76,7 @@ export default function AdminEmergencyPage() {
 
     useEffect(() => {
         if (activeTab === "penalties") {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setPenaltiesLoading(true);
             adminEmergencyApi.getPenalties()
                 .then(setPenalties)
@@ -85,6 +87,7 @@ export default function AdminEmergencyPage() {
 
     useEffect(() => {
         if (activeTab === "requests") {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setRequestsLoading(true);
             adminEmergencyApi.getRequests(statusFilter || undefined)
                 .then(setRequests)
@@ -264,7 +267,12 @@ export default function AdminEmergencyPage() {
                         <div className="grid grid-cols-3 gap-3">
                             <div>
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Category</label>
-                                <input value={newCategory} onChange={e => setNewCategory(e.target.value)} placeholder="e.g. Electrical" className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-rose-400 bg-white" />
+                                <select value={newCategory} onChange={e => setNewCategory(e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-rose-400 bg-white">
+                                    <option value="">Select category…</option>
+                                    {["Electrical","Plumbing","Gas Leak","Lock/Door","Appliance Failure","Structural","Pest","Other"].map(c => (
+                                        <option key={c} value={c}>{c}</option>
+                                    ))}
+                                </select>
                             </div>
                             <div>
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Callout (₹)</label>

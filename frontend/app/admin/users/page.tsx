@@ -51,16 +51,14 @@ export default function AdminUsersPage() {
     const [selectedUser, setSelectedUser] = useState<{ uuid: string; username: string } | null>(null);
     const [userDetail, setUserDetail] = useState<UserDetail | null>(null);
     const [detailLoading, setDetailLoading] = useState(false);
+    const [deleteConfirm, setDeleteConfirm] = useState<{ uuid: string; username: string } | null>(null);
 
-    const load = () => {
-        setLoading(true);
+    useEffect(() => {
         apiFetch("/admin/users")
             .then((d) => setUsers(d || []))
             .catch(() => {})
             .finally(() => setLoading(false));
-    };
-
-    useEffect(() => { load(); }, []);
+    }, []);
 
     const toggleActive = async (uuid: string, current: boolean) => {
         try {
@@ -75,15 +73,21 @@ export default function AdminUsersPage() {
     };
 
     const deleteUser = async (uuid: string, username: string) => {
-        if (!confirm(`Permanently delete account for "${username}"? This cannot be undone.`)) return;
+        setDeleteConfirm({ uuid, username });
+    };
+
+    const confirmDelete = async () => {
+        if (!deleteConfirm) return;
         try {
-            await apiFetch(`/admin/users/${uuid}`, { method: "DELETE" });
-            setUsers((prev) => prev.filter((u) => u.user_uuid !== uuid));
-            setActionMsg(`Account "${username}" deleted.`);
+            await apiFetch(`/admin/users/${deleteConfirm.uuid}`, { method: "DELETE" });
+            setUsers((prev) => prev.filter((u) => u.user_uuid !== deleteConfirm.uuid));
+            setActionMsg(`Account "${deleteConfirm.username}" permanently deleted.`);
             setTimeout(() => setActionMsg(""), 3000);
         } catch (err) {
             setActionMsg((err as Error).message || "Failed to delete.");
             setTimeout(() => setActionMsg(""), 3000);
+        } finally {
+            setDeleteConfirm(null);
         }
     };
 
@@ -295,6 +299,42 @@ export default function AdminUsersPage() {
                             ) : (
                                 <p className="text-sm text-slate-400 text-center py-6">Could not load details.</p>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete confirmation modal */}
+            {deleteConfirm && (
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full space-y-6">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-rose-100 flex items-center justify-center">
+                                <Trash2 className="w-6 h-6 text-rose-600" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Permanent Deletion</h3>
+                                <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">This action cannot be undone</p>
+                            </div>
+                        </div>
+                        <p className="text-sm text-slate-700 font-medium leading-relaxed">
+                            You are about to permanently delete the account for{" "}
+                            <span className="font-black text-slate-900">&ldquo;{deleteConfirm.username}&rdquo;</span>.
+                            All their data, bookings, and history will be lost forever.
+                        </p>
+                        <div className="flex gap-3 pt-2">
+                            <button
+                                onClick={() => setDeleteConfirm(null)}
+                                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-black text-slate-600 hover:bg-slate-50 transition-all uppercase tracking-widest"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={confirmDelete}
+                                className="flex-1 py-2.5 rounded-xl bg-rose-600 text-sm font-black text-white hover:bg-rose-700 transition-all uppercase tracking-widest"
+                            >
+                                Delete Permanently
+                            </button>
                         </div>
                     </div>
                 </div>

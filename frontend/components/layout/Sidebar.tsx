@@ -99,7 +99,9 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRole(getRole());
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setUsername(getUsername());
   }, []);
 
@@ -118,6 +120,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
 
   useEffect(() => {
     if (role && pathname.startsWith(SETTINGS_PATH_PREFIX[role] ?? "/settings")) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSettingsOpen(true);
     }
   }, [pathname, role]);

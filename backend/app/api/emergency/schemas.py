@@ -86,7 +86,7 @@ class EmergencyRequestCreate(BaseModel):
     landmark: str
     full_address: str
     category: str
-    description: str
+    description: Optional[str] = None
     device_name: Optional[str] = None
     photos: Optional[List[str]] = []
     contact_name: str
@@ -102,12 +102,10 @@ class EmergencyRequestCreate(BaseModel):
 
     @field_validator("description")
     @classmethod
-    def validate_description(cls, v: str) -> str:
-        if not v.strip():
-            raise ValueError("description cannot be empty")
-        if len(v) > 500:
+    def validate_description(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and len(v) > 500:
             raise ValueError("description cannot exceed 500 characters")
-        return v
+        return v or None
 
     @field_validator("photos")
     @classmethod
@@ -140,7 +138,7 @@ class EmergencyRequestRead(BaseModel):
     landmark: str
     full_address: str
     category: str
-    description: str
+    description: Optional[str] = None
     device_name: Optional[str] = None
     photos: Optional[List[str]] = []
     contact_name: str
@@ -229,7 +227,7 @@ class IncomingEmergencyRead(BaseModel):
     landmark: str
     full_address: str
     category: str
-    description: str
+    description: Optional[str] = None
     device_name: Optional[str] = None
     photos: Optional[List[str]] = []
     contact_name: str

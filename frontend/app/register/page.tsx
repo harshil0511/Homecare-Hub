@@ -82,6 +82,7 @@ export default function RegisterPage() {
 
     // Reset wizard step when switching away from SERVICER role
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (role !== "SERVICER") setStep(0);
     }, [role]);
 

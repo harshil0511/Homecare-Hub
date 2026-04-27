@@ -24,7 +24,8 @@ export default function PasswordPage() {
     const [error, setError] = useState("");
 
     const pwValidation = validatePassword(newPassword);
-    const pwAllValid = pwValidation.length && pwValidation.uppercase && pwValidation.special && newPassword === confirmPassword && currentPassword.length > 0;
+    const isSameAsOld = currentPassword.length > 0 && newPassword.length > 0 && currentPassword === newPassword;
+    const pwAllValid = pwValidation.length && pwValidation.uppercase && pwValidation.special && newPassword === confirmPassword && currentPassword.length > 0 && !isSameAsOld;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -105,6 +106,11 @@ export default function PasswordPage() {
                                 {showNewPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                             </button>
                         </div>
+                        {isSameAsOld && (
+                            <span className="text-[10px] font-black uppercase tracking-widest flex items-center gap-1 px-1 text-rose-500">
+                                <AlertCircle className="w-3 h-3" /> Must be different from current password
+                            </span>
+                        )}
                         {newPassword.length > 0 && (
                             <div className="flex flex-wrap gap-3 px-1 pt-1">
                                 <span className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-1 ${pwValidation.length ? "text-emerald-600" : "text-slate-400"}`}>

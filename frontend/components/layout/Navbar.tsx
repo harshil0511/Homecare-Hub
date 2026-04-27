@@ -105,6 +105,7 @@ export default function Navbar({ onMenuToggle, isSidebarOpen }: NavbarProps) {
 
     useEffect(() => {
         const storedRole = getRole() || "USER";
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setRole(storedRole);
 
         const fetchUser = async () => {

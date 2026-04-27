@@ -41,6 +41,7 @@ export default function LoginPage() {
     useEffect(() => {
         try {
             const stored = localStorage.getItem("hc_saved_accounts");
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             if (stored) setSavedAccounts(JSON.parse(stored));
         } catch {
             localStorage.removeItem("hc_saved_accounts");

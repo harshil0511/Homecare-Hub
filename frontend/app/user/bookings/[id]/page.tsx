@@ -12,13 +12,57 @@ import {
 } from "lucide-react";
 import BookingStatusTimeline from "@/components/bookings/BookingStatusTimeline";
 
+interface BookingProvider {
+    company_name?: string;
+    first_name?: string;
+    last_name?: string;
+}
+
+interface BookingData {
+    id: string | number;
+    status: string;
+    service_type: string;
+    estimated_cost?: number;
+    final_cost?: number;
+    property_details?: string;
+    scheduled_at: string;
+    issue_description?: string;
+    actual_hours?: number | string;
+    completion_notes?: string;
+    review?: unknown;
+    status_history?: { status: string; notes: string; timestamp: string }[];
+    chats?: ChatMessage[];
+    user_id?: string;
+    provider?: BookingProvider;
+}
+
+interface ChatMessage {
+    sender_id?: string;
+    message?: string;
+    timestamp?: string;
+}
+
+interface ReceiptData {
+    booking_id: string | number;
+    service_type: string;
+    servicer_name: string;
+    completed_at: string;
+    is_emergency?: boolean;
+    callout_fee?: number;
+    extra_hours?: number;
+    hourly_rate?: number;
+    extra_charge?: number;
+    base_price?: number;
+    final_amount: number;
+}
+
 export default function BookingDetailsPage() {
     const { id } = useParams();
     const router = useRouter();
     const toast = useToast();
-    const [booking, setBooking] = useState<Record<string, unknown> | null>(null);
+    const [booking, setBooking] = useState<BookingData | null>(null);
     const [loading, setLoading] = useState(true);
-    const [messages, setMessages] = useState<Record<string, unknown>[]>([]);
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [newMessage, setNewMessage] = useState("");
     const [showCancel, setShowCancel] = useState(false);
     const [cancelReason, setCancelReason] = useState("");
@@ -35,7 +79,7 @@ export default function BookingDetailsPage() {
     const [punctualityRating, setPunctualityRating] = useState(0);
     const [professionalismRating, setProfessionalismRating] = useState(0);
     const [submittingReview, setSubmittingReview] = useState(false);
-    const [receipt, setReceipt] = useState<Record<string, unknown> | null>(null);
+    const [receipt, setReceipt] = useState<ReceiptData | null>(null);
     const [confirming, setConfirming] = useState(false);
     const [showDispute, setShowDispute] = useState(false);
     const [disputeReason, setDisputeReason] = useState("");
@@ -61,12 +105,14 @@ export default function BookingDetailsPage() {
     };
 
     useEffect(() => {
-        fetchData();
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        void fetchData();
     }, [id]);
 
     // Auto-prompt review modal when USER visits a completed booking with no review
     useEffect(() => {
         if (!loading && booking && booking.status === "Completed" && userRole === "USER" && !booking.review) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setShowReview(true);
         }
     }, [loading, booking, userRole]);
@@ -253,20 +299,20 @@ export default function BookingDetailsPage() {
                             </div>
                             <div className="text-right">
                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                                    {booking.status === "Completed" && booking.final_cost ? "Final Cost" : "Estimated Cost"}
+                                    {(booking.status === "Completed" || booking.status === "Pending Confirmation") && booking.final_cost ? "Total Charge" : "Estimated Cost"}
                                 </p>
                                 <p className="text-4xl font-black text-slate-900 tracking-tighter">
-                                    {booking.status === "Completed" && booking.final_cost
+                                    {(booking.status === "Completed" || booking.status === "Pending Confirmation") && booking.final_cost
                                         ? `₹${Number(booking.final_cost).toLocaleString("en-IN")}`
-                                        : booking.estimated_cost != null
+                                        : booking.estimated_cost
                                             ? `₹${Number(booking.estimated_cost).toLocaleString("en-IN")}`
                                             : "—"}
                                 </p>
-                                {booking.status === "Completed" && booking.final_cost && booking.estimated_cost && (
+                                {(booking.status === "Completed" || booking.status === "Pending Confirmation") && booking.final_cost && booking.estimated_cost ? (
                                     <p className="text-xs text-slate-400 mt-1">
                                         Est. ₹{Number(booking.estimated_cost).toLocaleString("en-IN")}
                                     </p>
-                                )}
+                                ) : null}
                             </div>
                         </div>
 
@@ -426,7 +472,7 @@ export default function BookingDetailsPage() {
                                         {new Date(receipt.completed_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                                     </p>
                                 </div>
-                                {receipt.extra_hours > 0 && (
+                                {(receipt.extra_hours ?? 0) > 0 && (
                                     <div>
                                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Extra Hours</p>
                                         <p className="font-black text-slate-900">{receipt.extra_hours}h</p>
@@ -498,7 +544,7 @@ export default function BookingDetailsPage() {
                                         }`}>
                                         {m.message}
                                         <p className={`text-[8px] mt-2 font-black uppercase opacity-40 ${m.sender_id === booking.user_id ? "text-right" : "text-left"}`}>
-                                            {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            {new Date(m.timestamp!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                         </p>
                                     </div>
                                 </div>

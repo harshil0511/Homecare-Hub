@@ -11,7 +11,8 @@ import {
 
 export default function BookingHistoryPage() {
     const router = useRouter();
-    const [bookings, setBookings] = useState<Record<string, unknown>[]>([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [bookings, setBookings] = useState<Record<string, any>[]>([]);
     const [loading, setLoading] = useState(true);
     const [categoryFilter, setCategoryFilter] = useState("All");
 
@@ -38,12 +39,12 @@ export default function BookingHistoryPage() {
                 </div>
 
                 <div className="flex items-center gap-4">
-                    <div className="bg-white border border-slate-200 p-2 rounded-2xl flex items-center gap-1 shadow-sm">
-                        {["All", "Plumbing", "Electrical", "Cleaning"].map((f) => (
+                    <div className="bg-white border border-slate-200 p-2 rounded-2xl flex items-center gap-1 shadow-sm overflow-x-auto">
+                        {["All", "AC Service", "Appliance Repair", "Home Cleaning", "Plumbing", "Electrical", "Pest Control", "Painting", "Carpentry", "General Maintenance"].map((f) => (
                             <button
                                 key={f}
                                 onClick={() => setCategoryFilter(f)}
-                                className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
                                     categoryFilter === f ? "bg-slate-900 text-white shadow-lg" : "text-slate-400 hover:text-slate-900"
                                 }`}
                             >
@@ -102,12 +103,22 @@ export default function BookingHistoryPage() {
                                 <div className="flex items-center gap-10">
                                     <div className="text-right hidden lg:block">
                                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Operation Cost</p>
-                                        <p className="text-xl font-black text-slate-900 tracking-tighter">${booking.estimated_cost?.toFixed(2) || "0.00"}</p>
+                                        <p className="text-xl font-black text-slate-900 tracking-tighter">
+                                            {(booking.final_cost || booking.estimated_cost)
+                                                ? `₹${Number(booking.final_cost || booking.estimated_cost).toLocaleString("en-IN")}`
+                                                : "—"}
+                                        </p>
                                     </div>
                                     <div className="flex items-center gap-3">
-                                        <button className="p-4 rounded-2xl bg-slate-50 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 transition-all">
-                                            <RefreshCw size={20} />
-                                        </button>
+                                        {(booking.status === "Completed" || booking.status === "Cancelled") && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); router.push("/user/providers"); }}
+                                                className="flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all"
+                                            >
+                                                <RefreshCw size={14} />
+                                                <span className="text-[10px] font-black uppercase tracking-widest">Book Again</span>
+                                            </button>
+                                        )}
                                         <button className="p-4 rounded-2xl bg-slate-50 text-slate-400 hover:text-blue-500 hover:bg-blue-50 transition-all">
                                             <Download size={20} />
                                         </button>

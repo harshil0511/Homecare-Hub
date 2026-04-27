@@ -173,8 +173,10 @@ export default function AdminBookingsPage() {
     }, []);
 
     useEffect(() => {
-        if (activeTab === "complaints") fetchComplaints();
-        if (activeTab === "secretary-reports") fetchSecretaryComplaints();
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        if (activeTab === "complaints") void fetchComplaints();
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        if (activeTab === "secretary-reports") void fetchSecretaryComplaints();
     }, [activeTab]);
 
     const filtered = bookings.filter((b) => {

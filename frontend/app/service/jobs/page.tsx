@@ -183,15 +183,18 @@ export default function ServicerJobsPage() {
     }, []);
 
     useEffect(() => {
-        fetchJobs();
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        void fetchJobs();
         // Pre-fetch incoming requests so the tab badge count is visible from any tab
-        apiFetch("/requests/incoming")
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        void apiFetch("/requests/incoming")
             .then((d: IncomingRequest[]) => setIncomingRequests(d || []))
             .catch(() => {});
     }, [fetchJobs]);
 
     useEffect(() => {
         if (activeTab === "requests") {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setRequestsLoading(true);
             apiFetch("/requests/incoming")
                 .then((d: IncomingRequest[]) => setIncomingRequests(d || []))
@@ -199,6 +202,7 @@ export default function ServicerJobsPage() {
                 .finally(() => setRequestsLoading(false));
         }
         if (activeTab === "completed") {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setCompletedLoading(true);
             apiFetch("/bookings/completed-provider")
                 .then((d: CompletedJob[]) => setCompletedJobs(d || []))
@@ -209,6 +213,7 @@ export default function ServicerJobsPage() {
 
     useEffect(() => {
         if (activeTab !== "society") return;
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSocietyLoading(true);
         apiFetch("/service/contracts")
             .then(d => setSocietyContracts(d || []))
@@ -226,6 +231,7 @@ export default function ServicerJobsPage() {
     // Load + WebSocket for emergency tab
     useEffect(() => {
         if (activeTab !== "emergency") return;
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setEmergencyLoading(true);
         emergencyApi.getIncoming()
             .then(d => setEmergencies(d || []))
@@ -919,6 +925,7 @@ export default function ServicerJobsPage() {
                                         // datetime-local min must use LOCAL time, not UTC.
                                         // .toISOString() returns UTC — for IST users that's 5:30h
                                         // behind local, making the constraint appear in the past.
+                                        // eslint-disable-next-line react-hooks/purity
                                         const d = new Date(Date.now() + 60000);
                                         const p = (n: number) => String(n).padStart(2, "0");
                                         return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;

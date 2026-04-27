@@ -10,9 +10,15 @@ const STAGES = [
     { id: "Completed", label: "Completed", icon: CheckCircle2 },
 ];
 
+interface HistoryItem {
+    status: string;
+    notes: string;
+    timestamp: string;
+}
+
 interface BookingStatusTimelineProps {
     currentStatus: string;
-    history?: Record<string, unknown>[];
+    history?: HistoryItem[];
 }
 
 export default function BookingStatusTimeline({ currentStatus, history = [] }: BookingStatusTimelineProps) {

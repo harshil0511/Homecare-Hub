@@ -17,6 +17,8 @@ services:
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - PYTHONUNBUFFERED=1
+    volumes:
+      - uploads_data:/app/backend/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -67,3 +69,4 @@ networks:
 
 volumes:
   postgres_data:
+  uploads_data:

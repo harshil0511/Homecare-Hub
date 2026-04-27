@@ -174,17 +174,22 @@ export default function UserBookingsPage() {
     }
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadData();
+  }, [loadData]);
 
   useEffect(() => {
     if (activeTab === "history" && history.length === 0) {
-      apiFetch("/bookings/list?status=Completed").then(d => setHistory(Array.isArray(d) ? d : [])).catch(() => {});
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      void apiFetch("/bookings/list?status=Completed").then(d => setHistory(Array.isArray(d) ? d : [])).catch(() => {});
     }
   }, [activeTab, history.length]);
 
   // Sync URL param to tab state
   useEffect(() => {
     if (tabParam && tabParam !== activeTab) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setActiveTab(tabParam);
     }
   }, [tabParam, activeTab]);
@@ -710,13 +715,15 @@ export default function UserBookingsPage() {
             {!disputeMode ? (
               <div className="space-y-3">
                 <div className="flex gap-3">
-                  <button
-                    onClick={handleRejectCharge}
-                    disabled={rejectingCharge}
-                    className="flex-1 py-3 border border-rose-200 text-rose-600 rounded-2xl text-sm font-black uppercase hover:bg-rose-50 disabled:opacity-50"
-                  >
-                    {rejectingCharge ? "Rejecting..." : "Reject Charge"}
-                  </button>
+                  {!receiptModal.receipt.is_emergency && (
+                    <button
+                      onClick={handleRejectCharge}
+                      disabled={rejectingCharge}
+                      className="flex-1 py-3 border border-rose-200 text-rose-600 rounded-2xl text-sm font-black uppercase hover:bg-rose-50 disabled:opacity-50"
+                    >
+                      {rejectingCharge ? "Rejecting..." : "Reject Charge"}
+                    </button>
+                  )}
                   <button
                     onClick={handleConfirmPayment}
                     disabled={confirmingPayment}
@@ -729,7 +736,7 @@ export default function UserBookingsPage() {
                   onClick={() => setDisputeMode(true)}
                   className="w-full py-2 text-slate-400 text-xs font-black uppercase hover:text-rose-500 transition-colors"
                 >
-                  Flag to Admin
+                  {receiptModal.receipt.is_emergency ? "Report to Admin" : "Flag to Admin"}
                 </button>
               </div>
             ) : (

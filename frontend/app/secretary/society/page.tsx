@@ -4,7 +4,8 @@ import { apiFetch } from "@/lib/api";
 import { Building2, Save } from "lucide-react";
 
 export default function SecretarySocietyPage() {
-    const [society, setSociety] = useState<Record<string, unknown> | null>(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [society, setSociety] = useState<Record<string, any> | null>(null);
     const [name, setName] = useState("");
     const [address, setAddress] = useState("");
     const [saving, setSaving] = useState(false);

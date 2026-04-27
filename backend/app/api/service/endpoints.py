@@ -12,7 +12,7 @@ from app.common import deps
 from app.common.constants import ALLOWED_CATEGORIES
 from app.auth.domain.model import User, Society
 from app.auth.domain.model import society_trusted_providers
-from app.service.domain.model import ServiceProvider, ServiceCertificate, SocietyRequest
+from app.service.domain.model import ServiceProvider, ServiceCertificate, SocietyRequest, ProviderPoints
 from app.booking.domain.model import ServiceBooking, BookingReview
 from app.api.service.schemas import (
     SocietyCreate, SocietyResponse, SocietyUpdate,
@@ -859,3 +859,36 @@ def submit_verification(
         return {"message": "Verification successful. You are now a Verified Expert.", "verified": True}
     else:
         return {"message": "Upload at least one certificate to get verified.", "verified": False}
+
+
+@router.get("/providers/{provider_id}/points")
+def get_provider_points_history(
+    provider_id: UUID,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
+):
+    """Return the points history for a provider. Accessible by the provider themselves or an admin."""
+    provider = db.query(ServiceProvider).filter(ServiceProvider.id == provider_id).first()
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider not found")
+
+    is_own = provider.user_id == current_user.id
+    if not is_own and current_user.role != "ADMIN":
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    rows = (
+        db.query(ProviderPoints)
+        .filter(ProviderPoints.provider_id == provider_id)
+        .order_by(ProviderPoints.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": str(r.id),
+            "event_type": r.event_type,
+            "delta": r.delta,
+            "note": r.note,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]

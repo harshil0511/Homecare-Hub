@@ -51,6 +51,11 @@ def create_booking(
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
 
+    # Reject past dates
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+    if booking_in.scheduled_at <= now_utc:
+        raise HTTPException(status_code=400, detail="Booking must be scheduled in the future.")
+
     # Time-conflict check: reject if provider already has an active booking within ± window
     window_start = booking_in.scheduled_at - timedelta(hours=BOOKING_CONFLICT_WINDOW_HOURS)
     window_end = booking_in.scheduled_at + timedelta(hours=BOOKING_CONFLICT_WINDOW_HOURS)
@@ -236,9 +241,10 @@ def update_booking_status(
             notes=f"Status changed from {old_status} to {new_status} by {'provider' if is_provider else 'client'}"
         ))
 
-        # Emergency acceptance bonus: boost provider rating by 0.2 (capped at 5.0)
+        # Emergency acceptance bonus: award 20 pts via point engine (keeps rating consistent)
         if new_status == "Accepted" and booking.priority == "Emergency" and is_provider and provider:
-            provider.rating = (provider.rating or 0) + 0.2
+            award_points(db, provider.id, "EMERGENCY_ACCEPT_BONUS", source_id=booking.id,
+                         custom_delta=20.0, note="Emergency booking accepted")
 
         # Reset provider availability when booking is completed
         if new_status == "Completed" and provider:
@@ -303,6 +309,10 @@ def reschedule_booking(
     is_provider = profile is not None and booking.provider_id == profile.id
     if not is_client and not is_provider:
         raise HTTPException(status_code=403, detail="Access denied")
+
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+    if reschedule_in.new_date <= now_utc:
+        raise HTTPException(status_code=400, detail="New date must be in the future.")
 
     booking.scheduled_at = reschedule_in.new_date
 
@@ -650,6 +660,12 @@ def reject_charge(
             detail=f"Booking is '{booking.status}' \u2014 must be 'Pending Confirmation' to reject charge"
         )
 
+    if booking.source_type == "emergency":
+        raise HTTPException(
+            status_code=400,
+            detail="Emergency SOS charges cannot be rejected. Use 'Report to Admin' if you have a dispute."
+        )
+
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     booking.status = "Cancelled"
 
@@ -849,6 +865,21 @@ def send_message(
         message=message_in.message
     )
     db.add(db_message)
+
+    # Notify the other party about the new message
+    other_user_id = booking.user_id if is_provider else None
+    if not is_provider and profile:
+        _provider = db.query(ServiceProvider).filter(ServiceProvider.id == booking.provider_id).first()
+        other_user_id = _provider.user_id if _provider else None
+    if other_user_id:
+        db.add(Notification(
+            user_id=other_user_id,
+            title="New Message in Booking",
+            message=f"You have a new message about your {booking.service_type} booking.",
+            notification_type="INFO",
+            link=f"/user/bookings/{booking.id}" if is_provider else "/service/jobs",
+        ))
+
     db.commit()
     db.refresh(db_message)
     return db_message

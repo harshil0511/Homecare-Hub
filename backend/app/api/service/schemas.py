@@ -179,6 +179,7 @@ class MonthlyStatEntry(BaseModel):
     jobs: int
     points_earned: float
     rating_end: float
+    earnings: float = 0.0
 
 
 class PointsBreakdown(BaseModel):
@@ -198,6 +199,7 @@ class ProviderAnalyticsRead(BaseModel):
     total_points: float
     current_rating: float
     completion_rate: float
+    total_earnings: float = 0.0
     points_breakdown: PointsBreakdown
     recent_point_log: List[PointLogEntry] = []
     monthly_stats: List[MonthlyStatEntry] = []

@@ -33,6 +33,8 @@ def change_password(
 ):
     if not security.verify_password(data.current_password, current_user.hashed_password):
         raise HTTPException(status_code=400, detail="Current password is incorrect.")
+    if data.current_password == data.new_password:
+        raise HTTPException(status_code=400, detail="New password must be different from your current password.")
     validate_password(data.new_password)
     current_user.hashed_password = security.get_password_hash(data.new_password)
     db.add(current_user)

@@ -13,9 +13,12 @@ import Spinner from "@/components/ui/Spinner";
 import EmptyState from "@/components/ui/EmptyState";
 
 export default function ServicerDashboard() {
-    const [jobs, setJobs] = useState([]);
-    const [profile, setProfile] = useState<Record<string, unknown> | null>(null);
-    const [invitations, setInvitations] = useState<Record<string, unknown>[]>([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [jobs, setJobs] = useState<Record<string, any>[]>([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [profile, setProfile] = useState<Record<string, any> | null>(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [invitations, setInvitations] = useState<Record<string, any>[]>([]);
     const [loading, setLoading] = useState(true);
     const [updatingStatus, setUpdatingStatus] = useState(false);
     const [filterStatus, setFilterStatus] = useState("ACTIVE");
@@ -45,7 +48,10 @@ export default function ServicerDashboard() {
         }
     };
 
-    useEffect(() => { fetchData(); }, []);
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        void fetchData();
+    }, []);
 
     const handleInviteResponse = async (id: number, status: string) => {
         try {
@@ -74,7 +80,7 @@ export default function ServicerDashboard() {
         }
     };
 
-    const filteredJobs = (jobs as Record<string, unknown>[]).filter((j) => {
+    const filteredJobs = jobs.filter((j) => {
         if (filterStatus === "ALL") return true;
         if (filterStatus === "ACTIVE") return j.status !== "Completed" && j.status !== "Cancelled";
         return j.status === filterStatus.charAt(0) + filterStatus.slice(1).toLowerCase();
@@ -159,7 +165,7 @@ export default function ServicerDashboard() {
                         <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center"><DollarSign className="w-6 h-6" /></div>
                         <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded uppercase">Week 12</span>
                     </div>
-                    <p className="text-3xl font-black text-[#000000] tracking-tight">₹{(jobs as Record<string, unknown>[]).filter((j) => j.status === "Completed").reduce((sum: number, j) => sum + ((j.estimated_cost as number) || 0), 0).toFixed(2)}</p>
+                    <p className="text-3xl font-black text-[#000000] tracking-tight">₹{jobs.filter((j) => j.status === "Completed").reduce((sum: number, j) => sum + (j.estimated_cost || 0), 0).toFixed(2)}</p>
                     <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mt-1">Total Earnings</p>
                 </div>
                 <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm hover:shadow-md transition-all">
@@ -337,7 +343,7 @@ export default function ServicerDashboard() {
                     </div>
                 ) : (
                     <div className="divide-y divide-slate-50">
-                        {(filteredJobs as Record<string, unknown>[]).map((job) => (
+                        {filteredJobs.map((job) => (
                             <div key={job.id} className="px-10 py-8 hover:bg-slate-50/80 transition-all cursor-pointer group flex items-center justify-between">
                                 <div className="flex items-center gap-8">
                                     <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center group-hover:bg-[#064e3b] transition-colors">

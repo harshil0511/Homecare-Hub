@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import {
     Briefcase, Star, TrendingUp,
     AlertTriangle, Award, BarChart2,
-    Calendar, Activity, RefreshCw
+    Calendar, Activity, RefreshCw, IndianRupee
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import Spinner from "@/components/ui/Spinner";
@@ -30,6 +30,7 @@ interface MonthlyStatEntry {
     jobs: number;
     points_earned: number;
     rating_end: number;
+    earnings: number;
 }
 
 interface AnalyticsData {
@@ -41,6 +42,7 @@ interface AnalyticsData {
     total_points: number;
     current_rating: number;
     completion_rate: number;
+    total_earnings: number;
     points_breakdown: PointsBreakdown;
     recent_point_log: PointLogEntry[];
     monthly_stats: MonthlyStatEntry[];
@@ -384,8 +386,9 @@ export default function ServicerAnalyticsPage() {
     }, []);
 
     useEffect(() => {
-        fetchAnalytics();
-        const interval = setInterval(() => fetchAnalytics(), AUTO_REFRESH_MS);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        void fetchAnalytics();
+        const interval = setInterval(() => { void fetchAnalytics(); }, AUTO_REFRESH_MS);
         return () => clearInterval(interval);
     }, [fetchAnalytics]);
 
@@ -465,7 +468,7 @@ export default function ServicerAnalyticsPage() {
             </div>
 
             {/* Section 1: Summary stat cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                 <div className="bg-white border border-slate-200 p-8 rounded-[2.5rem] shadow-sm hover:-translate-y-1 transition-all">
                     <div className="w-14 h-14 bg-emerald-50 text-[#064e3b] rounded-2xl flex items-center justify-center mb-6">
                         <Briefcase className="w-7 h-7" />
@@ -518,6 +521,18 @@ export default function ServicerAnalyticsPage() {
                             style={{ width: `${Math.min(data.completion_rate, 100)}%` }}
                         />
                     </div>
+                </div>
+
+                <div className="bg-white border border-slate-200 p-8 rounded-[2.5rem] shadow-sm hover:-translate-y-1 transition-all">
+                    <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-6">
+                        <IndianRupee className="w-7 h-7" />
+                    </div>
+                    <p className="text-4xl font-black text-[#000000] tracking-tighter">
+                        {data.total_earnings > 0
+                            ? `₹${data.total_earnings.toLocaleString("en-IN")}`
+                            : "₹0"}
+                    </p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Total Earned</p>
                 </div>
             </div>
 

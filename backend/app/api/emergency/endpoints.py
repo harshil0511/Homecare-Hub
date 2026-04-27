@@ -23,6 +23,7 @@ from app.api.emergency.schemas import (
     EmergencyResponseCreate, EmergencyResponseRead,
     IncomingEmergencyRead,
 )
+from app.api.service.schemas import ProviderResponse
 
 logger = logging.getLogger(__name__)
 
@@ -69,22 +70,18 @@ def get_active_emergency(
     return em
 
 
-@router.get("/providers")
+@router.get("/providers", response_model=List[ProviderResponse])
 def get_available_providers(
-    category: Optional[str] = None,
     db: Session = Depends(deps.get_db),
     _: User = Depends(user_or_secretary),
 ):
-    """List all available providers for emergency SOS selection (no verification required)."""
-    query = db.query(ServiceProvider).filter(
-        ServiceProvider.availability_status == "AVAILABLE",
+    """All AVAILABLE providers for emergency SOS — no category filter, sorted by rating."""
+    return (
+        db.query(ServiceProvider)
+        .filter(ServiceProvider.availability_status == "AVAILABLE")
+        .order_by(ServiceProvider.rating.desc())
+        .all()
     )
-    if category:
-        query = query.filter(
-            (ServiceProvider.category == category) |
-            (ServiceProvider.categories.like(f"%{category}%"))
-        )
-    return query.order_by(ServiceProvider.rating.desc()).all()
 
 
 @router.post("/", response_model=EmergencyRequestRead)
@@ -137,7 +134,7 @@ async def create_emergency_request(
         landmark=request_in.landmark,
         full_address=request_in.full_address,
         category=request_in.category,
-        description=request_in.description,
+        description=request_in.description or "",
         device_name=request_in.device_name,
         photos=json.dumps(request_in.photos) if request_in.photos else None,
         contact_name=request_in.contact_name,
@@ -307,6 +304,7 @@ async def accept_emergency_response(
         estimated_cost=0.0,
         status="Accepted",
         source_type="emergency",
+        source_id=request_id,
     )
     db.add(booking)
     db.flush()  # get booking.id

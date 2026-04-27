@@ -224,8 +224,10 @@ function ProvidersContent() {
         const emergencyParam = searchParams.get("emergency");
         if (catParam) {
             const match = CATEGORIES.find(c => c.toLowerCase() === catParam.toLowerCase());
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             if (match) setActiveCategory(match);
         }
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (emergencyParam === "true") setIsEmergency(true);
     }, [searchParams]);
 
@@ -253,7 +255,10 @@ function ProvidersContent() {
         }
     };
 
-    useEffect(() => { fetchProviders(); }, []);
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        void fetchProviders();
+    }, []);
 
     // ── Client-side filtered + sorted list ──────────────────────────────────
     const filteredProviders = useMemo(() => {

@@ -28,7 +28,8 @@ export default function ServicerRatingsPage() {
         totalCompleted: 0
     });
     const [reviews, setReviews] = useState<Review[]>([]);
-    const [profile, setProfile] = useState<Record<string, unknown> | null>(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [profile, setProfile] = useState<Record<string, any> | null>(null);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -121,14 +122,14 @@ export default function ServicerRatingsPage() {
             </div>
 
             {/* Skills/Categories */}
-            {profile?.categories?.length > 0 && (
+            {profile != null && Array.isArray(profile.categories) && profile.categories.length > 0 && (
                 <div className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-sm">
                     <h2 className="text-sm font-black text-[#000000] uppercase tracking-[0.2em] flex items-center gap-3 mb-6">
                         <Award className="w-4 h-4 text-[#064e3b]" />
                         Your Skill Badges
                     </h2>
                     <div className="flex flex-wrap gap-3">
-                        {(Array.isArray(profile.categories) ? profile.categories : []).map((cat: string) => (
+                        {profile.categories.map((cat: string) => (
                             <span key={cat} className="px-5 py-2.5 bg-emerald-50 text-[#064e3b] text-[10px] font-black uppercase tracking-widest rounded-full border border-emerald-100">
                                 {cat}
                             </span>

@@ -40,6 +40,8 @@ def get_my_analytics(
     total_attempted = total_jobs + cancelled_jobs
     completion_rate = round((total_jobs / total_attempted * 100), 1) if total_attempted > 0 else 0.0
 
+    total_earnings = sum(b.final_cost or b.estimated_cost or 0 for b in all_bookings if b.status == "Completed")
+
     # ── Points ───────────────────────────────────────────────────────────────
     all_points = db.query(ProviderPoints).filter(
         ProviderPoints.provider_id == provider.id
@@ -100,6 +102,13 @@ def get_my_analytics(
             and b.created_at is not None
             and month_start <= b.created_at < next_month
         )
+        month_earnings = sum(
+            b.final_cost or b.estimated_cost or 0
+            for b in all_bookings
+            if b.status == "Completed"
+            and b.created_at is not None
+            and month_start <= b.created_at < next_month
+        )
         month_pts = sum(
             p.delta for p in all_points
             if p.created_at is not None and month_start <= p.created_at < next_month
@@ -116,6 +125,7 @@ def get_my_analytics(
             jobs=month_jobs,
             points_earned=round(month_pts, 1),
             rating_end=rating_end,
+            earnings=round(month_earnings, 2),
         ))
 
     return ProviderAnalyticsRead(
@@ -127,6 +137,7 @@ def get_my_analytics(
         total_points=round(total_points, 1),
         current_rating=round(provider.rating or 0.0, 2),
         completion_rate=completion_rate,
+        total_earnings=round(total_earnings, 2),
         points_breakdown=breakdown,
         recent_point_log=recent_log,
         monthly_stats=monthly_stats,

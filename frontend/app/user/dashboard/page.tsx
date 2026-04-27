@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
     ShieldCheck,
@@ -11,33 +11,41 @@ import {
     ChevronRight,
     Zap,
     X,
-    CheckCircle2,
     ArrowRight,
     ClipboardList,
     Bell,
     Search,
     Calendar,
+    AlarmClock,
+    Timer,
+    CalendarClock,
+    Siren,
+    CalendarCheck,
+    CircleCheck,
+    CircleX,
+    Pencil,
+    Save,
+    Loader2,
 } from "lucide-react";
 import { apiFetch, emergencyApi, EmergencyRequestRead } from "@/lib/api";
-import { page, card, stat, btn, form, modal, badge, iconBox } from "@/lib/ui";
+import { page, card, stat, btn, form, modal, iconBox } from "@/lib/ui";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import Spinner from "@/components/ui/Spinner";
 import EmptyState from "@/components/ui/EmptyState";
 
-interface MaintenanceTask {
-    id: number;
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface UserAlert {
+    id: string;
     title: string;
     description?: string;
-    due_date?: string;
+    due_date: string;
+    due_time?: string;
     status: string;
-    priority: string;
-    category?: string;
     warning_sent: boolean;
     final_sent: boolean;
-    overdue_sent: boolean;
-    booking_id?: number;
-    task_type?: string;
+    created_at: string;
+    completed_at?: string;
 }
 
 interface ActiveBooking {
@@ -59,32 +67,81 @@ interface StatCardProps {
     icon: React.ComponentType<{ className?: string }>;
     iconColor: string;
     iconBg: string;
-    onClick?: () => void;
-    isActive?: boolean;
 }
 
-const CATEGORIES = [
-    "Plumber", "Electrician", "HVAC Technician", "Appliance Repair",
-    "Pest Control", "Cleaning Service", "General Maintenance", "Bill Payment", "Other"
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const SERVICE_CATEGORIES = [
+    "AC Service", "Appliance Repair", "Home Cleaning", "Plumbing",
+    "Electrical", "Pest Control", "Painting", "Carpentry", "General Maintenance",
 ];
 
-const PRIORITY_BORDER: Record<string, string> = {
-    Routine: "border-l-emerald-400",
-    Mandatory: "border-l-amber-400",
-    Urgent: "border-l-rose-400",
-    Emergency: "border-l-rose-600",
+const BLANK = { service_type: "", description: "", due_date: "", due_time: "" };
+
+type DisplayStatus = "Active" | "Upcoming" | "Due Today" | "Overdue" | "Completed" | "Cancelled" | "Expired";
+
+const STATUS_CFG: Record<DisplayStatus, { label: string; badge: string; icon: React.ElementType }> = {
+    Active:      { label: "Active",    badge: "bg-emerald-50 text-emerald-700 border-emerald-100", icon: AlarmClock },
+    Upcoming:    { label: "Upcoming",  badge: "bg-amber-50 text-amber-700 border-amber-100",       icon: CalendarClock },
+    "Due Today": { label: "Due Today", badge: "bg-rose-50 text-rose-700 border-rose-100",           icon: Siren },
+    Overdue:     { label: "Overdue",   badge: "bg-red-50 text-red-700 border-red-100",              icon: Siren },
+    Completed:   { label: "Completed", badge: "bg-slate-50 text-slate-500 border-slate-100",        icon: CalendarCheck },
+    Cancelled:   { label: "Cancelled", badge: "bg-slate-50 text-slate-400 border-slate-100",        icon: CircleX },
+    Expired:     { label: "Expired",   badge: "bg-slate-50 text-slate-400 border-slate-100",        icon: CircleX },
 };
 
-const STATUS_BADGE: Record<string, string> = {
-    Pending:   "bg-slate-100 text-slate-500",
-    Active:    "bg-emerald-50 text-emerald-700",
-    Triggered: "bg-amber-50 text-amber-700",
-    Overdue:   "bg-rose-50 text-rose-600",
-    Assigned:  "bg-blue-50 text-blue-600",
-};
+// ── Utility helpers ───────────────────────────────────────────────────────────
 
-const StatCard = ({ title, value, icon: Icon, iconColor, iconBg, onClick, isActive }: StatCardProps) => (
-    <div onClick={onClick} className={`${stat.tile} ${isActive ? stat.tileActive : ''}`}>
+function getDisplayStatus(alert: UserAlert): DisplayStatus {
+    if (alert.status === "Completed") return "Completed";
+    if (alert.status === "Cancelled") return "Cancelled";
+    if (alert.status === "Expired")   return "Expired";
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const due   = new Date(alert.due_date); due.setHours(0, 0, 0, 0);
+    const diff  = Math.round((due.getTime() - today.getTime()) / 86400000);
+    if (diff < 0)  return "Overdue";
+    if (diff === 0) return "Due Today";
+    if (diff <= 2)  return "Upcoming";
+    return "Active";
+}
+
+function getCountdown(dueDate: string, dueTime: string | null | undefined, now: Date): string {
+    const target = new Date(dueDate);
+    if (dueTime) {
+        const [h, m] = dueTime.split(":");
+        target.setHours(parseInt(h), parseInt(m), 0, 0);
+    } else {
+        target.setHours(23, 59, 59, 999);
+    }
+    const diff = target.getTime() - now.getTime();
+    if (diff <= 0) return "Now";
+    const days  = Math.floor(diff / 86400000);
+    const hours = Math.floor((diff % 86400000) / 3600000);
+    const mins  = Math.floor((diff % 3600000) / 60000);
+    if (days > 0)  return `${days}d ${hours}h`;
+    if (hours > 0) return `${hours}h ${mins}m`;
+    return `${mins}m`;
+}
+
+function canMarkDone(dueDate: string): boolean {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const due   = new Date(dueDate); due.setHours(0, 0, 0, 0);
+    return due <= today;
+}
+
+function formatDueDate(dueDate: string, dueTime?: string): string {
+    const d = new Date(dueDate);
+    const dateStr = d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+    if (!dueTime) return dateStr;
+    const [h, m] = dueTime.split(":");
+    const hh = parseInt(h), ampm = hh >= 12 ? "PM" : "AM";
+    return `${dateStr} · ${hh % 12 || 12}:${m} ${ampm}`;
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+const StatCard = ({ title, value, icon: Icon, iconColor, iconBg }: StatCardProps) => (
+    <div className={stat.tile}>
         <div className={`${stat.icon} ${iconBg}`}>
             <Icon className={`w-4 h-4 ${iconColor}`} />
         </div>
@@ -95,93 +152,169 @@ const StatCard = ({ title, value, icon: Icon, iconColor, iconBg, onClick, isActi
     </div>
 );
 
-export default function DashboardPage() {
-    const router = useRouter();
-    const [tasks, setTasks] = useState<MaintenanceTask[]>([]);
-    const [bookings, setBookings] = useState<ActiveBooking[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [activeEmergency, setActiveEmergency] = useState<EmergencyRequestRead | null>(null);
-    const [showTaskModal, setShowTaskModal] = useState(false);
-    const [newTask, setNewTask] = useState({ title: "", description: "", due_date: "", priority: "Routine", category: "" });
+// ── Page ──────────────────────────────────────────────────────────────────────
 
-    const fetchData = async () => {
+export default function DashboardPage() {
+    const [userAlerts, setUserAlerts]         = useState<UserAlert[]>([]);
+    const [bookings, setBookings]             = useState<ActiveBooking[]>([]);
+    const [loading, setLoading]               = useState(true);
+    const [activeEmergency, setActiveEmergency] = useState<EmergencyRequestRead | null>(null);
+
+    // Create Reminder modal
+    const [showTaskModal, setShowTaskModal]   = useState(false);
+    const [newTask, setNewTask]               = useState(BLANK);
+    const [taskSaving, setTaskSaving]         = useState(false);
+
+    // Inline edit
+    const [editId, setEditId]                 = useState<string | null>(null);
+    const [editForm, setEditForm]             = useState(BLANK);
+    const [editSaving, setEditSaving]         = useState(false);
+
+    // Action loading (mark done / cancel)
+    const [actionLoading, setActionLoading]   = useState<string | null>(null);
+
+    // Live countdown
+    const [now, setNow] = useState(new Date());
+    useEffect(() => {
+        const id = setInterval(() => setNow(new Date()), 60000);
+        return () => clearInterval(id);
+    }, []);
+
+    // ── Fetchers ──────────────────────────────────────────────────────────────
+
+    const fetchAlerts = useCallback(async () => {
+        try { setUserAlerts(await apiFetch("/maintenance/alerts/")); }
+        catch { /* silent */ }
+    }, []);
+
+    const fetchData = useCallback(async () => {
         try {
-            const [userTasks, userBookings] = await Promise.allSettled([
-                apiFetch("/maintenance"),
+            const [alertsRes, bookingsRes] = await Promise.allSettled([
+                apiFetch("/maintenance/alerts/"),
                 apiFetch("/bookings/list"),
             ]);
-            if (userTasks.status === "fulfilled") setTasks(userTasks.value ?? []);
-            if (userBookings.status === "fulfilled") setBookings(userBookings.value ?? []);
+            if (alertsRes.status === "fulfilled")  setUserAlerts(alertsRes.value ?? []);
+            if (bookingsRes.status === "fulfilled") setBookings(bookingsRes.value ?? []);
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchData();
         emergencyApi.getActive()
             .then(em => setActiveEmergency(em))
             .catch(() => setActiveEmergency(null));
-    }, []);
+    }, [fetchData]);
+
+    // ── Create Reminder ───────────────────────────────────────────────────────
 
     const handleCreateTask = async (e: React.FormEvent) => {
         e.preventDefault();
+        setTaskSaving(true);
         try {
-            await apiFetch("/maintenance", { method: "POST", body: JSON.stringify(newTask) });
+            await apiFetch("/maintenance/alerts/", {
+                method: "POST",
+                body: JSON.stringify({
+                    service_type: newTask.service_type,
+                    description:  newTask.description || null,
+                    due_date:     newTask.due_date,
+                    due_time:     newTask.due_time || null,
+                }),
+            });
             setShowTaskModal(false);
-            setNewTask({ title: "", description: "", due_date: "", priority: "Routine", category: "" });
-            fetchData();
+            setNewTask(BLANK);
+            fetchAlerts();
         } catch (err) {
-            alert((err as Error).message || "Failed to create alert");
+            alert((err as Error).message || "Failed to create reminder");
+        } finally {
+            setTaskSaving(false);
         }
     };
 
-    const markDone = async (id: number) => {
+    // ── Inline edit ───────────────────────────────────────────────────────────
+
+    const openEdit = (alert: UserAlert) => {
+        setEditId(alert.id);
+        setEditForm({
+            service_type: alert.title,
+            description:  alert.description || "",
+            due_date:     alert.due_date,
+            due_time:     alert.due_time ? alert.due_time.slice(0, 5) : "",
+        });
+    };
+
+    const cancelEdit = () => { setEditId(null); setEditForm(BLANK); };
+
+    const handleEditSave = async () => {
+        if (!editId || !editForm.service_type || !editForm.due_date) return;
+        setEditSaving(true);
         try {
-            await apiFetch(`/maintenance/${id}`, {
+            await apiFetch(`/maintenance/alerts/${editId}`, {
                 method: "PATCH",
-                body: JSON.stringify({ status: "Completed", completion_method: "manual" })
+                body: JSON.stringify({
+                    service_type: editForm.service_type,
+                    description:  editForm.description || null,
+                    due_date:     editForm.due_date,
+                    due_time:     editForm.due_time || null,
+                }),
             });
-            fetchData();
-        } catch (err) {
-            console.error("Failed to mark done", err);
-        }
+            cancelEdit();
+            fetchAlerts();
+        } catch { /* silent */ }
+        finally { setEditSaving(false); }
     };
 
-    const dismissAlert = async (id: number) => {
+    // ── Mark Done / Cancel ────────────────────────────────────────────────────
+
+    const handleMarkDone = async (alert: UserAlert) => {
+        setActionLoading(alert.id + "_done");
         try {
-            await apiFetch(`/maintenance/${id}`, {
+            await apiFetch(`/maintenance/alerts/${alert.id}`, {
                 method: "PATCH",
-                body: JSON.stringify({ status: "Cancelled", completion_method: "cancelled" })
+                body: JSON.stringify({ status: "Completed" }),
             });
-            fetchData();
-        } catch (err) {
-            console.error("Failed to dismiss", err);
-        }
+            fetchAlerts();
+        } catch { /* silent */ }
+        finally { setActionLoading(null); }
     };
 
+    const handleCancel = async (alert: UserAlert) => {
+        if (!confirm(`Cancel the "${alert.title}" reminder?`)) return;
+        setActionLoading(alert.id + "_cancel");
+        try {
+            await apiFetch(`/maintenance/alerts/${alert.id}`, {
+                method: "PATCH",
+                body: JSON.stringify({ status: "Cancelled" }),
+            });
+            fetchAlerts();
+        } catch { /* silent */ }
+        finally { setActionLoading(null); }
+    };
 
-    const activeAlerts = tasks.filter(t =>
-        ["Pending", "Active", "Triggered", "Overdue", "Assigned"].includes(t.status)
-    ).sort((taskA, taskB) => {
-        const order: Record<string, number> = { Overdue: 0, Triggered: 1, Assigned: 2, Active: 3, Pending: 4 };
-        const oa = order[taskA.status] ?? 5;
-        const ob = order[taskB.status] ?? 5;
-        if (oa !== ob) return oa - ob;
-        const da = taskA.due_date ? new Date(taskA.due_date).getTime() : Infinity;
-        const db2 = taskB.due_date ? new Date(taskB.due_date).getTime() : Infinity;
-        return da - db2;
-    });
+    // ── Derived state ─────────────────────────────────────────────────────────
 
     const activeBookings = bookings.filter(b =>
         b.status === "Accepted" || b.status === "In Progress"
     );
 
-    const overdueCount = activeAlerts.filter(t => t.status === "Overdue").length;
-    const triggeredCount = activeAlerts.filter(t => t.status === "Triggered").length;
+    const activeCount  = userAlerts.filter(a => !["Completed","Cancelled","Expired"].includes(getDisplayStatus(a))).length;
+    const overdueCount = userAlerts.filter(a => getDisplayStatus(a) === "Overdue").length;
+    const dueSoonCount = userAlerts.filter(a => { const s = getDisplayStatus(a); return s === "Due Today" || s === "Upcoming"; }).length;
+
+    // Sort: Overdue → Due Today → Upcoming → Active, then by due_date asc
+    const sortedAlerts = [...userAlerts].sort((a, b) => {
+        const order: Record<string, number> = { Overdue: 0, "Due Today": 1, Upcoming: 2, Active: 3, Completed: 4, Cancelled: 5, Expired: 6 };
+        const oa = order[getDisplayStatus(a)] ?? 7;
+        const ob = order[getDisplayStatus(b)] ?? 7;
+        if (oa !== ob) return oa - ob;
+        return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+    });
+
+    // ── JSX ───────────────────────────────────────────────────────────────────
 
     return (
-        <div className={`${page.wrapper}`}>
+        <div className={page.wrapper}>
             {/* Header */}
             <div className={page.header}>
                 <div className="space-y-0.5">
@@ -199,13 +332,13 @@ export default function DashboardPage() {
                         Emergency SOS
                     </Link>
                     <button onClick={() => setShowTaskModal(true)} className={btn.primary}>
-                        <Zap className="w-3.5 h-3.5" />
-                        Create Alert
+                        <AlarmClock className="w-3.5 h-3.5" />
+                        Create Reminder
                     </button>
                 </div>
             </div>
 
-            {/* ── Active Emergency Banner ── */}
+            {/* Active Emergency Banner */}
             {activeEmergency && (
                 <Link
                     href="/user/bookings/emergency"
@@ -224,123 +357,245 @@ export default function DashboardPage() {
 
             {/* Stat Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard title="Active Alerts" value={activeAlerts.length} icon={Bell} iconBg="bg-emerald-50" iconColor="text-emerald-700" />
-                <StatCard title="Overdue" value={overdueCount} icon={AlertCircle} iconBg="bg-rose-50" iconColor="text-rose-600" />
-                <StatCard title="Due Soon" value={triggeredCount} icon={Clock} iconBg="bg-amber-50" iconColor="text-amber-600" />
-                <StatCard title="Active Bookings" value={activeBookings.length} icon={ClipboardList} iconBg="bg-slate-100" iconColor="text-slate-600" />
+                <StatCard title="Active Reminders" value={activeCount}       icon={Bell}        iconBg="bg-emerald-50" iconColor="text-emerald-700" />
+                <StatCard title="Overdue"           value={overdueCount}     icon={AlertCircle} iconBg="bg-rose-50"    iconColor="text-rose-600"   />
+                <StatCard title="Due Soon"          value={dueSoonCount}     icon={Clock}       iconBg="bg-amber-50"   iconColor="text-amber-600"  />
+                <StatCard title="Active Bookings"   value={activeBookings.length} icon={ClipboardList} iconBg="bg-slate-100" iconColor="text-slate-600" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-                {/* ── Active Log Alerts ── */}
-                <div className={`lg:col-span-3 ${card.base} ${card.pad} space-y-4`}>
-                    <div className="flex items-center justify-between">
-                        <h2 className={`${card.title} flex items-center gap-2`}>
-                            <Bell className="w-4 h-4 text-[#064e3b]" />
-                            Active Log Alerts
-                        </h2>
-                        <Link href="/user/alerts" className="text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-[#064e3b] transition-colors">
-                            History ↗
-                        </Link>
-                    </div>
-
-                    {loading ? (
-                        <Spinner />
-                    ) : activeAlerts.length === 0 ? (
-                        <EmptyState
-                            icon={Bell}
-                            title="No Active Alerts"
-                            action={{ label: "Create First Alert", onClick: () => setShowTaskModal(true) }}
-                        />
-                    ) : (
-                        <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
-                            {activeAlerts.map(task => {
-                                const isOverdue = task.status === "Overdue";
-                                const isTriggered = task.status === "Triggered";
-                                const borderColor = isOverdue || isTriggered
-                                    ? "border-l-rose-500"
-                                    : PRIORITY_BORDER[task.priority] ?? "border-l-slate-300";
-
-                                return (
-                                    <div
-                                        key={task.id}
-                                        className={`border border-slate-100 border-l-4 ${borderColor} rounded-xl p-4 bg-white hover:shadow-sm transition-all space-y-3`}
-                                    >
-                                        {/* Card header */}
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-widest ${
-                                                    isOverdue ? badge.danger :
-                                                    isTriggered ? "bg-amber-50 text-amber-700" :
-                                                    task.priority === "Urgent" ? badge.danger :
-                                                    task.priority === "Mandatory" ? badge.warning : badge.neutral
-                                                }`}>
-                                                    {task.priority}
-                                                </span>
-                                                <h4 className="text-xs font-black text-slate-800 uppercase tracking-tight">{task.title}</h4>
-                                            </div>
-                                            <div className="flex items-center gap-2 flex-shrink-0">
-                                                {task.due_date && (
-                                                    <span className="text-[8px] text-slate-400 font-black uppercase">
-                                                        {new Date(task.due_date).toLocaleDateString()}
-                                                    </span>
-                                                )}
-                                                <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-widest ${STATUS_BADGE[task.status] ?? "bg-slate-100 text-slate-500"}`}>
-                                                    {task.status}
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {/* Description */}
-                                        {task.description && (
-                                            <p className="text-[10px] text-slate-500 leading-relaxed">{task.description}</p>
-                                        )}
-
-                                        {/* Category */}
-                                        {task.category && (
-                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
-                                                Category: {task.category}
-                                            </p>
-                                        )}
-
-                                        {/* Footer actions */}
-                                        <div className="flex items-center gap-2 pt-1 border-t border-slate-50">
-                                            {task.booking_id ? (
-                                                <Link
-                                                    href={`/user/bookings/${task.booking_id}`}
-                                                    className="bg-[#064e3b] text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#053e2f] transition-all active:scale-95 flex items-center gap-2"
-                                                >
-                                                    <ArrowRight className="w-3 h-3" />
-                                                    View Booking
-                                                </Link>
-                                            ) : (
-                                                <Link
-                                                    href={`/user/providers${task.category ? `?category=${encodeURIComponent(task.category)}` : ""}`}
-                                                    className="bg-[#064e3b] text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#053e2f] transition-all active:scale-95 flex items-center gap-2"
-                                                >
-                                                    <Search className="w-3 h-3" />
-                                                    Find Servicer
-                                                </Link>
-                                            )}
-                                            <button
-                                                onClick={() => markDone(task.id)}
-                                                className="px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 text-slate-600 hover:border-emerald-300 hover:text-emerald-700 transition-all active:scale-95 flex items-center gap-1.5"
-                                            >
-                                                <CheckCircle2 className="w-3 h-3" />
-                                                Mark Done
-                                            </button>
-                                            <button
-                                                onClick={() => dismissAlert(task.id)}
-                                                className="ml-auto w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 hover:text-rose-400 hover:bg-rose-50 transition-all"
-                                                title="Dismiss"
-                                            >
-                                                <X className="w-3.5 h-3.5" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                {/* ── My Reminders ── */}
+                <div className="lg:col-span-3">
+                    <div className={`${card.base} overflow-hidden`}>
+                        {/* Panel header */}
+                        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
+                            <h2 className="flex items-center gap-2 text-[10px] font-black text-slate-500 uppercase tracking-[0.25em]">
+                                <AlarmClock className="w-3.5 h-3.5 text-[#064e3b]" />
+                                My Reminders
+                                {activeCount > 0 && (
+                                    <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded text-[8px] font-black">
+                                        {activeCount} active
+                                    </span>
+                                )}
+                                {overdueCount > 0 && (
+                                    <span className="px-1.5 py-0.5 bg-rose-50 text-rose-600 border border-rose-100 rounded text-[8px] font-black">
+                                        {overdueCount} overdue
+                                    </span>
+                                )}
+                            </h2>
+                            <Link href="/user/alerts" className="text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-[#064e3b] transition-colors">
+                                All Reminders ↗
+                            </Link>
                         </div>
-                    )}
+
+                        {/* List */}
+                        {loading ? (
+                            <Spinner />
+                        ) : sortedAlerts.length === 0 ? (
+                            <div className="p-8">
+                                <EmptyState
+                                    icon={AlarmClock}
+                                    title="No Reminders Yet"
+                                    action={{ label: "Create First Reminder", onClick: () => setShowTaskModal(true) }}
+                                />
+                            </div>
+                        ) : (
+                            <div className="divide-y divide-slate-100 max-h-[520px] overflow-y-auto">
+                                {sortedAlerts.map(alert => {
+                                    const ds        = getDisplayStatus(alert);
+                                    const cfg       = STATUS_CFG[ds];
+                                    const StatusIcon = cfg.icon;
+                                    const isActive  = !["Completed", "Cancelled", "Expired"].includes(ds);
+                                    const isDone    = actionLoading === alert.id + "_done";
+                                    const isCxl     = actionLoading === alert.id + "_cancel";
+                                    const doneOk    = canMarkDone(alert.due_date);
+                                    const isEditing = editId === alert.id;
+
+                                    return (
+                                        <div key={alert.id}>
+                                            {/* Normal row */}
+                                            {!isEditing && (
+                                                <div className="flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50/60 transition-all">
+                                                    {/* Status icon */}
+                                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 border ${
+                                                        ds === "Due Today" || ds === "Overdue" ? "bg-rose-50 border-rose-100" :
+                                                        ds === "Upcoming"                      ? "bg-amber-50 border-amber-100" :
+                                                        ds === "Active"                        ? "bg-emerald-50 border-emerald-100" :
+                                                        "bg-slate-50 border-slate-100"
+                                                    }`}>
+                                                        <StatusIcon className={`w-3.5 h-3.5 ${
+                                                            ds === "Due Today" || ds === "Overdue" ? "text-rose-500" :
+                                                            ds === "Upcoming"                      ? "text-amber-500" :
+                                                            ds === "Active"                        ? "text-emerald-600" :
+                                                            "text-slate-400"
+                                                        }`} />
+                                                    </div>
+
+                                                    {/* Info */}
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                                                            <p className="text-xs font-black text-slate-800 tracking-tight">{alert.title}</p>
+                                                            <span className={`text-[8px] font-black px-1.5 py-0.5 rounded border uppercase tracking-widest ${cfg.badge}`}>
+                                                                {cfg.label}
+                                                            </span>
+                                                        </div>
+                                                        {alert.description && (
+                                                            <p className="text-[10px] text-slate-400 font-medium truncate">{alert.description}</p>
+                                                        )}
+                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1 mt-0.5">
+                                                            <CalendarClock className="w-3 h-3" />
+                                                            {formatDueDate(alert.due_date, alert.due_time)}
+                                                        </p>
+                                                    </div>
+
+                                                    {/* Live countdown pill */}
+                                                    {isActive && (
+                                                        <div className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border flex-shrink-0 ${
+                                                            ds === "Due Today" || ds === "Overdue" ? "bg-rose-50 border-rose-100" :
+                                                            ds === "Upcoming"                      ? "bg-amber-50 border-amber-100" :
+                                                            "bg-emerald-50 border-emerald-100"
+                                                        }`}>
+                                                            <Timer className={`w-3 h-3 ${
+                                                                ds === "Due Today" || ds === "Overdue" ? "text-rose-500" :
+                                                                ds === "Upcoming"                      ? "text-amber-500" :
+                                                                "text-emerald-600"
+                                                            }`} />
+                                                            <span className={`text-[9px] font-black uppercase tracking-widest tabular-nums ${
+                                                                ds === "Due Today" || ds === "Overdue" ? "text-rose-700" :
+                                                                ds === "Upcoming"                      ? "text-amber-700" :
+                                                                "text-emerald-700"
+                                                            }`}>
+                                                                {ds === "Overdue"   ? "Overdue" :
+                                                                 ds === "Due Today" ? getCountdown(alert.due_date, alert.due_time, now) :
+                                                                 getCountdown(alert.due_date, alert.due_time, now)}
+                                                            </span>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Actions */}
+                                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                                        {isActive && (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => openEdit(alert)}
+                                                                    title="Edit"
+                                                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-all"
+                                                                >
+                                                                    <Pencil className="w-3 h-3" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => doneOk && handleMarkDone(alert)}
+                                                                    disabled={!doneOk || isDone}
+                                                                    title={doneOk ? "Mark done" : "Available on or after target date"}
+                                                                    className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all ${
+                                                                        doneOk
+                                                                            ? "text-emerald-600 hover:bg-emerald-50"
+                                                                            : "text-slate-200 cursor-not-allowed"
+                                                                    }`}
+                                                                >
+                                                                    {isDone
+                                                                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                                                                        : <CircleCheck className="w-3 h-3" />}
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleCancel(alert)}
+                                                                    disabled={isCxl}
+                                                                    title="Cancel reminder"
+                                                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-300 hover:bg-rose-50 hover:text-rose-500 transition-all"
+                                                                >
+                                                                    {isCxl
+                                                                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                                                                        : <CircleX className="w-3 h-3" />}
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                        {ds === "Completed" && (
+                                                            <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 uppercase tracking-widest">Done</span>
+                                                        )}
+                                                        {(ds === "Cancelled" || ds === "Expired") && (
+                                                            <span className="text-[8px] font-black text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-100 uppercase tracking-widest">{cfg.label}</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Inline edit row */}
+                                            {isEditing && (
+                                                <div className="px-5 py-4 bg-amber-50/40 border-l-4 border-amber-400">
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+                                                        <div>
+                                                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Service Type</label>
+                                                            <select
+                                                                value={editForm.service_type}
+                                                                onChange={e => setEditForm(f => ({ ...f, service_type: e.target.value }))}
+                                                                className="w-full bg-white border border-amber-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-amber-400 transition-all"
+                                                            >
+                                                                {SERVICE_CATEGORIES.map(cat => (
+                                                                    <option key={cat} value={cat}>{cat}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Description</label>
+                                                            <input
+                                                                type="text"
+                                                                value={editForm.description}
+                                                                onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                                                                className="w-full bg-white border border-amber-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-amber-400 transition-all"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Target Date</label>
+                                                            <input
+                                                                type="date"
+                                                                value={editForm.due_date}
+                                                                onChange={e => setEditForm(f => ({ ...f, due_date: e.target.value }))}
+                                                                className="w-full bg-white border border-amber-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-amber-400 transition-all"
+                                                            />
+                                                        </div>
+                                                        <div className="flex gap-2 items-end">
+                                                            <div className="flex-1">
+                                                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Time</label>
+                                                                <input
+                                                                    type="time"
+                                                                    value={editForm.due_time}
+                                                                    onChange={e => setEditForm(f => ({ ...f, due_time: e.target.value }))}
+                                                                    className="w-full bg-white border border-amber-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-amber-400 transition-all"
+                                                                />
+                                                            </div>
+                                                            <button
+                                                                onClick={handleEditSave}
+                                                                disabled={editSaving}
+                                                                className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex-shrink-0"
+                                                            >
+                                                                {editSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                                                                Save
+                                                            </button>
+                                                            <button
+                                                                onClick={cancelEdit}
+                                                                className="w-8 h-8 flex items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 transition-all flex-shrink-0"
+                                                            >
+                                                                <X className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* Footer link */}
+                        {sortedAlerts.length > 0 && (
+                            <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/40">
+                                <Link href="/user/alerts" className="text-[9px] font-black text-[#064e3b] uppercase tracking-widest hover:underline flex items-center gap-1">
+                                    Manage all reminders <ArrowRight className="w-3 h-3" />
+                                </Link>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Right Column */}
@@ -390,7 +645,7 @@ export default function DashboardPage() {
                             <div className="space-y-2">
                                 {activeBookings.slice(0, 4).map(b => {
                                     const providerName = b.provider
-                                        ? (b.provider.company_name || `${b.provider.first_name ?? ''} ${b.provider.last_name ?? ''}`.trim() || b.provider.owner_name || "Provider")
+                                        ? (b.provider.company_name || `${b.provider.first_name ?? ""} ${b.provider.last_name ?? ""}`.trim() || b.provider.owner_name || "Provider")
                                         : "Unassigned";
                                     return (
                                         <Link
@@ -424,16 +679,21 @@ export default function DashboardPage() {
                 </div>
             </div>
 
-            {/* Create Alert Modal */}
+            {/* Create Reminder Modal */}
             {showTaskModal && createPortal(
                 <div className={modal.overlay}>
                     <div className={modal.backdrop} onClick={() => setShowTaskModal(false)} />
                     <div className={modal.box}>
                         <div className={modal.pad}>
                             <div className="flex items-center justify-between">
-                                <div className="space-y-0.5">
-                                    <h2 className={modal.title}>New Log Alert</h2>
-                                    <p className={modal.subtitle}>Device Maintenance Timer</p>
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 bg-[#064e3b] rounded-xl flex items-center justify-center flex-shrink-0">
+                                        <AlarmClock className="w-4 h-4 text-white" />
+                                    </div>
+                                    <div className="space-y-0.5">
+                                        <h2 className={modal.title}>Create Reminder</h2>
+                                        <p className={modal.subtitle}>Set a service alert</p>
+                                    </div>
                                 </div>
                                 <button onClick={() => setShowTaskModal(false)} className={btn.icon}>
                                     <X className="w-4 h-4" />
@@ -441,20 +701,34 @@ export default function DashboardPage() {
                             </div>
                             <form onSubmit={handleCreateTask} className="space-y-4">
                                 <div className={form.group}>
-                                    <label className={form.label}>Device Name</label>
-                                    <input
-                                        placeholder="E.G., WATER PURIFIER, AC UNIT..."
-                                        value={newTask.title}
-                                        onChange={e => setNewTask({ ...newTask, title: e.target.value })}
-                                        className={form.input}
+                                    <label className={form.label}>Service Type *</label>
+                                    <select
+                                        value={newTask.service_type}
+                                        onChange={e => setNewTask({ ...newTask, service_type: e.target.value })}
+                                        className={form.select}
                                         required
+                                    >
+                                        <option value="">Select a service...</option>
+                                        {SERVICE_CATEGORIES.map(c => (
+                                            <option key={c} value={c}>{c}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className={form.group}>
+                                    <label className={form.label}>Description (Optional)</label>
+                                    <input
+                                        placeholder="e.g. Annual AC filter cleaning..."
+                                        value={newTask.description}
+                                        onChange={e => setNewTask({ ...newTask, description: e.target.value })}
+                                        className={form.input}
                                     />
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className={form.group}>
-                                        <label className={form.label}>End Date (Timer)</label>
+                                        <label className={form.label}>Target Date *</label>
                                         <input
                                             type="date"
+                                            min={new Date().toISOString().split("T")[0]}
                                             value={newTask.due_date}
                                             onChange={e => setNewTask({ ...newTask, due_date: e.target.value })}
                                             className={form.input}
@@ -462,44 +736,25 @@ export default function DashboardPage() {
                                         />
                                     </div>
                                     <div className={form.group}>
-                                        <label className={form.label}>Priority</label>
-                                        <select
-                                            value={newTask.priority}
-                                            onChange={e => setNewTask({ ...newTask, priority: e.target.value })}
-                                            className={form.select}
-                                        >
-                                            <option value="Routine">Routine</option>
-                                            <option value="Mandatory">Mandatory</option>
-                                            <option value="Urgent">Urgent</option>
-                                        </select>
+                                        <label className={form.label}>Time (Optional)</label>
+                                        <input
+                                            type="time"
+                                            value={newTask.due_time}
+                                            onChange={e => setNewTask({ ...newTask, due_time: e.target.value })}
+                                            className={form.input}
+                                        />
                                     </div>
                                 </div>
-                                <div className={form.group}>
-                                    <label className={form.label}>Service Category (Optional)</label>
-                                    <select
-                                        value={newTask.category}
-                                        onChange={e => setNewTask({ ...newTask, category: e.target.value })}
-                                        className={form.select}
-                                    >
-                                        <option value="">Select category...</option>
-                                        {CATEGORIES.map(c => (
-                                            <option key={c} value={c}>{c}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className={form.group}>
-                                    <label className={form.label}>Notes & Context</label>
-                                    <textarea
-                                        placeholder="ADDITIONAL DETAILS OR MODEL NUMBERS..."
-                                        rows={3}
-                                        value={newTask.description}
-                                        onChange={e => setNewTask({ ...newTask, description: e.target.value })}
-                                        className={form.textarea}
-                                    />
-                                </div>
-                                <button type="submit" className={`w-full justify-center ${btn.primary}`}>
-                                    <CheckCircle2 className="w-4 h-4" />
-                                    Initialize Alert
+                                <button
+                                    type="submit"
+                                    disabled={taskSaving}
+                                    className={`w-full justify-center ${btn.primary}`}
+                                >
+                                    {taskSaving
+                                        ? <Loader2 className="w-4 h-4 animate-spin" />
+                                        : <AlarmClock className="w-4 h-4" />
+                                    }
+                                    {taskSaving ? "Saving..." : "Set Reminder"}
                                 </button>
                             </form>
                         </div>

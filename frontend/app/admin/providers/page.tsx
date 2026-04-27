@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import {
     Wrench, Star, Phone, Mail, BadgeCheck, XCircle, Search,
     X, MapPin, DollarSign, ClipboardList, ShieldCheck, Eye,
-    AlertTriangle, ShieldAlert, UserCheck
+    AlertTriangle, ShieldAlert, UserCheck, FileText, ExternalLink
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import Spinner from "@/components/ui/Spinner";
@@ -24,6 +24,14 @@ interface Provider {
     availability_status: string;
 }
 
+interface ProviderCertificate {
+    id: string;
+    title: string;
+    category: string;
+    certificate_url: string | null;
+    is_verified: boolean;
+}
+
 interface ProviderDetail {
     id: string;
     name: string;
@@ -38,6 +46,7 @@ interface ProviderDetail {
     total_bookings: number;
     email: string;
     phone: string;
+    certificates: ProviderCertificate[];
 }
 
 const AVAIL_STYLE: Record<string, string> = {
@@ -475,6 +484,51 @@ export default function AdminProvidersPage() {
                                             </div>
                                         </div>
                                     )}
+
+                                    {/* Certificates */}
+                                    <div className="space-y-2">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">
+                                            Uploaded Certificates ({reviewProvider.certificates?.length ?? 0})
+                                        </p>
+                                        {(!reviewProvider.certificates || reviewProvider.certificates.length === 0) ? (
+                                            <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex items-center gap-3">
+                                                <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                                                <p className="text-xs font-semibold text-amber-700">No certificates uploaded. Review carefully before verifying.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {reviewProvider.certificates.map(cert => (
+                                                    <div key={cert.id} className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 gap-3">
+                                                        <div className="flex items-center gap-3 min-w-0">
+                                                            <div className="w-8 h-8 bg-white border border-slate-200 rounded-lg flex items-center justify-center flex-shrink-0">
+                                                                <FileText className="w-3.5 h-3.5 text-blue-600" />
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <p className="text-xs font-black text-slate-900 truncate">{cert.title || "Untitled"}</p>
+                                                                <div className="flex items-center gap-2 mt-0.5">
+                                                                    <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded uppercase">{cert.category}</span>
+                                                                    {cert.is_verified
+                                                                        ? <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded uppercase">Verified</span>
+                                                                        : <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded uppercase">Pending</span>
+                                                                    }
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        {cert.certificate_url && (
+                                                            <a
+                                                                href={cert.certificate_url.startsWith("/") ? `${process.env.NEXT_PUBLIC_API_URL}${cert.certificate_url}` : cert.certificate_url}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="flex items-center gap-1 text-[9px] font-black text-blue-600 uppercase tracking-widest hover:underline flex-shrink-0"
+                                                            >
+                                                                <ExternalLink className="w-3 h-3" /> View
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
 
                                     {/* Rejection reason input */}
                                     {showRejectInput && (

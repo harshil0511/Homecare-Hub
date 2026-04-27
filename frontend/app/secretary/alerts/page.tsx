@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import Spinner from "@/components/ui/Spinner";
 import EmptyState from "@/components/ui/EmptyState";
-import { Bell, Clock, Circle, CheckCircle2, X, AlertTriangle, Search } from "lucide-react";
+import { Bell, Clock, Circle, CheckCircle2, X, AlertTriangle, Search, Megaphone, Send } from "lucide-react";
 
 interface Alert { id: number; title: string; status: string; priority: string; created_at: string; user_id: number; }
 interface Member { id: number; username: string; email: string; is_active: boolean; }
@@ -39,6 +39,13 @@ export default function SecretaryAlertsPage() {
     const [statusFilter, setStatusFilter] = useState("All");
     const [priorityFilter, setPriorityFilter] = useState("All");
 
+    const [broadcastOpen, setBroadcastOpen] = useState(false);
+    const [broadcastTitle, setBroadcastTitle] = useState("");
+    const [broadcastMessage, setBroadcastMessage] = useState("");
+    const [broadcastSending, setBroadcastSending] = useState(false);
+    const [broadcastSuccess, setBroadcastSuccess] = useState<string | null>(null);
+    const [broadcastError, setBroadcastError] = useState<string | null>(null);
+
     useEffect(() => {
         Promise.all([
             apiFetch("/secretary/alerts").catch(() => []),
@@ -65,8 +72,96 @@ export default function SecretaryAlertsPage() {
     const openCount = alerts.filter(a => a.status === "PENDING" || a.status === "IN_PROGRESS").length;
     const highCount = alerts.filter(a => a.priority === "HIGH").length;
 
+    async function handleBroadcast(e: React.FormEvent) {
+        e.preventDefault();
+        setBroadcastSending(true);
+        setBroadcastSuccess(null);
+        setBroadcastError(null);
+        try {
+            const res = await apiFetch("/secretary/broadcast", {
+                method: "POST",
+                body: JSON.stringify({ title: broadcastTitle, message: broadcastMessage }),
+            });
+            setBroadcastSuccess(res.message ?? `Notice sent to ${res.sent} members`);
+            setBroadcastTitle("");
+            setBroadcastMessage("");
+            setBroadcastOpen(false);
+        } catch (err: unknown) {
+            setBroadcastError(err instanceof Error ? err.message : "Failed to send broadcast.");
+        } finally {
+            setBroadcastSending(false);
+        }
+    }
+
     return (
         <div className="space-y-8">
+            {/* Broadcast Notice */}
+            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+                <div className="flex items-center justify-between px-6 py-4">
+                    <div className="flex items-center gap-2">
+                        <Megaphone className="w-4 h-4 text-emerald-600" />
+                        <span className="text-sm font-black text-slate-900">Broadcast Notice</span>
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">— send a message to all society members</span>
+                    </div>
+                    <button
+                        onClick={() => { setBroadcastOpen(o => !o); setBroadcastSuccess(null); setBroadcastError(null); }}
+                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 ${
+                            broadcastOpen
+                                ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                : "bg-[#064e3b] text-white hover:bg-emerald-800"
+                        }`}
+                    >
+                        <Megaphone className="w-3.5 h-3.5" />
+                        {broadcastOpen ? "Cancel" : "Broadcast Notice"}
+                    </button>
+                </div>
+
+                {broadcastSuccess && !broadcastOpen && (
+                    <div className="px-6 pb-4">
+                        <p className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-2">{broadcastSuccess}</p>
+                    </div>
+                )}
+
+                {broadcastOpen && (
+                    <form onSubmit={handleBroadcast} className="px-6 pb-6 border-t border-slate-100 pt-4 space-y-4">
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Title</label>
+                            <input
+                                required
+                                value={broadcastTitle}
+                                onChange={e => setBroadcastTitle(e.target.value)}
+                                placeholder="e.g. Water Supply Interruption"
+                                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 outline-none focus:ring-2 focus:ring-emerald-600 transition-all placeholder:text-slate-400"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Message</label>
+                            <textarea
+                                required
+                                rows={3}
+                                value={broadcastMessage}
+                                onChange={e => setBroadcastMessage(e.target.value)}
+                                placeholder="Write your notice here..."
+                                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 outline-none focus:ring-2 focus:ring-emerald-600 transition-all placeholder:text-slate-400 resize-none"
+                            />
+                        </div>
+                        {broadcastError && (
+                            <p className="text-xs font-bold text-rose-700 bg-rose-50 border border-rose-100 rounded-xl px-4 py-2">{broadcastError}</p>
+                        )}
+                        <div className="flex justify-end">
+                            <button
+                                type="submit"
+                                disabled={broadcastSending}
+                                className="flex items-center gap-2 px-5 py-2.5 bg-[#064e3b] hover:bg-emerald-800 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all disabled:opacity-60"
+                            >
+                                <Send className="w-3.5 h-3.5" />
+                                {broadcastSending ? "Sending..." : "Send to All Members"}
+                            </button>
+                        </div>
+                    </form>
+                )}
+            </div>
+
             <div className="flex items-start justify-between">
                 <div>
                     <h1 className="text-2xl font-black text-slate-900 tracking-tight">Society Alerts</h1>

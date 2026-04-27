@@ -1,6 +1,6 @@
 import uuid
 import datetime
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Date
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Date, Time
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import relationship
 from app.core.db.base import Base
@@ -21,6 +21,8 @@ class MaintenanceTask(Base):
     task_type = Column(String, default="standard")
     booking_id = Column(PG_UUID(as_uuid=True), ForeignKey("service_bookings.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    due_time = Column(Time, nullable=True)
 
     warning_sent = Column(Boolean, default=False)
     final_sent = Column(Boolean, default=False)

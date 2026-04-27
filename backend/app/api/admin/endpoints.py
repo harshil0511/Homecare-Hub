@@ -38,11 +38,13 @@ def get_stats(
 
 @router.get("/users", response_model=List[UserResponse])
 def get_all_users(
+    limit: int = 200,
+    offset: int = 0,
     db: Session = Depends(deps.get_db),
     _: User = Depends(admin_only)
 ):
-    """List all registered users (all roles)."""
-    return db.query(User).order_by(User.id.desc()).all()
+    """List all registered users (all roles). Supports pagination via limit/offset."""
+    return db.query(User).order_by(User.id.desc()).offset(offset).limit(limit).all()
 
 
 @router.patch("/users/{user_uuid}/role")
@@ -126,11 +128,20 @@ def delete_user(
 
 @router.get("/bookings")
 def get_all_bookings(
+    limit: int = 200,
+    offset: int = 0,
+    status: Optional[str] = None,
+    flagged: Optional[bool] = None,
     db: Session = Depends(deps.get_db),
     _: User = Depends(admin_only)
 ):
-    """List all bookings in the system."""
-    bookings = db.query(ServiceBooking).order_by(ServiceBooking.id.desc()).all()
+    """List all bookings. Supports pagination (limit/offset), status filter, and flagged=true filter."""
+    query = db.query(ServiceBooking)
+    if status:
+        query = query.filter(ServiceBooking.status == status)
+    if flagged is not None:
+        query = query.filter(ServiceBooking.is_flagged == flagged)
+    bookings = query.order_by(ServiceBooking.id.desc()).offset(offset).limit(limit).all()
     return [
         {
             "id": b.id,
@@ -377,12 +388,15 @@ def get_provider_detail(
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found.")
 
+    certs = []
+    cert_count = 0
     try:
-        cert_count = db.query(ServiceCertificate).filter(
+        certs = db.query(ServiceCertificate).filter(
             ServiceCertificate.provider_id == provider_id
-        ).count()
+        ).all()
+        cert_count = len(certs)
     except Exception:
-        cert_count = 0
+        pass
     try:
         booking_count = db.query(ServiceBooking).filter(ServiceBooking.provider_id == provider_id).count()
     except Exception:
@@ -403,6 +417,16 @@ def get_provider_detail(
         "total_bookings": booking_count,
         "email": provider.email,
         "phone": provider.phone,
+        "certificates": [
+            {
+                "id": str(c.id),
+                "title": c.title,
+                "category": c.category,
+                "certificate_url": c.certificate_url,
+                "is_verified": c.is_verified,
+            }
+            for c in certs
+        ],
     }
 
 

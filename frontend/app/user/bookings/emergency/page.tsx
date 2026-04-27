@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import {
+    apiFetch,
     emergencyApi,
     createUserEmergencySocket,
     EmergencyConfig,
@@ -81,9 +82,14 @@ function EmergencySOSContent() {
     const wsRef = useRef<WebSocket | null>(null);
     const countdown = useCountdown(emergencyRequest?.expires_at ?? null);
 
-    // On mount: load configs + check for existing active emergency + handle pre-selected provider from Find Expert
+    // On mount: load configs + check for existing active emergency + prefill user info
     useEffect(() => {
         emergencyApi.getConfigs().then(setConfigs).catch(() => {});
+
+        // Pre-fill contact name from user profile
+        apiFetch("/user/me").then((me: Record<string, string>) => {
+            setForm(f => ({ ...f, contact_name: f.contact_name || (me.username ?? "") }));
+        }).catch(() => {});
 
         // Read URL params directly (safe in "use client" — runs client-side only)
         const params = new URLSearchParams(window.location.search);
@@ -192,7 +198,7 @@ function EmergencySOSContent() {
         // Always show provider selection — keep any pre-selected provider from Find Expert
         setProvidersLoading(true);
         setProviders([]);
-        emergencyApi.getProviders(form.category)
+        emergencyApi.getProviders()
             .then(list => setProviders(list || []))
             .catch(() => setProviders([]))
             .finally(() => setProvidersLoading(false));
@@ -214,12 +220,12 @@ function EmergencySOSContent() {
         try {
             const em = await emergencyApi.create({
                 society_name: form.society_name,
-                building_name: form.building_name,
-                flat_no: form.flat_no,
+                building_name: form.building_name || "",
+                flat_no: form.flat_no || "",
                 landmark: form.landmark,
                 full_address: form.full_address,
                 category: form.category,
-                description: form.description,
+                description: form.description || undefined,
                 device_name: form.device_name || undefined,
                 contact_name: form.contact_name,
                 contact_phone: form.contact_phone,
@@ -431,7 +437,7 @@ function EmergencySOSContent() {
                         </button>
                         <div>
                             <h2 className="text-lg font-black text-slate-900 uppercase">Select Experts</h2>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{form.category} · SOS broadcast to selected</p>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">All Available Experts · SOS broadcast to selected</p>
                         </div>
                     </div>
 
@@ -444,7 +450,7 @@ function EmergencySOSContent() {
                             <Users size={32} className="text-amber-500 mx-auto" />
                             <div>
                                 <p className="font-black text-amber-800 text-sm uppercase">No Experts Available Right Now</p>
-                                <p className="text-xs text-amber-600 mt-1">No experts are currently available for {form.category}.</p>
+                                <p className="text-xs text-amber-600 mt-1">No experts are currently available. You can still broadcast to all and wait.</p>
                             </div>
                             <button
                                 onClick={handleSubmit}
@@ -564,6 +570,7 @@ function EmergencySOSContent() {
                         {responses.map(r => {
                             const cfg = configFor(emergencyRequest.category);
                             const arrivalDate = new Date(r.arrival_time);
+                            // eslint-disable-next-line react-hooks/purity
                             const etaMinutes = Math.round((arrivalDate.getTime() - Date.now()) / 60000);
                             const arrivalLabel = arrivalDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
                             return (

@@ -104,6 +104,9 @@ export async function apiFetch(endpoint: string, options: ApiOptions = {}) {
         if ((err as Error).name === 'AbortError') {
             throw new Error("Request timed out. Please check your connection.");
         }
+        if ((err as Error).message === 'Failed to fetch' || (err as Error).message?.includes('NetworkError')) {
+            throw new Error("Unable to reach the server. Please check your connection and try again.");
+        }
         throw err;
     }
 }
@@ -203,7 +206,7 @@ export interface EmergencyRequestCreate {
     landmark: string;
     full_address: string;
     category: string;
-    description: string;
+    description?: string;
     device_name?: string;
     photos?: string[];
     contact_name: string;
@@ -232,8 +235,8 @@ export const emergencyApi = {
     getConfigs: (): Promise<EmergencyConfig[]> =>
         apiFetch("/emergency/config"),
 
-    getProviders: (category?: string): Promise<ProviderBasic[]> =>
-        apiFetch(`/emergency/providers${category ? `?category=${encodeURIComponent(category)}` : ""}`),
+    getProviders: (): Promise<ProviderBasic[]> =>
+        apiFetch("/emergency/providers"),
 
     create: (body: EmergencyRequestCreate): Promise<EmergencyRequestRead> =>
         apiFetch("/emergency/", { method: "POST", body: JSON.stringify(body) }),

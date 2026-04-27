@@ -5,7 +5,8 @@ import {
     Users, ShieldCheck, Activity, Search,
     BadgeCheck, Mail,
     Shield, ClipboardList, Wrench,
-    BarChart3, Trash2, X, Calendar, User
+    BarChart3, Trash2, X, Calendar, User,
+    TrendingUp, IndianRupee
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { getUsername } from "@/lib/auth";
@@ -18,6 +19,14 @@ interface Stats {
     total_bookings: number;
     total_tasks: number;
     pending_verifications: number;
+}
+
+interface Revenue {
+    total_revenue: number;
+    completed_bookings: number;
+    avg_booking_value: number;
+    top_categories: { category: string; revenue: number }[];
+    monthly: { month: string; revenue: number }[];
 }
 
 interface User {
@@ -64,6 +73,7 @@ const ROLE_STYLE: Record<string, string> = {
 
 export default function AdminDashboardPage() {
     const [stats, setStats] = useState<Stats | null>(null);
+    const [revenue, setRevenue] = useState<Revenue | null>(null);
     const [users, setUsers] = useState<User[]>([]);
     const [search, setSearch] = useState("");
     const [loading, setLoading] = useState(true);
@@ -83,9 +93,11 @@ export default function AdminDashboardPage() {
         Promise.all([
             apiFetch("/admin/stats"),
             apiFetch("/admin/users"),
-        ]).then(([s, u]) => {
+            apiFetch("/admin/revenue"),
+        ]).then(([s, u, r]) => {
             setStats(s);
             setUsers(u || []);
+            setRevenue(r || null);
         }).catch(() => {}).finally(() => setLoading(false));
 
         apiFetch("/admin/health")
@@ -96,6 +108,7 @@ export default function AdminDashboardPage() {
 
     useEffect(() => {
         if (adminTab === "contracts") {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setContractsLoading(true);
             apiFetch(`/admin/contracts${contractStatusFilter !== "ALL" ? `?status=${contractStatusFilter}` : ""}`)
                 .then((d: AdminContract[]) => setContracts(Array.isArray(d) ? d : []))
@@ -214,6 +227,44 @@ export default function AdminDashboardPage() {
                         </div>
                     )}
 
+                    {/* Revenue Summary */}
+                    {revenue && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="bg-white border border-slate-200 p-8 rounded-[2rem] shadow-sm hover:shadow-xl transition-all duration-300 flex items-center gap-6 group">
+                                <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110 bg-emerald-50">
+                                    <IndianRupee className="w-6 h-6 text-emerald-600" />
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-black text-[#000000] tracking-tighter leading-none">
+                                        ₹{revenue.total_revenue.toLocaleString("en-IN")}
+                                    </p>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 opacity-80">Total Revenue</p>
+                                </div>
+                            </div>
+                            <div className="bg-white border border-slate-200 p-8 rounded-[2rem] shadow-sm hover:shadow-xl transition-all duration-300 flex items-center gap-6 group">
+                                <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110 bg-blue-50">
+                                    <ClipboardList className="w-6 h-6 text-blue-600" />
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-black text-[#000000] tracking-tighter leading-none">
+                                        {revenue.completed_bookings}
+                                    </p>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 opacity-80">Completed Bookings</p>
+                                </div>
+                            </div>
+                            <div className="bg-white border border-slate-200 p-8 rounded-[2rem] shadow-sm hover:shadow-xl transition-all duration-300 flex items-center gap-6 group">
+                                <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110 bg-amber-50">
+                                    <TrendingUp className="w-6 h-6 text-amber-600" />
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-black text-[#000000] tracking-tighter leading-none">
+                                        ₹{revenue.avg_booking_value.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                                    </p>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 opacity-80">Avg Booking Value</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Users + System Health */}
                     <div className="grid grid-cols-1 xl:grid-cols-3 gap-10">
