@@ -21,6 +21,7 @@ interface Booking {
     created_at: string;
     updated_at: string;
     source_type?: string | null;
+    flow_type?: string;
 }
 
 interface IncomingRequest {
@@ -37,6 +38,7 @@ interface IncomingRequest {
     is_read: boolean;
     has_responded: boolean;
     status: string;
+    flow_type?: string;
     response_id?: string;
     negotiation_status?: string;
     current_round?: number;
@@ -499,6 +501,17 @@ export default function ServicerJobsPage() {
         }
     };
 
+    const handleDirectComplete = async (booking: Booking) => {
+        if (!confirm(`Mark "${booking.service_type}" as done? Payment was handled offline.`)) return;
+        try {
+            await apiFetch(`/bookings/${booking.id}/direct-complete`, { method: "POST" });
+            toast.success("Job marked complete. Moved to history.");
+            await fetchJobs();
+        } catch (err) {
+            toast.error((err as Error)?.message || "Failed to complete booking");
+        }
+    };
+
     return (
         <div className="space-y-8 pb-12">
             {fetchError && (
@@ -589,6 +602,15 @@ export default function ServicerJobsPage() {
                                                             {booking.priority}
                                                         </span>
                                                     )}
+                                                    {booking.flow_type && (
+                                                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest ${
+                                                            booking.flow_type === "direct"
+                                                                ? "bg-slate-700 text-white"
+                                                                : "bg-blue-600 text-white"
+                                                        }`}>
+                                                            {booking.flow_type === "direct" ? "Direct" : "Systematic"}
+                                                        </span>
+                                                    )}
                                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter flex items-center gap-1">
                                                         <Clock className="w-3 h-3" />
                                                         ID: BK-{booking.id}
@@ -637,29 +659,39 @@ export default function ServicerJobsPage() {
                                                 </>
                                             )}
                                             {(booking.status === "Accepted" || (booking.status === "In Progress" && booking.source_type === "emergency")) && (
-                                                <button
-                                                    onClick={async () => {
-                                                        setExtraHours("");
-                                                        setFinalNotes("");
-                                                        setEmergencyRates(null);
-                                                        if (booking.source_type === "emergency") {
-                                                            try {
-                                                                const configs: { category: string; callout_fee: number; hourly_rate: number }[] = await apiFetch("/emergency/config");
-                                                                const cfg = configs.find(c => c.category === booking.service_type);
-                                                                setEmergencyRates(cfg ? { callout_fee: cfg.callout_fee, hourly_rate: cfg.hourly_rate } : { callout_fee: 0, hourly_rate: 0 });
-                                                            } catch {
-                                                                setEmergencyRates({ callout_fee: 0, hourly_rate: 0 });
+                                                booking.flow_type === "direct" ? (
+                                                    <button
+                                                        onClick={() => handleDirectComplete(booking)}
+                                                        className="w-full sm:w-auto px-10 py-3.5 bg-[#064e3b] hover:bg-emerald-800 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-900/10 hover:-translate-y-0.5 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                                    >
+                                                        <CheckCircle className="w-4 h-4" />
+                                                        Mark as Done
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        onClick={async () => {
+                                                            setExtraHours("");
+                                                            setFinalNotes("");
+                                                            setEmergencyRates(null);
+                                                            if (booking.source_type === "emergency") {
+                                                                try {
+                                                                    const configs: { category: string; callout_fee: number; hourly_rate: number }[] = await apiFetch("/emergency/config");
+                                                                    const cfg = configs.find(c => c.category === booking.service_type);
+                                                                    setEmergencyRates(cfg ? { callout_fee: cfg.callout_fee, hourly_rate: cfg.hourly_rate } : { callout_fee: 0, hourly_rate: 0 });
+                                                                } catch {
+                                                                    setEmergencyRates({ callout_fee: 0, hourly_rate: 0 });
+                                                                }
                                                             }
-                                                        }
-                                                        setFinalCompleteTarget(booking);
-                                                    }}
-                                                    className="w-full sm:w-auto px-10 py-3.5 bg-[#064e3b] hover:bg-emerald-800 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-900/10 hover:-translate-y-0.5 active:scale-95 transition-all flex items-center justify-center gap-2"
-                                                >
-                                                    <CheckCircle className="w-4 h-4" />
-                                                    {booking.source_type === "emergency" ? "Submit Emergency Charge" : "Submit Completion"}
-                                                </button>
+                                                            setFinalCompleteTarget(booking);
+                                                        }}
+                                                        className="w-full sm:w-auto px-10 py-3.5 bg-[#064e3b] hover:bg-emerald-800 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-900/10 hover:-translate-y-0.5 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                                    >
+                                                        <CheckCircle className="w-4 h-4" />
+                                                        {booking.source_type === "emergency" ? "Submit Emergency Charge" : "Submit Completion"}
+                                                    </button>
+                                                )
                                             )}
-                                            {booking.status === "In Progress" && booking.source_type !== "emergency" && (
+                                            {booking.status === "In Progress" && booking.source_type !== "emergency" && booking.flow_type !== "direct" && (
                                                 <button
                                                     onClick={() => {
                                                         setFinalCompleteTarget(booking);
@@ -671,6 +703,15 @@ export default function ServicerJobsPage() {
                                                 >
                                                     <CheckCircle className="w-4 h-4" />
                                                     Mark Complete &amp; Submit Charge
+                                                </button>
+                                            )}
+                                            {booking.status === "In Progress" && booking.source_type !== "emergency" && booking.flow_type === "direct" && (
+                                                <button
+                                                    onClick={() => handleDirectComplete(booking)}
+                                                    className="w-full sm:w-auto px-10 py-3.5 bg-[#064e3b] hover:bg-emerald-800 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-900/10 hover:-translate-y-0.5 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    <CheckCircle className="w-4 h-4" />
+                                                    Mark as Done
                                                 </button>
                                             )}
                                             {booking.status === "Pending Confirmation" && (
@@ -732,6 +773,15 @@ export default function ServicerJobsPage() {
                                                 <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase ${urgencyBadge}`}>
                                                     {req.urgency}
                                                 </span>
+                                                {req.flow_type && (
+                                                    <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase ${
+                                                        req.flow_type === "direct"
+                                                            ? "bg-slate-100 text-slate-700"
+                                                            : "bg-blue-50 text-blue-700"
+                                                    }`}>
+                                                        {req.flow_type === "direct" ? "Direct Pay" : "Systematic"}
+                                                    </span>
+                                                )}
                                                 {countdown[req.id] && countdown[req.id] !== "Expired" && (
                                                     <span className="flex items-center gap-1 text-xs text-slate-400">
                                                         <Clock className="w-3 h-3" />
