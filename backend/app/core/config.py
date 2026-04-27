@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     SUPERADMIN_USERNAME: str = "Super Admin"
     FRONTEND_URL: str = "http://localhost:3000"  # Override in .env for production
     ANTHROPIC_API_KEY: str = ""  # Set this in .env
+    PAYMENT_ENCRYPTION_KEY: str = ""
 
     model_config = ConfigDict(env_file=".env")
 
