@@ -79,7 +79,8 @@ def create_booking(
         priority=booking_in.priority,
         issue_description=booking_in.issue_description,
         property_details=booking_in.property_details,
-        estimated_cost=booking_in.estimated_cost
+        estimated_cost=booking_in.estimated_cost,
+        flow_type=booking_in.flow_type,
     )
     db.add(db_booking)
     db.commit()
@@ -398,6 +399,79 @@ def cancel_booking(
     db.refresh(booking)
     return booking
 
+@router.post("/{booking_id}/direct-complete", response_model=BookingRead)
+def direct_complete_booking(
+    booking_id: UUID,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+):
+    """Provider marks a direct-flow booking as done. Instantly completes — no hour entry, no user confirmation."""
+    booking = db.query(ServiceBooking).filter(ServiceBooking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    provider = db.query(ServiceProvider).filter(
+        ServiceProvider.user_id == current_user.id
+    ).first()
+    if not provider or provider.id != booking.provider_id:
+        raise HTTPException(status_code=403, detail="Only the assigned servicer can complete this booking")
+
+    if booking.flow_type != "direct":
+        raise HTTPException(
+            status_code=400,
+            detail="This endpoint is only for direct-flow bookings. Use /final-complete for systematic flow."
+        )
+
+    if booking.status not in ("Accepted", "In Progress"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Booking is '{booking.status}' — must be 'Accepted' or 'In Progress' to complete"
+        )
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    booking.status = "Completed"
+    booking.completed_at = now
+
+    db.add(BookingStatusHistory(
+        booking_id=booking.id,
+        status="Completed",
+        notes="Direct-flow job marked done by provider. Payment handled offline.",
+        timestamp=now,
+    ))
+
+    priority = (booking.priority or "Normal").strip()
+    if priority == "Emergency":
+        event = "EMERGENCY_COMPLETE"
+    elif priority == "High":
+        event = "URGENT_COMPLETE"
+    else:
+        event = "REGULAR_COMPLETE"
+    award_points(db, provider.id, event, source_id=booking.id,
+                 note=f"{booking.service_type} direct-flow completed")
+
+    provider.availability_status = "AVAILABLE"
+
+    _notify_booking(
+        db, user_id=booking.user_id,
+        title="Job Completed",
+        message=f"Your {booking.service_type} booking has been marked complete by the provider.",
+        notification_type="INFO",
+        link=f"/user/bookings/{booking.id}",
+    )
+    if provider.user_id:
+        _notify_booking(
+            db, user_id=provider.user_id,
+            title="Job Complete",
+            message=f"You marked '{booking.service_type}' as done. The booking is now in history.",
+            notification_type="SUCCESS",
+            link="/service/jobs",
+        )
+
+    db.commit()
+    db.refresh(booking)
+    return booking
+
+
 @router.post("/{booking_id}/review", response_model=ReviewRead)
 def create_review(
     booking_id: UUID,
@@ -461,6 +535,12 @@ def final_complete_booking(
 
     if booking.source_type == "emergency":
         raise HTTPException(status_code=400, detail="Emergency bookings use the emergency billing flow")
+
+    if booking.flow_type == "direct":
+        raise HTTPException(
+            status_code=400,
+            detail="Direct-flow bookings use the /direct-complete endpoint — no hour entry required"
+        )
 
     if booking.status not in ("In Progress", "Accepted"):
         raise HTTPException(
