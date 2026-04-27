@@ -103,7 +103,7 @@ export default function ReceiptPage() {
         {/* Back */}
         <button
           onClick={() => router.back()}
-          className="flex items-center gap-2 text-xs text-slate-500 hover:text-slate-700 mb-6 font-black uppercase tracking-widest"
+          className="flex items-center gap-2 text-xs text-slate-500 hover:text-slate-700 mb-6 font-black uppercase tracking-widest print:hidden"
         >
           <ArrowLeft className="w-4 h-4" /> Back to Booking
         </button>
