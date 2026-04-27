@@ -32,7 +32,6 @@ const SERVICE_SETTINGS = [
   { name: "Password", icon: Lock, path: "/service/settings/password" },
   { name: "Notifications", icon: BellRing, path: "/service/settings/notifications" },
   { name: "Account", icon: ShieldCheck, path: "/service/settings/account" },
-  { name: "Payment", icon: CreditCard, path: "/service/settings/payment" },
 ];
 
 const SECRETARY_SETTINGS = [
@@ -55,6 +54,7 @@ const SERVICER_NAV = [
   { name: "My Jobs", icon: Briefcase, path: "/service/jobs" },
   { name: "Ratings", icon: Star, path: "/service/ratings" },
   { name: "Analytics", icon: TrendingUp, path: "/service/analytics" },
+  { name: "Payment", icon: CreditCard, path: "/service/payment" },
   { name: "Settings", icon: Settings, path: "/service/settings" },
 ];
 
