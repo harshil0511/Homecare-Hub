@@ -207,6 +207,8 @@ class ReceiptRead(BaseModel):
     final_amount: float
     completed_at: Optional[datetime] = None
     negotiated: bool = False
+    flow_type: str = "direct"
+    provider_id: Optional[str] = None
 
     class Config:
         from_attributes = True

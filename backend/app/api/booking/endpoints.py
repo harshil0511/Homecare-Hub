@@ -886,6 +886,8 @@ def get_receipt(
             final_amount=final_amount,
             completed_at=booking.completed_at,
             negotiated=False,
+            flow_type=booking.flow_type,
+            provider_id=str(booking.provider_id) if booking.provider_id else None,
         )
 
     hourly_rate = booking.estimated_cost or 0.0
@@ -905,6 +907,8 @@ def get_receipt(
         final_amount=final_amount,
         completed_at=booking.completed_at,
         negotiated=(booking.source_type == "negotiated"),
+        flow_type=booking.flow_type,
+        provider_id=str(booking.provider_id) if booking.provider_id else None,
     )
 
 
