@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useState } from "react";
-import { ClipboardList, Calendar, DollarSign, Search, X, AlertTriangle } from "lucide-react";
+import { ClipboardList, Calendar, DollarSign, Search, X, AlertTriangle, User, MapPin } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useToast } from "@/lib/toast-context";
 import Spinner from "@/components/ui/Spinner";
@@ -651,9 +651,14 @@ export default function AdminBookingsPage() {
                                 <div className="flex justify-between items-start mb-3">
                                     <div>
                                         <p className="font-black text-slate-900 text-sm">{req.device_or_issue}</p>
-                                        <p className="text-[10px] text-slate-400 mt-0.5">
-                                            {req.user_name || "Unknown"} · {req.location}
-                                        </p>
+                                        <div className="flex items-center gap-1.5 mt-1.5">
+                                            <span className="flex items-center gap-1 bg-slate-100 border border-slate-200 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                                                <User className="w-3 h-3" />{req.user_name || "Unknown"}
+                                            </span>
+                                            <span className="flex items-center gap-1 bg-slate-100 border border-slate-200 text-slate-500 text-[10px] font-semibold px-2 py-0.5 rounded-md">
+                                                <MapPin className="w-3 h-3" />{req.location}
+                                            </span>
+                                        </div>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <span className={`px-2 py-1 text-[10px] font-black uppercase rounded-lg ${
