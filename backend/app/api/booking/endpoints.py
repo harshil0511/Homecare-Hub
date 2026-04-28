@@ -147,11 +147,13 @@ def list_bookings(
     else:
         query = db.query(ServiceBooking).filter(ServiceBooking.user_id == current_user.id)
 
-    # Status filter: "contracted" = Accepted/In Progress/Completed, "pending" = Pending only
+    # Status filter
     if status == "contracted":
         query = query.filter(ServiceBooking.status.in_(["Accepted", "In Progress", "Pending Confirmation", "Completed"]))
     elif status == "pending":
         query = query.filter(ServiceBooking.status == "Pending")
+    elif status == "Completed":
+        query = query.filter(ServiceBooking.status == "Completed")
 
     return query.order_by(ServiceBooking.created_at.desc()).all()
 
@@ -700,7 +702,12 @@ def confirm_booking_complete(
 
     provider = db.query(ServiceProvider).filter(ServiceProvider.id == booking.provider_id).first()
     if provider:
-        event = "URGENT_COMPLETE" if booking.priority in ("High", "Emergency") else "REGULAR_COMPLETE"
+        if booking.source_type == "emergency":
+            event = "EMERGENCY_COMPLETE"
+        elif booking.priority == "High":
+            event = "URGENT_COMPLETE"
+        else:
+            event = "REGULAR_COMPLETE"
         try:
             award_points(db, provider_id=provider.id, event_type=event, source_id=booking.id)
         except Exception as exc:
