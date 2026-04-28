@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { useToast } from "@/lib/toast-context";
@@ -8,7 +8,7 @@ import {
     Clock as ClockIcon, Calendar,
     ChevronLeft, Settings, AlertTriangle,
     ShieldCheck, Send, Phone, MapPin,
-    X, FileText, Star, CheckCircle2, IndianRupee, CreditCard, Camera
+    X, FileText, Star, IndianRupee, CreditCard, Camera
 } from "lucide-react";
 import BookingStatusTimeline from "@/components/bookings/BookingStatusTimeline";
 import QRScanner from "@/components/ui/QRScanner";
@@ -96,13 +96,18 @@ export default function BookingDetailsPage() {
         has_upi: boolean;
         has_qr: boolean;
     } | null>(null);
-    const [payTab, setPayTab] = useState<"bank" | "upi" | "qr">("bank");
     const [revealed, setRevealed] = useState(false);
-    const [showReceiptModal, setShowReceiptModal] = useState(false);
     const [paymentMethodUsed, setPaymentMethodUsed] = useState<string>("");
     const [paying, setPaying] = useState(false);
     const [showQrScanner, setShowQrScanner] = useState(false);
     const [scannedQrData, setScannedQrData] = useState<string>("");
+
+    // Payment modal state machine
+    type PayStep = "select" | "detail" | "confirm";
+    type PayMethod = "qr" | "bank" | "upi";
+    const [showPayModal, setShowPayModal] = useState(false);
+    const [payStep, setPayStep] = useState<PayStep>("select");
+    const [selectedMethod, setSelectedMethod] = useState<PayMethod>("qr");
 
     const fetchData = async () => {
         try {
@@ -142,13 +147,13 @@ export default function BookingDetailsPage() {
     }, [loading, booking, userRole]);
 
     const handlePayNow = async () => {
-        const method = payTab === "bank" ? "Bank Transfer" : payTab === "upi" ? "UPI" : "QR Code";
+        const method = selectedMethod === "bank" ? "Bank Transfer" : selectedMethod === "upi" ? "UPI" : "QR Code";
         setPaying(true);
         try {
             await apiFetch(`/bookings/${id}/confirm`, { method: "POST" });
             setPaymentMethodUsed(method);
-            await fetchData();
-            setShowReceiptModal(true);
+            setShowPayModal(false);
+            router.push(`/user/bookings/${id}/receipt`);
         } catch (err) {
             toast.error((err as Error).message || "Failed to confirm payment");
         } finally {
@@ -156,11 +161,11 @@ export default function BookingDetailsPage() {
         }
     };
 
-    const handleCloseReceipt = () => {
-        setShowReceiptModal(false);
-        if (!booking?.review) {
-            setShowReview(true);
-        }
+    const openPayModal = () => {
+        setPayStep("select");
+        setSelectedMethod("qr");
+        setScannedQrData("");
+        setShowPayModal(true);
     };
 
     const handleQrScan = useCallback((data: string) => {
@@ -222,10 +227,6 @@ export default function BookingDetailsPage() {
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
-
-    useEffect(() => {
-        if (payTab !== "qr") setScannedQrData("");
-    }, [payTab]);
 
     const handleSendMessage = async () => {
         if (!newMessage.trim()) return;
@@ -293,502 +294,325 @@ export default function BookingDetailsPage() {
     if (!booking) return <div className="p-20 text-center text-rose-500 font-black uppercase">Booking Not Found</div>;
 
     return (
-        <div className="max-w-7xl mx-auto pb-20 space-y-10">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <button onClick={() => router.back()} className="flex items-center gap-2 text-xs font-black uppercase text-slate-400 hover:text-slate-900 transition-colors">
-                    <ChevronLeft size={16} /> Back to dashboard
-                </button>
-                <div className="flex items-center gap-4">
+        <div className="max-w-7xl mx-auto pb-20 space-y-6">
+
+            {/* ── Compact Header ── */}
+            <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                    <button onClick={() => router.back()} className="p-2 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-900 transition-colors shadow-sm flex-shrink-0">
+                        <ChevronLeft size={16} />
+                    </button>
+                    <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight truncate">{booking.service_type} Service</h1>
+                    <span className={`flex-shrink-0 text-[9px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest ${
+                        booking.status === "Pending" ? "bg-amber-100 text-amber-600" :
+                        booking.status === "Completed" ? "bg-emerald-100 text-emerald-600" :
+                        booking.status === "Cancelled" ? "bg-rose-100 text-rose-600" :
+                        booking.status === "Pending Confirmation" ? "bg-violet-100 text-violet-600" :
+                        "bg-blue-100 text-blue-600"
+                    }`}>{booking.status}</span>
+                    <span className="flex-shrink-0 text-[9px] font-black bg-slate-100 text-slate-500 px-3 py-1.5 rounded-lg uppercase tracking-widest">#{booking.id.toString().slice(0, 8).toUpperCase()}</span>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
                     {booking.status === "Completed" && userRole === "USER" && !booking.review && (
-                        <button
-                            onClick={() => setShowReview(true)}
-                            className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest bg-amber-50 border border-amber-200 px-6 py-3 rounded-xl hover:bg-amber-100 transition-all text-amber-700"
-                        >
-                            <Star size={14} /> Give Feedback
+                        <button onClick={() => setShowReview(true)} className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest bg-amber-50 border border-amber-200 px-4 py-2.5 rounded-xl hover:bg-amber-100 transition-all text-amber-700">
+                            <Star size={12} /> Give Feedback
                         </button>
                     )}
                     {!["Completed", "Cancelled", "Pending Confirmation"].includes(booking.status) && (
                         <>
-                            <button
-                                onClick={() => setShowReschedule(true)}
-                                className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest bg-white border border-slate-200 px-6 py-3 rounded-xl hover:bg-slate-50 transition-all text-slate-600 shadow-sm"
-                            >
-                                <Calendar size={14} /> Reschedule
+                            <button onClick={() => setShowReschedule(true)} className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest bg-white border border-slate-200 px-4 py-2.5 rounded-xl hover:bg-slate-50 transition-all text-slate-600 shadow-sm">
+                                <Calendar size={12} /> Reschedule
                             </button>
-                            <button
-                                onClick={() => setShowCancel(true)}
-                                className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest bg-rose-50 border border-rose-100 px-6 py-3 rounded-xl hover:bg-rose-100 transition-all text-rose-600"
-                            >
-                                <AlertTriangle size={14} /> Cancel Request
+                            <button onClick={() => setShowCancel(true)} className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest bg-rose-50 border border-rose-100 px-4 py-2.5 rounded-xl hover:bg-rose-100 transition-all text-rose-600">
+                                <AlertTriangle size={12} /> Cancel
                             </button>
                         </>
                     )}
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-                {/* Left Column: Details */}
-                <div className="lg:col-span-2 space-y-10">
-                    {/* Main Info Card */}
-                    <div className="bg-white border border-slate-200 rounded-[3rem] p-10 md:p-14 shadow-xl shadow-slate-200/50">
-                        <div className="flex items-start justify-between mb-12">
-                            <div>
-                                <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase mb-4">{booking.service_type} Service</h1>
-                                <div className="flex items-center gap-4">
-                                    <span className="text-[10px] font-black bg-slate-100 text-slate-500 px-3 py-1.5 rounded-lg uppercase tracking-widest">ID: #{booking.id.toString().padStart(5, '0')}</span>
-                                    <span className={`text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest ${booking.status === "Pending" ? "bg-amber-100 text-amber-600" :
-                                        booking.status === "Completed" ? "bg-emerald-100 text-emerald-600" :
-                                            "bg-blue-100 text-blue-600"
-                                        }`}>
-                                        {booking.status}
-                                    </span>
-                                </div>
-                            </div>
-                            <div className="text-right">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                                    {(booking.status === "Completed" || booking.status === "Pending Confirmation") && booking.final_cost ? "Total Charge" : "Estimated Cost"}
-                                </p>
-                                <p className="text-4xl font-black text-slate-900 tracking-tighter">
-                                    {(booking.status === "Completed" || booking.status === "Pending Confirmation") && booking.final_cost
-                                        ? `₹${Number(booking.final_cost).toLocaleString("en-IN")}`
-                                        : booking.estimated_cost
-                                            ? `₹${Number(booking.estimated_cost).toLocaleString("en-IN")}`
-                                            : "—"}
-                                </p>
-                                {(booking.status === "Completed" || booking.status === "Pending Confirmation") && booking.final_cost && booking.estimated_cost ? (
-                                    <p className="text-xs text-slate-400 mt-1">
-                                        Est. ₹{Number(booking.estimated_cost).toLocaleString("en-IN")}
-                                    </p>
-                                ) : null}
-                            </div>
-                        </div>
+            {/* ── 3-Column Body ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
+                {/* COL 1 — Booking Info */}
+                <div className="space-y-5">
+                    {/* Status Timeline */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                        <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Status</h4>
                         <BookingStatusTimeline currentStatus={booking.status} history={booking.status_history} />
+                    </div>
 
-                        {booking.flow_type === "systematic" && booking.status === "Pending Confirmation" && payDetails && (
-                            <div className="bg-white border border-slate-200 rounded-[2rem] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] mb-4 mt-8">
-                                <div className="flex items-center gap-3 mb-6">
-                                    <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-100">
-                                        <CreditCard className="w-5 h-5 text-[#064e3b]" />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-base font-black text-slate-900 uppercase tracking-tight">Pay Your Provider</h3>
-                                        <p className="text-[11px] text-slate-500 font-medium mt-0.5">Choose how you&apos;d like to transfer payment</p>
-                                    </div>
-                                </div>
-
-                                {/* Tab selector */}
-                                <div className="flex gap-2 mb-6">
-                                    {(["bank", "upi", "qr"] as const).map((tab) => {
-                                        const isDisabled = (tab === "upi" && !payDetails.has_upi) || (tab === "qr" && !payDetails.has_qr);
-                                        const labels = { bank: "Bank Transfer", upi: "UPI", qr: "QR Scanner" };
-                                        return (
-                                            <button
-                                                key={tab}
-                                                onClick={() => !isDisabled && setPayTab(tab)}
-                                                disabled={isDisabled}
-                                                className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                                    payTab === tab
-                                                        ? "bg-[#064e3b] text-white shadow-md"
-                                                        : isDisabled
-                                                        ? "bg-slate-50 text-slate-300 border border-slate-100 cursor-not-allowed"
-                                                        : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
-                                                }`}
-                                            >
-                                                {labels[tab]}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-
-                                {/* Bank Transfer tab */}
-                                {payTab === "bank" && (
-                                    <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-3">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Account Holder</span>
-                                            <span className="text-sm font-black text-slate-900">{payDetails.account_holder_name}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Account Number</span>
-                                            <button
-                                                onClick={() => setRevealed(!revealed)}
-                                                className="text-sm font-mono font-black text-slate-900 hover:text-[#064e3b] transition-colors"
-                                            >
-                                                {revealed ? payDetails.account_number_masked : "XXXXXX••••"}
-                                            </button>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">IFSC Code</span>
-                                            <span className="text-sm font-mono font-black text-slate-900">{payDetails.ifsc_code}</span>
-                                        </div>
-                                        {!revealed && (
-                                            <p className="text-[10px] text-slate-400 font-medium text-center pt-1">Tap account number to reveal last 4 digits</p>
-                                        )}
-                                    </div>
-                                )}
-
-                                {/* UPI tab */}
-                                {payTab === "upi" && payDetails.has_upi && (
-                                    <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">UPI ID</span>
-                                            <span className="text-sm font-mono font-black text-slate-900">{payDetails.upi_id}</span>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* QR tab */}
-                                {payTab === "qr" && payDetails.has_qr && payDetails.upi_qr_image_url && (
-                                    <div className="flex flex-col items-center bg-slate-50 border border-slate-100 rounded-2xl p-6 gap-4">
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        <img src={payDetails.upi_qr_image_url} alt="UPI QR Code" className="w-48 h-48 object-contain rounded-xl" />
-                                        <p className="text-[10px] text-slate-500 font-medium">Scan with any UPI app to pay</p>
-                                        <button
-                                            type="button"
-                                            onClick={() => { setScannedQrData(""); setShowQrScanner(true); }}
-                                            className="flex items-center gap-2 px-5 py-2.5 bg-[#064e3b] text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-800 transition-colors"
-                                        >
-                                            <Camera className="w-3.5 h-3.5" /> Scan QR Code
-                                        </button>
-                                        {scannedQrData && (
-                                            <div className="w-full bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
-                                                <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Scanned</p>
-                                                <p className="text-sm font-mono font-black text-emerald-800 break-all">{scannedQrData}</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {booking.status === "Pending Confirmation" && userRole === "USER" && receipt && (
-                            <div className="bg-amber-50 border border-amber-200 rounded-[2rem] p-8 mt-8">
-                                <h3 className="text-[10px] font-black text-amber-700 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                    <IndianRupee size={12} /> Receipt — Awaiting Your Confirmation
-                                </h3>
-                                <div className="space-y-2 mb-6 text-sm text-slate-700">
-                                    {receipt.is_emergency ? (
-                                        <>
-                                            <div className="flex justify-between">
-                                                <span>Callout fee (first hour)</span>
-                                                <span className="font-bold">₹{Number(receipt.callout_fee).toLocaleString("en-IN")}</span>
-                                            </div>
-                                            {Number(receipt.extra_hours) > 0 && (
-                                                <div className="flex justify-between">
-                                                    <span>Extra ({Number(receipt.extra_hours).toFixed(1)}h × ₹{Number(receipt.hourly_rate).toFixed(0)}/h)</span>
-                                                    <span className="font-bold">₹{Number(receipt.extra_charge).toLocaleString("en-IN")}</span>
-                                                </div>
-                                            )}
-                                        </>
-                                    ) : (
-                                        Number(receipt.extra_hours) > 0 && (
-                                            <div className="flex justify-between">
-                                                <span>{Number(receipt.extra_hours)}h × ₹{Number(receipt.hourly_rate).toFixed(0)}/h</span>
-                                                <span className="font-bold">₹{Number(receipt.extra_charge).toLocaleString("en-IN")}</span>
-                                            </div>
-                                        )
-                                    )}
-                                    <div className="border-t border-amber-200 pt-2 flex justify-between font-black text-base">
-                                        <span>Total</span>
-                                        <span className="text-emerald-700">₹{Number(receipt.final_amount).toLocaleString("en-IN")}</span>
-                                    </div>
-                                </div>
-
-                                {!showDispute ? (
-                                    <div className="flex gap-3">
-                                        <button
-                                            onClick={() => setShowDispute(true)}
-                                            className="flex-1 py-3 border border-rose-200 text-rose-600 rounded-2xl text-sm font-black uppercase hover:bg-rose-50"
-                                        >
-                                            Dispute
-                                        </button>
-                                        <button
-                                            onClick={handlePayNow}
-                                            disabled={paying}
-                                            className="flex-1 py-3 bg-[#064e3b] text-white rounded-2xl text-sm font-black uppercase hover:bg-emerald-800 disabled:opacity-50"
-                                        >
-                                            {paying ? "Processing..." : "Pay Now"}
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-3">
-                                        <textarea
-                                            value={disputeReason}
-                                            onChange={e => setDisputeReason(e.target.value)}
-                                            placeholder="Describe the issue with this bill..."
-                                            rows={3}
-                                            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none"
-                                        />
-                                        <div className="flex gap-3">
-                                            <button onClick={() => setShowDispute(false)} className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm font-black uppercase text-slate-500">
-                                                Back
-                                            </button>
-                                            <button
-                                                onClick={handleDispute}
-                                                disabled={filingDispute || !disputeReason.trim()}
-                                                className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl text-sm font-black uppercase disabled:opacity-50"
-                                            >
-                                                {filingDispute ? "Submitting..." : "File Dispute"}
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-16 pb-12 border-b border-slate-100">
-                            <div className="space-y-4">
-                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                    <MapPin size={12} className="text-emerald-500" /> Service Location
-                                </h4>
-                                <div className="bg-slate-50 border border-slate-100 p-6 rounded-2xl">
-                                    <p className="text-sm font-black text-slate-900">{booking.property_details}</p>
-                                </div>
-                            </div>
-                            <div className="space-y-4">
-                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                    <ClockIcon size={12} className="text-emerald-500" /> Scheduled Time
-                                </h4>
-                                <div className="bg-slate-50 border border-slate-100 p-6 rounded-2xl">
-                                    <p className="text-sm font-black text-slate-900">{new Date(booking.scheduled_at).toLocaleDateString()} @ {new Date(booking.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                                </div>
-                            </div>
+                    {/* Location + Schedule */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+                        <div className="space-y-1.5">
+                            <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                                <MapPin size={10} className="text-emerald-500" /> Location
+                            </h4>
+                            <p className="text-sm font-bold text-slate-800">{booking.property_details || "—"}</p>
                         </div>
-
-                        <div className="mt-12 space-y-6">
-                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Issue Description</h4>
-                            <p className="text-slate-600 leading-relaxed font-medium">
-                                {booking.issue_description}
+                        <div className="border-t border-slate-100 pt-4 space-y-1.5">
+                            <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                                <ClockIcon size={10} className="text-emerald-500" /> Scheduled
+                            </h4>
+                            <p className="text-sm font-bold text-slate-800">
+                                {new Date(booking.scheduled_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                                {" @ "}
+                                {new Date(booking.scheduled_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                             </p>
                         </div>
+                    </div>
 
-                        {/* Completion details inline */}
-                        {booking.status === "Completed" && (booking.actual_hours || booking.completion_notes) && (
-                            <div className="mt-10 pt-10 border-t border-slate-100 space-y-4">
-                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Completion Details</h4>
-                                <div className="grid grid-cols-2 gap-4">
-                                    {booking.actual_hours && (
-                                        <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl">
-                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Hours Worked</p>
-                                            <p className="text-lg font-black text-slate-900">{booking.actual_hours}h</p>
-                                        </div>
-                                    )}
-                                    {booking.final_cost && (
-                                        <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl">
-                                            <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Final Bill</p>
-                                            <p className="text-lg font-black text-emerald-700">₹{Number(booking.final_cost).toLocaleString("en-IN")}</p>
-                                        </div>
-                                    )}
-                                </div>
-                                {booking.completion_notes && (
-                                    <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Technician Notes</p>
-                                        <p className="text-sm text-slate-600 italic">{booking.completion_notes}</p>
+                    {/* Issue Description */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                        <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Issue Description</h4>
+                        <p className="text-sm text-slate-600 leading-relaxed font-medium">{booking.issue_description || "—"}</p>
+                    </div>
+
+                    {/* Completion details (if completed) */}
+                    {booking.status === "Completed" && (booking.actual_hours || booking.completion_notes) && (
+                        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-3">
+                            <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Completion Details</h4>
+                            <div className="grid grid-cols-2 gap-3">
+                                {booking.actual_hours && (
+                                    <div className="bg-slate-50 border border-slate-100 p-3 rounded-xl">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Hours Worked</p>
+                                        <p className="text-base font-black text-slate-900">{booking.actual_hours}h</p>
+                                    </div>
+                                )}
+                                {booking.final_cost && (
+                                    <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-xl">
+                                        <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Final Bill</p>
+                                        <p className="text-base font-black text-emerald-700">₹{Number(booking.final_cost).toLocaleString("en-IN")}</p>
                                     </div>
                                 )}
                             </div>
-                        )}
-
-                        {/* Payment Receipt — inline below completion details */}
-                        {booking.status === "Completed" && receipt && (
-                            <div className="mt-6 bg-emerald-50 border border-emerald-200 rounded-3xl p-8">
-                                <h2 className="text-[10px] font-black text-emerald-700 uppercase tracking-widest mb-6 flex items-center gap-2">
-                                    <FileText size={12} /> Payment Receipt
-                                </h2>
-                                <div className="grid grid-cols-2 gap-4 text-xs">
-                                    <div>
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Job ID</p>
-                                        <p className="font-black text-slate-900">#{String(receipt.booking_id).padStart(5, "0")}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Service</p>
-                                        <p className="font-black text-slate-900">{receipt.service_type}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Expert</p>
-                                        <p className="font-black text-slate-900">{receipt.servicer_name}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Date</p>
-                                        <p className="font-black text-slate-900">
-                                            {receipt.completed_at ? new Date(receipt.completed_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
-                                        </p>
-                                    </div>
-                                    {(receipt.extra_hours ?? 0) > 0 && (
-                                        <div>
-                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Extra Hours</p>
-                                            <p className="font-black text-slate-900">{receipt.extra_hours}h</p>
-                                        </div>
-                                    )}
-                                    <div>
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Base Price</p>
-                                        <p className="font-black text-slate-500">₹{Number(receipt.base_price).toLocaleString("en-IN")}</p>
-                                    </div>
-                                    <div className="col-span-2 mt-2 pt-4 border-t border-emerald-200">
-                                        <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Final Amount Paid</p>
-                                        <p className="text-3xl font-black text-emerald-700 tracking-tight">
-                                            ₹{Number(receipt.final_amount).toLocaleString("en-IN")}
-                                        </p>
-                                    </div>
+                            {booking.completion_notes && (
+                                <div className="bg-slate-50 border border-slate-100 p-3 rounded-xl">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Technician Notes</p>
+                                    <p className="text-sm text-slate-600 italic">{booking.completion_notes}</p>
                                 </div>
-                            </div>
-                        )}
-                    </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
-                {/* Right Column: Provider & Chat */}
-                <div className="space-y-10">
-                    {/* Provider Profile Card */}
-                    <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-slate-900/40">
-                        <div className="flex items-center gap-5 mb-8">
-                            <div className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center font-black text-2xl text-emerald-400">
+                {/* COL 2 — Payment / Receipt */}
+                <div className="space-y-5">
+
+                    {/* Payment card — Pending Confirmation */}
+                    {booking.status === "Pending Confirmation" && userRole === "USER" && receipt && (
+                        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                                    <IndianRupee size={10} className="text-emerald-500" /> Payment Due
+                                </h4>
+                                <p className="text-2xl font-black text-slate-900 tracking-tight">
+                                    ₹{Number(booking.final_cost ?? booking.estimated_cost ?? 0).toLocaleString("en-IN")}
+                                </p>
+                            </div>
+
+                            {/* Charge breakdown */}
+                            <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-2 text-sm">
+                                {receipt.is_emergency ? (
+                                    <>
+                                        <div className="flex justify-between text-slate-600">
+                                            <span>Callout fee (1st hour)</span>
+                                            <span className="font-bold">₹{Number(receipt.callout_fee).toLocaleString("en-IN")}</span>
+                                        </div>
+                                        {Number(receipt.extra_hours) > 0 && (
+                                            <div className="flex justify-between text-slate-600">
+                                                <span>Extra ({Number(receipt.extra_hours).toFixed(1)}h × ₹{Number(receipt.hourly_rate).toFixed(0)}/h)</span>
+                                                <span className="font-bold">₹{Number(receipt.extra_charge).toLocaleString("en-IN")}</span>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    Number(receipt.extra_hours) > 0 && (
+                                        <div className="flex justify-between text-slate-600">
+                                            <span>{Number(receipt.extra_hours)}h × ₹{Number(receipt.hourly_rate).toFixed(0)}/h</span>
+                                            <span className="font-bold">₹{Number(receipt.extra_charge).toLocaleString("en-IN")}</span>
+                                        </div>
+                                    )
+                                )}
+                                <div className="border-t border-slate-200 pt-2 flex justify-between font-black text-slate-900">
+                                    <span>Total</span>
+                                    <span className="text-emerald-700">₹{Number(receipt.final_amount).toLocaleString("en-IN")}</span>
+                                </div>
+                            </div>
+
+                            {!showDispute ? (
+                                <div className="space-y-2">
+                                    <button
+                                        onClick={openPayModal}
+                                        className="w-full py-3.5 bg-[#064e3b] text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-emerald-800 transition-colors"
+                                    >
+                                        Choose Payment Method
+                                    </button>
+                                    <button
+                                        onClick={() => setShowDispute(true)}
+                                        className="w-full py-3 border border-rose-200 text-rose-600 rounded-xl text-xs font-black uppercase hover:bg-rose-50 transition-colors"
+                                    >
+                                        Dispute Charge
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    <textarea
+                                        value={disputeReason}
+                                        onChange={e => setDisputeReason(e.target.value)}
+                                        placeholder="Describe the issue with this bill..."
+                                        rows={3}
+                                        className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none"
+                                    />
+                                    <div className="flex gap-2">
+                                        <button onClick={() => setShowDispute(false)} className="flex-1 py-2.5 border border-slate-200 rounded-xl text-xs font-black uppercase text-slate-500">
+                                            Back
+                                        </button>
+                                        <button
+                                            onClick={handleDispute}
+                                            disabled={filingDispute || !disputeReason.trim()}
+                                            className="flex-1 py-2.5 bg-rose-600 text-white rounded-xl text-xs font-black uppercase disabled:opacity-50"
+                                        >
+                                            {filingDispute ? "Submitting..." : "File Dispute"}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Receipt card — Completed */}
+                    {booking.status === "Completed" && receipt && (
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 space-y-4">
+                            <h4 className="text-[9px] font-black text-emerald-700 uppercase tracking-widest flex items-center gap-1.5">
+                                <FileText size={10} /> Payment Receipt
+                            </h4>
+                            <div className="grid grid-cols-2 gap-3 text-xs">
+                                <div>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Job ID</p>
+                                    <p className="font-black text-slate-900">#{String(receipt.booking_id).slice(0, 8).toUpperCase()}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Service</p>
+                                    <p className="font-black text-slate-900">{receipt.service_type}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Expert</p>
+                                    <p className="font-black text-slate-900">{receipt.servicer_name}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Date</p>
+                                    <p className="font-black text-slate-900">
+                                        {receipt.completed_at ? new Date(receipt.completed_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                                    </p>
+                                </div>
+                                <div className="col-span-2 border-t border-emerald-200 pt-3">
+                                    <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Final Amount Paid</p>
+                                    <p className="text-2xl font-black text-emerald-700 tracking-tight">₹{Number(receipt.final_amount).toLocaleString("en-IN")}</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => router.push(`/user/bookings/${id}/receipt`)}
+                                className="w-full py-3 border border-emerald-300 text-emerald-700 rounded-xl text-xs font-black uppercase hover:bg-emerald-100 transition-colors flex items-center justify-center gap-2"
+                            >
+                                <FileText size={12} /> View Full Receipt
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Fallback cost card — all other statuses */}
+                    {!["Pending Confirmation", "Completed"].includes(booking.status) && (
+                        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                            <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Estimated Cost</h4>
+                            <p className="text-2xl font-black text-slate-900 tracking-tight">
+                                {booking.estimated_cost ? `₹${Number(booking.estimated_cost).toLocaleString("en-IN")}` : "—"}
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                {/* COL 3 — Provider + Chat */}
+                <div className="space-y-5">
+                    {/* Provider card */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-white shadow-xl shadow-slate-900/30">
+                        <div className="flex items-center gap-4 mb-5">
+                            <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center font-black text-xl text-emerald-400 flex-shrink-0">
                                 {(booking.provider?.company_name || booking.provider?.first_name || "?").charAt(0).toUpperCase()}
                             </div>
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <h3 className="text-xl font-black tracking-tight">
+                            <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                    <h3 className="text-base font-black tracking-tight truncate">
                                         {booking.provider?.company_name
                                             || `${booking.provider?.first_name || ""} ${booking.provider?.last_name || ""}`.trim()
                                             || "Provider"}
                                     </h3>
-                                    <ShieldCheck size={18} className="text-emerald-500" />
+                                    <ShieldCheck size={14} className="text-emerald-500 flex-shrink-0" />
                                 </div>
-                                <p className="text-[10px] font-bold text-emerald-400/60 uppercase tracking-widest mt-1">Assigned Expert</p>
+                                <p className="text-[9px] font-bold text-emerald-400/60 uppercase tracking-widest mt-0.5">Assigned Expert</p>
                             </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <button className="bg-white/5 border border-white/10 p-4 rounded-2xl flex flex-col items-center gap-1 hover:bg-white/10 transition-all">
-                                <Phone size={18} className="text-emerald-500" />
-                                <span className="text-[10px] font-black uppercase tracking-widest mt-1">Call</span>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button className="bg-white/5 border border-white/10 p-3 rounded-xl flex flex-col items-center gap-1 hover:bg-white/10 transition-all">
+                                <Phone size={16} className="text-emerald-500" />
+                                <span className="text-[9px] font-black uppercase tracking-widest">Call</span>
                             </button>
-                            <button className="bg-white/5 border border-white/10 p-4 rounded-2xl flex flex-col items-center gap-1 hover:bg-white/10 transition-all">
-                                <FileText size={18} className="text-emerald-500" />
-                                <span className="text-[10px] font-black uppercase tracking-widest mt-1">Profile</span>
+                            <button className="bg-white/5 border border-white/10 p-3 rounded-xl flex flex-col items-center gap-1 hover:bg-white/10 transition-all">
+                                <FileText size={16} className="text-emerald-500" />
+                                <span className="text-[9px] font-black uppercase tracking-widest">Profile</span>
                             </button>
                         </div>
                     </div>
 
-                    {/* Chat Interface */}
-                    <div className="bg-white border border-slate-200 rounded-[2.5rem] shadow-xl shadow-slate-200/50 flex flex-col h-[600px] overflow-hidden">
-                        <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
+                    {/* Chat */}
+                    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col overflow-hidden" style={{ height: "480px" }}>
+                        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
                                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                                <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Service Chat</h3>
+                                <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">Service Chat</h3>
                             </div>
-                            <Settings size={16} className="text-slate-300" />
+                            <Settings size={14} className="text-slate-300" />
                         </div>
-
-                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                            {messages.length === 0 && (
+                                <p className="text-center text-[10px] text-slate-300 font-medium uppercase tracking-widest mt-8">No messages yet</p>
+                            )}
                             {messages.map((m, i) => (
                                 <div key={i} className={`flex ${m.sender_id === booking.user_id ? "justify-end" : "justify-start"}`}>
-                                    <div className={`max-w-[80%] p-4 rounded-2xl shadow-sm text-sm font-medium ${m.sender_id === booking.user_id
-                                        ? "bg-slate-900 text-white rounded-br-none"
-                                        : "bg-slate-50 border border-slate-100 text-slate-800 rounded-bl-none"
-                                        }`}>
+                                    <div className={`max-w-[80%] p-3 rounded-2xl text-sm font-medium shadow-sm ${
+                                        m.sender_id === booking.user_id
+                                            ? "bg-slate-900 text-white rounded-br-none"
+                                            : "bg-slate-50 border border-slate-100 text-slate-800 rounded-bl-none"
+                                    }`}>
                                         {m.message}
-                                        <p className={`text-[10px] mt-2 font-black uppercase opacity-40 ${m.sender_id === booking.user_id ? "text-right" : "text-left"}`}>
-                                            {new Date(m.timestamp!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        <p className={`text-[9px] mt-1.5 font-black uppercase opacity-40 ${m.sender_id === booking.user_id ? "text-right" : "text-left"}`}>
+                                            {new Date(m.timestamp!).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                                         </p>
                                     </div>
                                 </div>
                             ))}
                             <div ref={chatEndRef} />
                         </div>
-
-                        <div className="p-6 bg-slate-50 border-t border-slate-100">
+                        <div className="p-4 bg-slate-50 border-t border-slate-100">
                             <div className="relative">
                                 <input
                                     value={newMessage}
                                     onChange={e => setNewMessage(e.target.value)}
-                                    onKeyPress={e => e.key === 'Enter' && handleSendMessage()}
+                                    onKeyPress={e => e.key === "Enter" && handleSendMessage()}
                                     placeholder="Type a message..."
-                                    className="w-full bg-white border border-slate-200 rounded-xl pl-6 pr-14 py-4 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                                    className="w-full bg-white border border-slate-200 rounded-xl pl-4 pr-12 py-3 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500/20 outline-none"
                                 />
                                 <button
                                     onClick={handleSendMessage}
-                                    className="absolute right-2 top-2 w-10 h-10 bg-slate-900 text-white rounded-lg flex items-center justify-center hover:bg-emerald-600 transition-all"
+                                    className="absolute right-2 top-1.5 w-8 h-8 bg-slate-900 text-white rounded-lg flex items-center justify-center hover:bg-emerald-600 transition-all"
                                 >
-                                    <Send size={16} />
+                                    <Send size={14} />
                                 </button>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            {/* Payment Receipt Modal */}
-            {showReceiptModal && receipt && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 space-y-6 animate-in fade-in zoom-in duration-200">
-                        {/* Header */}
-                        <div className="bg-slate-900 -mx-10 -mt-10 px-10 py-8 rounded-t-[2.5rem] flex items-center justify-between">
-                            <div>
-                                <div className="flex items-center gap-2 mb-1">
-                                    <FileText className="w-4 h-4 text-emerald-400" />
-                                    <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Payment Receipt</span>
-                                </div>
-                                <h2 className="text-xl font-black text-white tracking-tight">{booking?.service_type} Service</h2>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <div className="bg-emerald-500/20 border border-emerald-500/30 rounded-2xl px-3 py-2 text-center">
-                                    <CheckCircle2 className="w-5 h-5 text-emerald-400 mx-auto mb-1" />
-                                    <p className="text-[9px] font-black text-emerald-300 uppercase tracking-widest">Paid</p>
-                                </div>
-                                <button
-                                    onClick={handleCloseReceipt}
-                                    className="p-2 rounded-xl bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-colors"
-                                >
-                                    <X className="w-4 h-4" />
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Details grid */}
-                        <div className="grid grid-cols-2 gap-3">
-                            {[
-                                { label: "Provider", value: receipt.servicer_name },
-                                { label: "Account Holder", value: payDetails?.account_holder_name ?? "—" },
-                                {
-                                    label: "Date",
-                                    value: receipt.completed_at
-                                        ? new Date(receipt.completed_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-                                        : new Date(booking?.scheduled_at ?? "").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-                                },
-                                {
-                                    label: "Time",
-                                    value: receipt.completed_at
-                                        ? new Date(receipt.completed_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                                        : new Date(booking?.scheduled_at ?? "").toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                                },
-                                { label: "Service", value: booking?.service_type ?? "—" },
-                                { label: "Hours Worked", value: booking?.actual_hours ? `${booking.actual_hours}h` : "—" },
-                                { label: "Payment Via", value: paymentMethodUsed },
-                            ].map(({ label, value }) => (
-                                <div key={label} className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
-                                    <p className="text-sm font-black text-slate-900 leading-tight">{value}</p>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Total */}
-                        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-6 py-5 flex items-center justify-between">
-                            <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Amount Paid</p>
-                            <p className="text-3xl font-black text-emerald-700 tracking-tight">
-                                ₹{Number(receipt.final_amount).toLocaleString("en-IN")}
-                            </p>
-                        </div>
-
-                        <button
-                            onClick={handleCloseReceipt}
-                            className="w-full py-4 bg-[#064e3b] text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-800 transition-colors"
-                        >
-                            Done — Rate Provider
-                        </button>
-                    </div>
-                </div>
-            )}
+            </div>{/* end 3-col grid */}
 
             {/* Cancel Modal */}
             {showCancel && (
@@ -937,6 +761,218 @@ export default function BookingDetailsPage() {
                                 {submittingReview ? "Submitting..." : "Submit Rating"}
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Payment Method Modal ── */}
+            {showPayModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 space-y-6 animate-in fade-in zoom-in duration-200">
+
+                        {/* ── STEP 1: Select method ── */}
+                        {payStep === "select" && (
+                            <>
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Pay Your Provider</h3>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mt-1">Choose payment method</p>
+                                    </div>
+                                    <button onClick={() => setShowPayModal(false)} className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:text-black transition-colors">
+                                        <X size={18} />
+                                    </button>
+                                </div>
+
+                                {/* Amount due */}
+                                <div className="bg-amber-50 border border-amber-200 rounded-2xl px-6 py-4 flex justify-between items-center">
+                                    <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Amount Due</p>
+                                    <p className="text-2xl font-black text-slate-900">
+                                        ₹{Number(booking?.final_cost ?? booking?.estimated_cost ?? 0).toLocaleString("en-IN")}
+                                    </p>
+                                </div>
+
+                                {/* Method cards */}
+                                <div className="space-y-3">
+                                    {(["qr", "bank", "upi"] as PayMethod[]).map((method) => {
+                                        const labels: Record<PayMethod, { title: string; sub: string; icon: React.ReactNode }> = {
+                                            qr:   { title: "QR Scanner",    sub: "Scan provider's UPI QR code",  icon: <Camera size={20} className="text-emerald-600" /> },
+                                            bank: { title: "Bank Transfer", sub: "NEFT / IMPS to bank account",  icon: <CreditCard size={20} className="text-emerald-600" /> },
+                                            upi:  { title: "UPI Transfer",  sub: "PhonePe, GPay, Paytm & more", icon: <IndianRupee size={20} className="text-emerald-600" /> },
+                                        };
+                                        const { title, sub, icon } = labels[method];
+                                        const isSelected = selectedMethod === method;
+                                        return (
+                                            <button
+                                                key={method}
+                                                onClick={() => setSelectedMethod(method)}
+                                                className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left ${
+                                                    isSelected
+                                                        ? "border-[#064e3b] bg-emerald-50"
+                                                        : "border-slate-100 bg-white hover:border-slate-200"
+                                                }`}
+                                            >
+                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isSelected ? "bg-emerald-100" : "bg-slate-100"}`}>
+                                                    {icon}
+                                                </div>
+                                                <div className="flex-1">
+                                                    <p className="text-sm font-black text-slate-900">{title}</p>
+                                                    <p className="text-[10px] text-slate-400 font-medium">{sub}</p>
+                                                </div>
+                                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${isSelected ? "border-[#064e3b] bg-[#064e3b]" : "border-slate-200"}`}>
+                                                    {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                <button
+                                    onClick={() => setPayStep("detail")}
+                                    className="w-full py-4 bg-[#064e3b] text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-800 transition-colors"
+                                >
+                                    Continue →
+                                </button>
+                            </>
+                        )}
+
+                        {/* ── STEP 2: Method detail ── */}
+                        {payStep === "detail" && (
+                            <>
+                                <div className="flex items-center gap-3">
+                                    <button onClick={() => { setPayStep("select"); setScannedQrData(""); setShowQrScanner(false); }} className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-black transition-colors">
+                                        <ChevronLeft size={18} />
+                                    </button>
+                                    <div>
+                                        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">
+                                            {selectedMethod === "qr" ? "QR Scanner" : selectedMethod === "bank" ? "Bank Transfer" : "UPI Transfer"}
+                                        </h3>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Complete your payment</p>
+                                    </div>
+                                    <button onClick={() => { setShowPayModal(false); setShowQrScanner(false); }} className="ml-auto p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-black transition-colors">
+                                        <X size={18} />
+                                    </button>
+                                </div>
+
+                                {/* QR detail */}
+                                {selectedMethod === "qr" && (
+                                    <div className="space-y-4">
+                                        {!scannedQrData ? (
+                                            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-6 text-center space-y-4">
+                                                <p className="text-sm font-black text-slate-700">Open camera to scan the provider&apos;s QR code</p>
+                                                <p className="text-[10px] text-slate-400 font-medium">Camera stays open for 2 minutes</p>
+                                                <button
+                                                    onClick={() => setShowQrScanner(true)}
+                                                    className="flex items-center gap-2 mx-auto px-6 py-3 bg-[#064e3b] text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-800 transition-colors"
+                                                >
+                                                    <Camera size={14} /> Open QR Scanner
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 space-y-2">
+                                                <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">QR Scanned Successfully</p>
+                                                <p className="text-sm font-mono font-black text-emerald-800 break-all">{scannedQrData}</p>
+                                                <button onClick={() => { setScannedQrData(""); setShowQrScanner(true); }} className="text-[10px] text-slate-400 underline font-medium">Scan again</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Bank detail */}
+                                {selectedMethod === "bank" && (
+                                    <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-3">
+                                        {payDetails ? (
+                                            <>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Account Holder</span>
+                                                    <span className="text-sm font-black text-slate-900">{payDetails.account_holder_name}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Account Number</span>
+                                                    <button onClick={() => setRevealed(!revealed)} className="text-sm font-mono font-black text-slate-900 hover:text-[#064e3b] transition-colors">
+                                                        {revealed ? payDetails.account_number_masked : "XXXXXX••••"}
+                                                    </button>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">IFSC Code</span>
+                                                    <span className="text-sm font-mono font-black text-slate-900">{payDetails.ifsc_code}</span>
+                                                </div>
+                                                {!revealed && <p className="text-[10px] text-slate-400 font-medium text-center pt-1">Tap account number to reveal</p>}
+                                            </>
+                                        ) : (
+                                            <p className="text-sm font-medium text-slate-500 text-center">Contact your provider directly for bank account details, then confirm payment below.</p>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* UPI detail */}
+                                {selectedMethod === "upi" && (
+                                    <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5">
+                                        {payDetails?.has_upi && payDetails.upi_id ? (
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">UPI ID</span>
+                                                <span className="text-sm font-mono font-black text-slate-900">{payDetails.upi_id}</span>
+                                            </div>
+                                        ) : (
+                                            <p className="text-sm font-medium text-slate-500 text-center">Contact your provider for their UPI ID, then confirm payment below.</p>
+                                        )}
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={() => setPayStep("confirm")}
+                                    disabled={selectedMethod === "qr" && !scannedQrData}
+                                    className="w-full py-4 bg-[#064e3b] text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    {selectedMethod === "qr" && !scannedQrData ? "Scan QR first" : "I've Completed the Transfer →"}
+                                </button>
+                            </>
+                        )}
+
+                        {/* ── STEP 3: Confirm ── */}
+                        {payStep === "confirm" && (
+                            <>
+                                <div className="flex items-center gap-3">
+                                    <button onClick={() => setPayStep("detail")} className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-black transition-colors">
+                                        <ChevronLeft size={18} />
+                                    </button>
+                                    <div>
+                                        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Confirm Payment</h3>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Final step</p>
+                                    </div>
+                                </div>
+
+                                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-3">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Method</span>
+                                        <span className="text-sm font-black text-slate-900">
+                                            {selectedMethod === "qr" ? "QR Scanner" : selectedMethod === "bank" ? "Bank Transfer" : "UPI Transfer"}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Amount</span>
+                                        <span className="text-xl font-black text-emerald-700">
+                                            ₹{Number(booking?.final_cost ?? booking?.estimated_cost ?? 0).toLocaleString("en-IN")}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Service</span>
+                                        <span className="text-sm font-black text-slate-900">{booking?.service_type}</span>
+                                    </div>
+                                </div>
+
+                                <p className="text-[10px] text-slate-400 font-medium text-center">
+                                    Tapping below records your payment and marks this booking as settled. No money is transferred through the app.
+                                </p>
+
+                                <button
+                                    onClick={handlePayNow}
+                                    disabled={paying}
+                                    className="w-full py-4 bg-[#064e3b] text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-800 disabled:opacity-50 transition-colors"
+                                >
+                                    {paying ? "Processing..." : "✓ Confirm & View Receipt"}
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
             )}
