@@ -488,6 +488,12 @@ def create_review(
     if booking.status != "Completed":
         raise HTTPException(status_code=400, detail="Cannot review incomplete booking")
 
+    existing_review = db.query(BookingReview).filter(
+        BookingReview.booking_id == booking_id
+    ).first()
+    if existing_review:
+        raise HTTPException(status_code=409, detail="You have already reviewed this booking")
+
     db_review = BookingReview(
         booking_id=booking_id,
         rating=review_in.rating,
