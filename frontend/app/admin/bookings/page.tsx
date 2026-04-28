@@ -633,7 +633,7 @@ export default function AdminBookingsPage() {
                         <span className="text-[10px] text-slate-400 font-bold">{serviceRequests.length} total</span>
                     </div>
                     {serviceRequests.length === 0 ? (
-                        <EmptyState title="No service requests" message="No service requests in the system yet." />
+                        <EmptyState icon={ClipboardList} title="No service requests" description="No service requests in the system yet." />
                     ) : (
                         serviceRequests.map(req => (
                             <div key={req.id} className={`bg-white border rounded-2xl p-5 border-l-4 ${
