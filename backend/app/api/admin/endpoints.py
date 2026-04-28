@@ -12,8 +12,8 @@ from app.booking.domain.model import ServiceBooking, BookingComplaint
 from app.maintenance.domain.model import MaintenanceTask
 from app.api.auth.schemas import UserResponse
 from app.api.service.schemas import ProviderResponse
-from app.api.admin.schemas import AdminVerifyUpdate, ComplaintAdminRead, ComplaintAdminUpdate, SecretaryComplaintRead, SecretaryComplaintAdminUpdate, ServiceRequestAdminRead, ServiceRequestResponseAdminRead
-from app.request.domain.model import ServiceRequest, ServiceRequestResponse
+from app.api.admin.schemas import AdminVerifyUpdate, ComplaintAdminRead, ComplaintAdminUpdate, SecretaryComplaintRead, SecretaryComplaintAdminUpdate, ServiceRequestAdminRead, ServiceRequestResponseAdminRead, ServiceRequestRecipientAdminRead
+from app.request.domain.model import ServiceRequest, ServiceRequestResponse, ServiceRequestRecipient
 from app.secretary.domain.model import SecretaryComplaint
 from app.core.config import settings
 
@@ -813,9 +813,11 @@ def list_service_requests(
         user = db.query(User).filter(User.id == req.user_id).first()
 
         responses = []
+        responded_provider_ids = set()
         for resp in req.responses:
             prov = db.query(ServiceProvider).filter(ServiceProvider.id == resp.provider_id).first()
             pname = get_provider_display_name(prov) if prov else None
+            responded_provider_ids.add(resp.provider_id)
             responses.append(ServiceRequestResponseAdminRead(
                 id=resp.id,
                 provider_name=pname,
@@ -824,6 +826,16 @@ def list_service_requests(
                 status=resp.status,
                 negotiation_status=resp.negotiation_status,
                 message=resp.message,
+            ))
+
+        recipients = []
+        for rec in req.recipients:
+            prov = db.query(ServiceProvider).filter(ServiceProvider.id == rec.provider_id).first()
+            pname = get_provider_display_name(prov) if prov else None
+            recipients.append(ServiceRequestRecipientAdminRead(
+                provider_name=pname,
+                is_read=rec.is_read,
+                has_responded=rec.provider_id in responded_provider_ids,
             ))
 
         result.append(ServiceRequestAdminRead(
@@ -838,6 +850,7 @@ def list_service_requests(
             user_name=user.username if user else None,
             response_count=len(responses),
             responses=responses,
+            recipients=recipients,
         ))
     return result
 

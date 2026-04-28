@@ -68,6 +68,15 @@ class ServiceRequestResponseAdminRead(BaseModel):
         from_attributes = True
 
 
+class ServiceRequestRecipientAdminRead(BaseModel):
+    provider_name: Optional[str] = None
+    is_read: bool = False
+    has_responded: bool = False
+
+    class Config:
+        from_attributes = True
+
+
 class ServiceRequestAdminRead(BaseModel):
     id: UUID
     device_or_issue: str
@@ -80,6 +89,7 @@ class ServiceRequestAdminRead(BaseModel):
     user_name: Optional[str] = None
     response_count: int = 0
     responses: list[ServiceRequestResponseAdminRead] = []
+    recipients: list[ServiceRequestRecipientAdminRead] = []
 
     class Config:
         from_attributes = True

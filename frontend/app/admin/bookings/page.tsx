@@ -61,6 +61,12 @@ interface ServiceRequestResponse {
     message?: string;
 }
 
+interface ServiceRequestRecipient {
+    provider_name?: string;
+    is_read: boolean;
+    has_responded: boolean;
+}
+
 interface ServiceRequest {
     id: string;
     device_or_issue: string;
@@ -73,6 +79,7 @@ interface ServiceRequest {
     user_name?: string;
     response_count: number;
     responses: ServiceRequestResponse[];
+    recipients: ServiceRequestRecipient[];
 }
 
 const STATUS_STYLE: Record<string, string> = {
@@ -672,6 +679,25 @@ export default function AdminBookingsPage() {
                                         </span>
                                     )}
                                 </div>
+                                {req.recipients.length > 0 && (
+                                    <div className="mb-3">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Shared With</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {req.recipients.map((rec, i) => (
+                                                <div key={i} className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-bold border ${
+                                                    rec.has_responded ? "bg-emerald-50 border-emerald-200 text-emerald-700" :
+                                                    rec.is_read ? "bg-blue-50 border-blue-200 text-blue-700" :
+                                                    "bg-slate-50 border-slate-200 text-slate-500"
+                                                }`}>
+                                                    <span>{rec.provider_name || "Unknown"}</span>
+                                                    <span className="opacity-60 text-[9px]">
+                                                        {rec.has_responded ? "· responded" : rec.is_read ? "· seen" : "· not seen"}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                                 {req.responses.length > 0 && (
                                     <div className="mb-3">
                                         <button
