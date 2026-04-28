@@ -228,6 +228,32 @@ def _cleanup_old_notifications() -> None:
         db.close()
 
 
+def _expire_stale_emergencies() -> None:
+    """Run hourly. Mark PENDING EmergencyRequests whose expires_at has passed as EXPIRED."""
+    from app.emergency.domain.model import EmergencyRequest
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        stale = (
+            db.query(EmergencyRequest)
+            .filter(
+                EmergencyRequest.status == "PENDING",
+                EmergencyRequest.expires_at < now,
+            )
+            .all()
+        )
+        for req in stale:
+            req.status = "EXPIRED"
+        if stale:
+            db.commit()
+            logger.info("Emergency expiry: expired %d stale requests.", len(stale))
+    except Exception:
+        logger.exception("Emergency expiry scheduler failed.")
+        db.rollback()
+    finally:
+        db.close()
+
+
 def start_scheduler() -> None:
     scheduler.add_job(
         _check_alert_notifications,
@@ -260,6 +286,14 @@ def start_scheduler() -> None:
         id="notification_cleanup",
         replace_existing=True,
         misfire_grace_time=3600,
+    )
+    scheduler.add_job(
+        _expire_stale_emergencies,
+        trigger="interval",
+        hours=1,
+        id="emergency_expiry",
+        replace_existing=True,
+        misfire_grace_time=300,
     )
     scheduler.start()
     logger.info("Alert notification scheduler started.")
