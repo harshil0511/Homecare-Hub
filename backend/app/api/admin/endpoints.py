@@ -548,6 +548,97 @@ def get_revenue_summary(
     }
 
 
+@router.get("/stats/bookings-trend")
+def get_bookings_trend(
+    db: Session = Depends(deps.get_db),
+    _: User = Depends(admin_only),
+):
+    """Returns last 7 days booking counts (by created_at date)."""
+    from datetime import date, timedelta
+    today = date.today()
+    result = []
+    for i in range(6, -1, -1):
+        day = today - timedelta(days=i)
+        count = db.query(ServiceBooking).filter(
+            ServiceBooking.created_at >= datetime(day.year, day.month, day.day, 0, 0, 0),
+            ServiceBooking.created_at < datetime(day.year, day.month, day.day, 23, 59, 59),
+        ).count()
+        result.append({
+            "date": day.isoformat(),
+            "day": day.strftime("%a"),
+            "count": count,
+        })
+    return result
+
+
+@router.get("/stats/provider-earnings")
+def get_provider_earnings(
+    db: Session = Depends(deps.get_db),
+    _: User = Depends(admin_only),
+):
+    """Per-provider earnings: total jobs, total earned, and last 3 periods (3-day buckets)."""
+    from datetime import date, timedelta
+
+    completed = db.query(ServiceBooking).filter(ServiceBooking.status == "Completed").all()
+
+    # Group by provider_id
+    provider_map: dict = {}
+    for b in completed:
+        pid = str(b.provider_id)
+        if pid not in provider_map:
+            provider_map[pid] = {"jobs": 0, "earned": 0.0, "bookings": []}
+        provider_map[pid]["jobs"] += 1
+        provider_map[pid]["earned"] += b.final_cost or b.estimated_cost or 0
+        provider_map[pid]["bookings"].append(b)
+
+    if not provider_map:
+        return []
+
+    # Resolve provider names
+    pids = list(provider_map.keys())
+    from uuid import UUID as UUIDT
+    providers = db.query(ServiceProvider).filter(
+        ServiceProvider.id.in_([UUIDT(p) for p in pids])
+    ).all()
+    pname_map = {}
+    for p in providers:
+        name = f"{p.first_name or ''} {p.last_name or ''}".strip() or p.company_name or "Unknown"
+        pname_map[str(p.id)] = {"name": name, "category": p.category or ""}
+
+    # Build 3-day buckets for last 9 days
+    today = date.today()
+    periods = []
+    for i in range(2, -1, -1):
+        start = today - timedelta(days=(i + 1) * 3 - 1)
+        end = today - timedelta(days=i * 3)
+        label = f"{start.strftime('%d %b')}–{end.strftime('%d %b')}"
+        periods.append({"start": start, "end": end, "label": label})
+
+    result = []
+    for pid, data in provider_map.items():
+        period_earnings = []
+        for period in periods:
+            earned = sum(
+                b.final_cost or b.estimated_cost or 0
+                for b in data["bookings"]
+                if b.completed_at and period["start"] <= b.completed_at.date() <= period["end"]
+            )
+            period_earnings.append({"label": period["label"], "earned": round(earned, 2)})
+
+        info = pname_map.get(pid, {"name": "Unknown", "category": ""})
+        result.append({
+            "provider_id": pid,
+            "name": info["name"],
+            "category": info["category"],
+            "total_jobs": data["jobs"],
+            "total_earned": round(data["earned"], 2),
+            "periods": period_earnings,
+        })
+
+    result.sort(key=lambda x: x["total_earned"], reverse=True)
+    return result[:15]
+
+
 @router.get("/complaints", response_model=List[ComplaintAdminRead])
 def list_complaints(
     status: Optional[str] = None,
@@ -614,6 +705,7 @@ def update_complaint(
             raise HTTPException(status_code=400, detail="Booking must be in 'Pending Confirmation' to override amount")
         booking.status = "Completed"
         booking.final_cost = body.override_amount
+        booking.is_flagged = False
         booking.completed_at = datetime.utcnow()
         from app.booking.domain.model import BookingStatusHistory
         db.add(BookingStatusHistory(
