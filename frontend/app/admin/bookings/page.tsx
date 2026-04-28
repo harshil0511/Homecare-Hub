@@ -460,8 +460,8 @@ export default function AdminBookingsPage() {
                                         </p>
                                     </div>
                                     <div className="bg-slate-50 rounded-xl px-3 py-2">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filed By</p>
-                                        <p className="text-xs font-bold text-slate-700 mt-0.5">{c.filed_by_username || "—"}</p>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Scheduled</p>
+                                        <p className="text-xs font-bold text-slate-700 mt-0.5">{c.scheduled_at ? new Date(c.scheduled_at).toLocaleDateString() : "—"}</p>
                                     </div>
                                 </div>
                                 <p className="text-xs text-slate-600 mb-2 leading-relaxed">{c.reason}</p>
