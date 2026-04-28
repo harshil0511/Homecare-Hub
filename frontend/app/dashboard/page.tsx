@@ -186,6 +186,7 @@ export default function DashboardPage() {
                 console.warn("Could not fetch notifications", e);
             }
 
+            let trustedCount = 0;
             if (me.society_id) {
                 try {
                     const societies = await apiFetch("/services/societies");
@@ -194,6 +195,7 @@ export default function DashboardPage() {
 
                     const trusted = await apiFetch(`/services/societies/${me.society_id}/trusted`);
                     setTrustedProviders(trusted);
+                    trustedCount = Array.isArray(trusted) ? trusted.length : 0;
                 } catch (e) {
                     console.warn("Could not fetch society info", e);
                 }
@@ -220,7 +222,7 @@ export default function DashboardPage() {
 
             setStats({
                 activeOperations: userBookings.filter((b: ApiRecord) => b.status === "In Progress" || b.status === "Accepted").length,
-                serviceNetwork: trustedProviders.length, // Re-evaluated below safely
+                serviceNetwork: trustedCount,
                 verifiedExperts: verifiedCount,
                 priorityTickets: userBookings.filter((b: ApiRecord) => b.priority === "Emergency").length
             });
