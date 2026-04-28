@@ -8,9 +8,9 @@ import Spinner from "@/components/ui/Spinner";
 import EmptyState from "@/components/ui/EmptyState";
 
 interface Booking {
-    id: number;
-    user_id: number;
-    provider_id: number | null;
+    id: string;
+    user_id: string;
+    provider_id: string | null;
     service_type: string | null;
     status: string;
     priority: string | null;
@@ -91,7 +91,7 @@ const PRIORITY_STYLE: Record<string, string> = {
 };
 
 interface BookingDetail {
-    id: number;
+    id: string;
     status: string;
     priority: string;
     service_type: string;
@@ -125,7 +125,7 @@ export default function AdminBookingsPage() {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("ALL");
-    const [selectedBooking, setSelectedBooking] = useState<number | null>(null);
+    const [selectedBooking, setSelectedBooking] = useState<string | null>(null);
     const [bookingDetail, setBookingDetail] = useState<BookingDetail | null>(null);
     const [detailLoading, setDetailLoading] = useState(false);
 
@@ -137,6 +137,9 @@ export default function AdminBookingsPage() {
     const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
     const [expandedRequest, setExpandedRequest] = useState<string | null>(null);
     const [cancellingRequest, setCancellingRequest] = useState<string | null>(null);
+    const [resolveTarget, setResolveTarget] = useState<string | null>(null);
+    const [resolveNotes, setResolveNotes] = useState("");
+    const [actionLoading, setActionLoading] = useState<string | null>(null);
 
     const fetchComplaints = async () => {
         const data = await apiFetch("/admin/complaints").catch(() => []);
@@ -204,7 +207,7 @@ export default function AdminBookingsPage() {
         }
     };
 
-    const openBookingDetail = async (id: number) => {
+    const openBookingDetail = async (id: string) => {
         setSelectedBooking(id);
         setBookingDetail(null);
         setDetailLoading(true);
@@ -475,13 +478,19 @@ export default function AdminBookingsPage() {
                                     <div className="flex gap-2 flex-wrap">
                                         {c.status === "OPEN" && (
                                             <button
-                                                onClick={() => apiFetch(`/admin/complaints/${c.id}`, {
-                                                    method: "PATCH",
-                                                    body: JSON.stringify({ status: "UNDER_REVIEW" }),
-                                                }).then(fetchComplaints).catch(() => toast.error("Failed"))}
-                                                className="px-3 py-1.5 bg-blue-50 text-blue-700 text-[10px] font-black uppercase rounded-lg hover:bg-blue-100"
+                                                onClick={async () => {
+                                                    if (actionLoading) return;
+                                                    setActionLoading(`under-review-${c.id}`);
+                                                    try {
+                                                        await apiFetch(`/admin/complaints/${c.id}`, { method: "PATCH", body: JSON.stringify({ action: "under_review" }) });
+                                                        await fetchComplaints();
+                                                    } catch { toast.error("Failed to update complaint"); }
+                                                    finally { setActionLoading(null); }
+                                                }}
+                                                disabled={!!actionLoading}
+                                                className="px-3 py-1.5 bg-blue-50 text-blue-700 text-[10px] font-black uppercase rounded-lg hover:bg-blue-100 disabled:opacity-50"
                                             >
-                                                Mark Under Review
+                                                {actionLoading === `under-review-${c.id}` ? "Updating..." : "Mark Under Review"}
                                             </button>
                                         )}
                                         <button
@@ -519,15 +528,38 @@ export default function AdminBookingsPage() {
                                                 Override Amount
                                             </button>
                                         )}
-                                        <button
-                                            onClick={() => {
-                                                const notes = window.prompt("Add admin notes (optional):") ?? "";
-                                                handleResolveComplaint(c.id, notes);
-                                            }}
-                                            className="px-3 py-1.5 bg-[#064e3b] text-white text-[10px] font-black uppercase rounded-lg hover:bg-emerald-800"
-                                        >
-                                            Resolve
-                                        </button>
+                                        {resolveTarget === c.id ? (
+                                            <div className="flex flex-col gap-2 mt-2">
+                                                <input
+                                                    type="text"
+                                                    value={resolveNotes}
+                                                    onChange={e => setResolveNotes(e.target.value)}
+                                                    placeholder="Admin notes (optional)"
+                                                    className="border rounded px-2 py-1 text-xs w-full"
+                                                />
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => { handleResolveComplaint(c.id, resolveNotes); setResolveTarget(null); setResolveNotes(""); }}
+                                                        className="text-xs bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
+                                                    >
+                                                        Confirm
+                                                    </button>
+                                                    <button
+                                                        onClick={() => { setResolveTarget(null); setResolveNotes(""); }}
+                                                        className="text-xs bg-slate-200 text-slate-700 px-3 py-1 rounded hover:bg-slate-300"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={() => setResolveTarget(c.id)}
+                                                className="px-3 py-1.5 bg-[#064e3b] text-white text-[10px] font-black uppercase rounded-lg hover:bg-emerald-800"
+                                            >
+                                                Resolve
+                                            </button>
+                                        )}
                                     </div>
                                 )}
                             </div>
