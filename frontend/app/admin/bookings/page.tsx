@@ -482,7 +482,7 @@ export default function AdminBookingsPage() {
                                                     if (actionLoading) return;
                                                     setActionLoading(`under-review-${c.id}`);
                                                     try {
-                                                        await apiFetch(`/admin/complaints/${c.id}`, { method: "PATCH", body: JSON.stringify({ action: "under_review" }) });
+                                                        await apiFetch(`/admin/complaints/${c.id}`, { method: "PATCH", body: JSON.stringify({ status: "UNDER_REVIEW" }) });
                                                         await fetchComplaints();
                                                     } catch { toast.error("Failed to update complaint"); }
                                                     finally { setActionLoading(null); }
