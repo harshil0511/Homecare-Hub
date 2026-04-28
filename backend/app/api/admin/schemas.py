@@ -30,11 +30,19 @@ class ComplaintAdminRead(BaseModel):
     id: UUID
     booking_id: UUID
     filed_by: UUID
+    filed_by_username: Optional[str] = None
     reason: str
     status: str
     admin_notes: Optional[str] = None
     created_at: Optional[datetime] = None
     resolved_at: Optional[datetime] = None
+    service_type: Optional[str] = None
+    booking_status: Optional[str] = None
+    scheduled_at: Optional[datetime] = None
+    final_cost: Optional[float] = None
+    estimated_cost: Optional[float] = None
+    provider_name: Optional[str] = None
+    user_name: Optional[str] = None
 
     class Config:
         from_attributes = True

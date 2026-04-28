@@ -7,6 +7,7 @@ from typing import List, Optional
 from app.common import deps
 from app.auth.domain.model import User
 from app.service.domain.model import ServiceProvider
+from app.service.services import get_provider_display_name
 from app.booking.domain.model import ServiceBooking, BookingComplaint
 from app.maintenance.domain.model import MaintenanceTask
 from app.api.auth.schemas import UserResponse
@@ -645,11 +646,48 @@ def list_complaints(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(admin_only),
 ):
-    """List all booking complaints. Filter by ?status=OPEN|UNDER_REVIEW|RESOLVED"""
+    """List all booking complaints with full booking context."""
     query = db.query(BookingComplaint)
     if status:
         query = query.filter(BookingComplaint.status == status)
-    return query.order_by(BookingComplaint.created_at.desc()).all()
+    complaints = query.order_by(BookingComplaint.created_at.desc()).all()
+
+    result = []
+    for c in complaints:
+        booking = db.query(ServiceBooking).filter(ServiceBooking.id == c.booking_id).first()
+        filer = db.query(User).filter(User.id == c.filed_by).first()
+
+        provider_name = None
+        user_name = None
+        if booking:
+            if booking.provider_id:
+                prov = db.query(ServiceProvider).filter(ServiceProvider.id == booking.provider_id).first()
+                if prov:
+                    provider_name = get_provider_display_name(prov)
+            if booking.user_id:
+                u = db.query(User).filter(User.id == booking.user_id).first()
+                if u:
+                    user_name = u.username
+
+        result.append(ComplaintAdminRead(
+            id=c.id,
+            booking_id=c.booking_id,
+            filed_by=c.filed_by,
+            filed_by_username=filer.username if filer else None,
+            reason=c.reason,
+            status=c.status,
+            admin_notes=c.admin_notes,
+            created_at=c.created_at,
+            resolved_at=c.resolved_at,
+            service_type=booking.service_type if booking else None,
+            booking_status=booking.status if booking else None,
+            scheduled_at=booking.scheduled_at if booking else None,
+            final_cost=booking.final_cost if booking else None,
+            estimated_cost=booking.estimated_cost if booking else None,
+            provider_name=provider_name,
+            user_name=user_name,
+        ))
+    return result
 
 
 @router.patch("/complaints/{complaint_id}", response_model=ComplaintAdminRead)
