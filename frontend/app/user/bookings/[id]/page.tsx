@@ -97,7 +97,6 @@ export default function BookingDetailsPage() {
         has_qr: boolean;
     } | null>(null);
     const [revealed, setRevealed] = useState(false);
-    const [paymentMethodUsed, setPaymentMethodUsed] = useState<string>("");
     const [paying, setPaying] = useState(false);
     const [showQrScanner, setShowQrScanner] = useState(false);
     const [scannedQrData, setScannedQrData] = useState<string>("");
@@ -147,11 +146,9 @@ export default function BookingDetailsPage() {
     }, [loading, booking, userRole]);
 
     const handlePayNow = async () => {
-        const method = selectedMethod === "bank" ? "Bank Transfer" : selectedMethod === "upi" ? "UPI" : "QR Code";
         setPaying(true);
         try {
             await apiFetch(`/bookings/${id}/confirm`, { method: "POST" });
-            setPaymentMethodUsed(method);
             setShowPayModal(false);
             router.push(`/user/bookings/${id}/receipt`);
         } catch (err) {
