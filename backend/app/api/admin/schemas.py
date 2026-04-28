@@ -55,6 +55,36 @@ class ComplaintAdminUpdate(BaseModel):
     override_amount: Optional[float] = None
 
 
+class ServiceRequestResponseAdminRead(BaseModel):
+    id: UUID
+    provider_name: Optional[str] = None
+    proposed_price: Optional[float] = None
+    proposed_date: Optional[datetime] = None
+    status: str
+    negotiation_status: str
+    message: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ServiceRequestAdminRead(BaseModel):
+    id: UUID
+    device_or_issue: str
+    urgency: str
+    status: str
+    contact_name: str
+    location: str
+    created_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    user_name: Optional[str] = None
+    response_count: int = 0
+    responses: list[ServiceRequestResponseAdminRead] = []
+
+    class Config:
+        from_attributes = True
+
+
 class SecretaryComplaintRead(BaseModel):
     id: UUID
     society_id: UUID

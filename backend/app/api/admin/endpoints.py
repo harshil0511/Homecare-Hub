@@ -12,7 +12,8 @@ from app.booking.domain.model import ServiceBooking, BookingComplaint
 from app.maintenance.domain.model import MaintenanceTask
 from app.api.auth.schemas import UserResponse
 from app.api.service.schemas import ProviderResponse
-from app.api.admin.schemas import AdminVerifyUpdate, ComplaintAdminRead, ComplaintAdminUpdate, SecretaryComplaintRead, SecretaryComplaintAdminUpdate
+from app.api.admin.schemas import AdminVerifyUpdate, ComplaintAdminRead, ComplaintAdminUpdate, SecretaryComplaintRead, SecretaryComplaintAdminUpdate, ServiceRequestAdminRead, ServiceRequestResponseAdminRead
+from app.request.domain.model import ServiceRequest, ServiceRequestResponse
 from app.secretary.domain.model import SecretaryComplaint
 from app.core.config import settings
 
@@ -793,6 +794,72 @@ def update_complaint(
     db.commit()
     db.refresh(complaint)
     return complaint
+
+
+@router.get("/requests", response_model=List[ServiceRequestAdminRead])
+def list_service_requests(
+    status: Optional[str] = None,
+    db: Session = Depends(deps.get_db),
+    _: User = Depends(admin_only),
+):
+    """Admin: list all service requests with requester and response details."""
+    query = db.query(ServiceRequest)
+    if status:
+        query = query.filter(ServiceRequest.status == status)
+    requests = query.order_by(ServiceRequest.created_at.desc()).all()
+
+    result = []
+    for req in requests:
+        user = db.query(User).filter(User.id == req.user_id).first()
+
+        responses = []
+        for resp in req.responses:
+            prov = db.query(ServiceProvider).filter(ServiceProvider.id == resp.provider_id).first()
+            pname = get_provider_display_name(prov) if prov else None
+            responses.append(ServiceRequestResponseAdminRead(
+                id=resp.id,
+                provider_name=pname,
+                proposed_price=resp.proposed_price,
+                proposed_date=resp.proposed_date,
+                status=resp.status,
+                negotiation_status=resp.negotiation_status,
+                message=resp.message,
+            ))
+
+        result.append(ServiceRequestAdminRead(
+            id=req.id,
+            device_or_issue=req.device_or_issue,
+            urgency=req.urgency,
+            status=req.status,
+            contact_name=req.contact_name,
+            location=req.location,
+            created_at=req.created_at,
+            expires_at=req.expires_at,
+            user_name=user.username if user else None,
+            response_count=len(responses),
+            responses=responses,
+        ))
+    return result
+
+
+@router.delete("/requests/{request_id}")
+def cancel_service_request(
+    request_id: UUID,
+    db: Session = Depends(deps.get_db),
+    _: User = Depends(admin_only),
+):
+    """Admin: cancel an OPEN or ACCEPTED service request."""
+    req = db.query(ServiceRequest).filter(ServiceRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Service request not found")
+    if req.status not in ("OPEN", "ACCEPTED"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot cancel a request with status '{req.status}'"
+        )
+    req.status = "CANCELLED"
+    db.commit()
+    return {"message": "Service request cancelled"}
 
 
 @router.get("/secretary-complaints", response_model=List[SecretaryComplaintRead])
