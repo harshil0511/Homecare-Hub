@@ -230,8 +230,11 @@ export default function ReceiptPage() {
               className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-slate-200 text-slate-600 text-xs font-black uppercase rounded-2xl hover:bg-slate-50 transition-colors print:hidden"
             >
               <Printer className="w-4 h-4" />
-              Print Receipt
+              Download / Print Receipt
             </button>
+            <p className="text-center text-[10px] text-slate-400 font-medium print:hidden">
+              Select &quot;Save as PDF&quot; in the print dialog to download
+            </p>
           </div>
         </div>
       </div>
