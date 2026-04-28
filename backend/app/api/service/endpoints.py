@@ -14,7 +14,7 @@ from app.auth.domain.model import User, Society
 from app.auth.domain.model import society_trusted_providers
 from app.service.domain.model import ServiceProvider, ServiceCertificate, SocietyRequest, ProviderPoints
 from app.payment.domain.model import PaymentProfile
-from app.booking.domain.model import ServiceBooking, BookingReview
+from app.booking.domain.model import ServiceBooking
 from app.api.service.schemas import (
     SocietyCreate, SocietyResponse, SocietyUpdate,
     ProviderCreate, ProviderResponse, ProviderUpdate, AvailabilityUpdate,
@@ -294,36 +294,6 @@ def get_my_provider_profile(
         raise HTTPException(status_code=404, detail="Provider profile not found. Please complete setup.")
     return provider
 
-@router.get("/providers/me/reviews")
-def get_my_reviews(
-    db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.get_current_user)
-):
-    provider = db.query(ServiceProvider).filter(ServiceProvider.user_id == current_user.id).first()
-    if not provider:
-        raise HTTPException(status_code=404, detail="Provider profile not found")
-    reviews = (
-        db.query(BookingReview, ServiceBooking.service_type, User.first_name, User.last_name)
-        .join(ServiceBooking, ServiceBooking.id == BookingReview.booking_id)
-        .join(User, User.id == ServiceBooking.user_id)
-        .filter(ServiceBooking.provider_id == provider.id)
-        .order_by(BookingReview.created_at.desc())
-        .all()
-    )
-    return [
-        {
-            "id": r.id,
-            "rating": r.rating,
-            "review_text": r.review_text,
-            "quality_rating": r.quality_rating,
-            "punctuality_rating": r.punctuality_rating,
-            "professionalism_rating": r.professionalism_rating,
-            "created_at": r.created_at.isoformat() if r.created_at else None,
-            "service_type": service_type,
-            "user_name": f"{first_name or ''} {last_name or ''}".strip() or "Anonymous"
-        }
-        for r, service_type, first_name, last_name in reviews
-    ]
 
 @router.post("/providers/setup", response_model=ProviderResponse)
 def setup_professional_profile(
@@ -863,6 +833,9 @@ def submit_verification(
     provider = db.query(ServiceProvider).filter(ServiceProvider.user_id == current_user.id).first()
     if not provider:
         raise HTTPException(status_code=404, detail="Provider profile not found")
+
+    if provider.is_verified:
+        return {"message": "You are already a Verified Expert.", "verified": True}
 
     # Certificate-based verification: provider must have at least one uploaded certificate
     cert_count = db.query(ServiceCertificate).filter(
