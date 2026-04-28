@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -208,10 +208,20 @@ export default function DashboardPage() {
                 }
             }
 
+            let verifiedCount = 0;
+            try {
+                const allProviders = await apiFetch("/services/providers");
+                verifiedCount = Array.isArray(allProviders)
+                    ? allProviders.filter((p: ApiRecord) => p.is_verified).length
+                    : 0;
+            } catch (e) {
+                console.warn("Could not fetch provider count", e);
+            }
+
             setStats({
                 activeOperations: userBookings.filter((b: ApiRecord) => b.status === "In Progress" || b.status === "Accepted").length,
                 serviceNetwork: trustedProviders.length, // Re-evaluated below safely
-                verifiedExperts: 0,
+                verifiedExperts: verifiedCount,
                 priorityTickets: userBookings.filter((b: ApiRecord) => b.priority === "Emergency").length
             });
         } catch (err) {
@@ -222,10 +232,9 @@ export default function DashboardPage() {
     };
 
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         void fetchData();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [trustedProviders.length]);
+    }, []);
 
     const handleCreateTask = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -345,7 +354,7 @@ export default function DashboardPage() {
                                 <div className="p-6 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
                                     <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.3em]">System Messages</h3>
                                     {unreadNotifications > 0 && (
-                                        <span className="px-3 py-1 bg-rose-100 text-rose-600 rounded-lg text-[8px] font-black uppercase">{unreadNotifications} New</span>
+                                        <span className="px-3 py-1 bg-rose-100 text-rose-600 rounded-lg text-[10px] font-black uppercase">{unreadNotifications} New</span>
                                     )}
                                 </div>
                                 <div className="max-h-96 overflow-y-auto">
@@ -363,7 +372,7 @@ export default function DashboardPage() {
                                                     {!notif.is_read && <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1" />}
                                                 </div>
                                                 <p className="text-[10px] font-bold text-slate-500 leading-relaxed mb-3">{notif.message}</p>
-                                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{new Date(notif.created_at).toLocaleDateString()}</span>
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{new Date(notif.created_at).toLocaleDateString()}</span>
                                             </div>
                                         ))
                                     )}
@@ -436,9 +445,9 @@ export default function DashboardPage() {
                                 {activeFilter === "ALL" ? "No Active Alerts" : `No items matching ${activeFilter}`}
                             </p>
                             {activeFilter !== "ALL" ? (
-                                <button onClick={() => setActiveFilter("ALL")} className="text-[9px] font-black text-[#064e3b] uppercase tracking-widest">Clear Filter ←</button>
+                                <button onClick={() => setActiveFilter("ALL")} className="text-[10px] font-black text-[#064e3b] uppercase tracking-widest">Clear Filter ←</button>
                             ) : (
-                                <button onClick={() => setShowTaskModal(true)} className="text-[9px] font-black text-[#064e3b] uppercase tracking-widest">Initialize First Alert →</button>
+                                <button onClick={() => setShowTaskModal(true)} className="text-[10px] font-black text-[#064e3b] uppercase tracking-widest">Initialize First Alert →</button>
                             )}
                         </div>
                     ) : (
@@ -476,7 +485,7 @@ export default function DashboardPage() {
 
                                                 <div className="space-y-1.5 min-w-0 flex-1">
                                                     <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
-                                                        <span className={`px-2.5 py-0.5 sm:px-4 sm:py-1 rounded-lg text-[9px] font-black uppercase tracking-[0.2em] flex-shrink-0 ${isExpired ? 'bg-rose-600 text-white' : isUrgent ? 'bg-rose-100 text-rose-600 border border-rose-200' : entry.priority === 'Mandatory' ? 'bg-amber-100 text-amber-600 border border-amber-200' : 'bg-slate-200 text-slate-600 border border-slate-300'}`}>
+                                                        <span className={`px-2.5 py-0.5 sm:px-4 sm:py-1 rounded-lg text-[10px] font-black uppercase tracking-[0.2em] flex-shrink-0 ${isExpired ? 'bg-rose-600 text-white' : isUrgent ? 'bg-rose-100 text-rose-600 border border-rose-200' : entry.priority === 'Mandatory' ? 'bg-amber-100 text-amber-600 border border-amber-200' : 'bg-slate-200 text-slate-600 border border-slate-300'}`}>
                                                             {isExpired ? 'EXPIRED' : entry.priority || 'ROUTINE'}
                                                         </span>
                                                         <h4 className="text-sm sm:text-xl font-black text-black uppercase tracking-tighter leading-none truncate">{entry.title}</h4>
@@ -515,35 +524,35 @@ export default function DashboardPage() {
                                                             <>
                                                                 {/* Booking Detail */}
                                                                 <div className="flex items-center gap-2 flex-wrap">
-                                                                    <span className="text-[9px] font-black bg-blue-100 text-blue-700 px-2.5 py-1 rounded uppercase tracking-widest">{detail.status}</span>
-                                                                    <span className="text-[9px] font-black bg-slate-100 text-slate-500 px-2.5 py-1 rounded uppercase tracking-widest">ID: #{detail.id?.toString().padStart(5, '0')}</span>
+                                                                    <span className="text-[10px] font-black bg-blue-100 text-blue-700 px-2.5 py-1 rounded uppercase tracking-widest">{detail.status}</span>
+                                                                    <span className="text-[10px] font-black bg-slate-100 text-slate-500 px-2.5 py-1 rounded uppercase tracking-widest">ID: #{detail.id?.toString().padStart(5, '0')}</span>
                                                                     {detail.priority !== 'Normal' && (
-                                                                        <span className={`text-[9px] font-black px-2.5 py-1 rounded uppercase tracking-widest ${detail.priority === 'Emergency' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{detail.priority}</span>
+                                                                        <span className={`text-[10px] font-black px-2.5 py-1 rounded uppercase tracking-widest ${detail.priority === 'Emergency' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{detail.priority}</span>
                                                                     )}
                                                                 </div>
                                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                                     <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Service</p>
+                                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Service</p>
                                                                         <p className="text-sm font-black text-[#000000]">{detail.service_type}</p>
                                                                     </div>
                                                                     <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Schedule</p>
+                                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Schedule</p>
                                                                         <p className="text-sm font-black text-[#000000]">{new Date(detail.scheduled_at).toLocaleDateString()} @ {new Date(detail.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                                                                     </div>
                                                                     <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Cost</p>
+                                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Cost</p>
                                                                         <p className="text-sm font-black text-[#000000]">${detail.estimated_cost?.toFixed(2) || '0.00'}</p>
                                                                     </div>
                                                                     {detail.property_details && (
                                                                         <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Location</p>
+                                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Location</p>
                                                                             <p className="text-sm font-black text-[#000000]">{detail.property_details}</p>
                                                                         </div>
                                                                     )}
                                                                 </div>
                                                                 {detail.issue_description && (
                                                                     <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Description</p>
+                                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Description</p>
                                                                         <p className="text-xs font-medium text-slate-600 leading-relaxed">{detail.issue_description}</p>
                                                                     </div>
                                                                 )}
@@ -553,7 +562,7 @@ export default function DashboardPage() {
                                                                             {(detail.provider.first_name || detail.provider.company_name || '?')[0].toUpperCase()}
                                                                         </div>
                                                                         <div>
-                                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Expert</p>
+                                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Expert</p>
                                                                             <p className="text-sm font-black text-[#000000]">
                                                                                 {detail.provider.first_name && detail.provider.last_name
                                                                                     ? `${detail.provider.first_name} ${detail.provider.last_name}`
@@ -575,34 +584,34 @@ export default function DashboardPage() {
                                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                                     {detail.category && (
                                                                         <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Category</p>
+                                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Category</p>
                                                                             <p className="text-sm font-black text-[#000000]">{detail.category}</p>
                                                                         </div>
                                                                     )}
                                                                     {detail.location && (
                                                                         <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Location</p>
+                                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Location</p>
                                                                             <p className="text-sm font-black text-[#000000]">{detail.location}</p>
                                                                         </div>
                                                                     )}
                                                                     <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Priority</p>
+                                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Priority</p>
                                                                         <p className="text-sm font-black text-[#000000]">{detail.priority || 'Routine'}</p>
                                                                     </div>
                                                                     <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
+                                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
                                                                         <p className="text-sm font-black text-[#000000]">{detail.status || 'Pending'}</p>
                                                                     </div>
                                                                 </div>
                                                                 {detail.description && (
                                                                     <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Description</p>
+                                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Description</p>
                                                                         <p className="text-xs font-medium text-slate-600 leading-relaxed">{detail.description}</p>
                                                                     </div>
                                                                 )}
                                                                 {detail.date && (
                                                                     <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Due Date</p>
+                                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Due Date</p>
                                                                         <p className="text-sm font-black text-[#000000]">{new Date(detail.date).toLocaleDateString()}</p>
                                                                     </div>
                                                                 )}
@@ -643,7 +652,7 @@ export default function DashboardPage() {
                                         <div key={invite.id} className="bg-slate-50 border border-slate-200 p-6 rounded-3xl text-left space-y-4 shadow-sm relative overflow-hidden group">
                                             <div className="absolute top-0 left-0 w-1.5 h-full bg-[#064e3b]" />
                                             <div className="space-y-1">
-                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex justify-between">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex justify-between">
                                                     <span>Society Request</span>
                                                     <span>{new Date(invite.created_at).toLocaleDateString()}</span>
                                                 </p>
@@ -652,13 +661,13 @@ export default function DashboardPage() {
                                             <div className="flex items-center gap-3 pt-2">
                                                 <button
                                                     onClick={() => handleInviteAction(invite.id, 'ACCEPTED')}
-                                                    className="flex-1 py-3 bg-[#064e3b] text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-[#053e2f] transition-all shadow-md shadow-[#064e3b]/10"
+                                                    className="flex-1 py-3 bg-[#064e3b] text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#053e2f] transition-all shadow-md shadow-[#064e3b]/10"
                                                 >
                                                     Accept
                                                 </button>
                                                 <button
                                                     onClick={() => handleInviteAction(invite.id, 'REJECTED')}
-                                                    className="flex-1 py-3 bg-white border border-slate-200 text-slate-500 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all hover:text-rose-600 hover:border-rose-200"
+                                                    className="flex-1 py-3 bg-white border border-slate-200 text-slate-500 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all hover:text-rose-600 hover:border-rose-200"
                                                 >
                                                     Decline
                                                 </button>
@@ -689,20 +698,20 @@ export default function DashboardPage() {
                                                 <div className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10 shadow-inner">
                                                     <Building2 className="w-7 h-7 text-emerald-400" />
                                                 </div>
-                                                <span className="px-4 py-2 bg-[#064e3b] text-white text-[9px] font-black uppercase tracking-[0.4em] rounded-lg border border-emerald-900 shadow-lg shadow-emerald-900/40">
+                                                <span className="px-4 py-2 bg-[#064e3b] text-white text-[10px] font-black uppercase tracking-[0.4em] rounded-lg border border-emerald-900 shadow-lg shadow-emerald-900/40">
                                                     USER
                                                 </span>
                                             </div>
 
                                             <div className="space-y-1 relative z-10">
-                                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] mb-3">Active Hub Node</p>
+                                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mb-3">Active Hub Node</p>
                                                 <h3 className="text-3xl font-black text-white uppercase tracking-tighter leading-tight">{userSociety.name}</h3>
                                             </div>
                                         </div>
 
                                         <div className="space-y-4 pt-4">
                                             <div className="flex items-center justify-between px-2">
-                                                <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em]">Trusted Providers</h4>
+                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Trusted Providers</h4>
                                             </div>
 
                                             <div className="space-y-3">
@@ -713,17 +722,17 @@ export default function DashboardPage() {
                                                         </div>
                                                         <div className="flex-1 min-w-0">
                                                             <h4 className="text-xs font-black text-black uppercase truncate">{p.company_name}</h4>
-                                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{p.category}</p>
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{p.category}</p>
                                                         </div>
                                                         <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm" />
                                                     </div>
                                                 ))}
                                                 {trustedProviders.length === 0 && (
-                                                    <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest text-center py-4">No providers linked</p>
+                                                    <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest text-center py-4">No providers linked</p>
                                                 )}
                                             </div>
 
-                                            <Link href="/login" className="block text-center mt-6 text-[9px] font-black text-[#064e3b] uppercase tracking-[0.3em] hover:tracking-[0.4em] transition-all py-2 border-t border-slate-50">
+                                            <Link href="/login" className="block text-center mt-6 text-[10px] font-black text-[#064e3b] uppercase tracking-[0.3em] hover:tracking-[0.4em] transition-all py-2 border-t border-slate-50">
                                                 Manage Society Infrastructure →
                                             </Link>
                                         </div>
@@ -901,7 +910,7 @@ export default function DashboardPage() {
                             <div className="flex items-center justify-between">
                                 <div className="space-y-1">
                                     <h2 className="text-2xl font-black text-black tracking-tight uppercase leading-none">Filter Logs</h2>
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em]">Select Category</p>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Select Category</p>
                                 </div>
                                 <button onClick={() => setShowFilterModal(false)} className="p-3 bg-slate-50 text-slate-300 rounded-xl hover:text-black transition-colors">
                                     <X className="w-5 h-5" />
@@ -928,7 +937,7 @@ export default function DashboardPage() {
                                         </div>
                                         <div className="text-left">
                                             <h4 className={`text-xs font-black uppercase tracking-tight ${activeFilter === cat.id ? 'text-[#064e3b]' : 'text-slate-900 group-hover:text-[#064e3b]'}`}>{cat.label}</h4>
-                                            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-0.5">{cat.id === 'ALL' ? 'Unified' : 'Filter view'}</p>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-0.5">{cat.id === 'ALL' ? 'Unified' : 'Filter view'}</p>
                                         </div>
                                     </button>
                                 ))}
