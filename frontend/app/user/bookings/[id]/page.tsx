@@ -59,6 +59,9 @@ interface ReceiptData {
     final_amount: number;
 }
 
+type PayStep = "select" | "detail" | "confirm";
+type PayMethod = "qr" | "bank" | "upi";
+
 export default function BookingDetailsPage() {
     const { id } = useParams();
     const router = useRouter();
@@ -101,12 +104,9 @@ export default function BookingDetailsPage() {
     const [showQrScanner, setShowQrScanner] = useState(false);
     const [scannedQrData, setScannedQrData] = useState<string>("");
 
-    // Payment modal state machine
-    type PayStep = "select" | "detail" | "confirm";
-    type PayMethod = "qr" | "bank" | "upi";
     const [showPayModal, setShowPayModal] = useState(false);
     const [payStep, setPayStep] = useState<PayStep>("select");
-    const [selectedMethod, setSelectedMethod] = useState<PayMethod>("qr");
+    const [selectedMethod, setSelectedMethod] = useState<PayMethod>("bank");
 
     const fetchData = async () => {
         try {
@@ -160,8 +160,9 @@ export default function BookingDetailsPage() {
 
     const openPayModal = () => {
         setPayStep("select");
-        setSelectedMethod("qr");
+        setSelectedMethod("bank");
         setScannedQrData("");
+        setRevealed(false);
         setShowPayModal(true);
     };
 
@@ -836,7 +837,7 @@ export default function BookingDetailsPage() {
                         {payStep === "detail" && (
                             <>
                                 <div className="flex items-center gap-3">
-                                    <button onClick={() => { setPayStep("select"); setScannedQrData(""); setShowQrScanner(false); }} className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-black transition-colors">
+                                    <button onClick={() => { setPayStep("select"); setScannedQrData(""); setShowQrScanner(false); setRevealed(false); }} className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-black transition-colors">
                                         <ChevronLeft size={18} />
                                     </button>
                                     <div>
