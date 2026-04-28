@@ -116,6 +116,7 @@ export default function DashboardPage() {
 
     // UI States
     const [loading, setLoading] = useState(true);
+    const [fetchError, setFetchError] = useState(false);
     const [showTaskModal, setShowTaskModal] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
     const [showSocietyModal, setShowSocietyModal] = useState(false);
@@ -228,6 +229,7 @@ export default function DashboardPage() {
             });
         } catch (err) {
             console.error("Dashboard Fetch Error:", err);
+            setFetchError(true);
         } finally {
             setLoading(false);
         }
@@ -319,6 +321,11 @@ export default function DashboardPage() {
 
     return (
         <div className="space-y-6 sm:space-y-12 max-w-7xl mx-auto pb-24 relative">
+            {fetchError && (
+                <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-xs font-semibold text-red-700">
+                    Could not load dashboard data. Please check your connection and refresh.
+                </div>
+            )}
             {/* Header Architecture */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 sm:gap-8 mb-6 sm:mb-12">
                 <div className="space-y-4">
