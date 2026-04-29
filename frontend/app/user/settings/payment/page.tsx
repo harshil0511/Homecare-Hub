@@ -15,6 +15,9 @@ interface PaymentProfile {
 }
 
 const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/i;
+const UPI_RE = /^[\w.\-]+@[\w.\-]+$/;
+const ACCOUNT_RE = /^\d{9,18}$/;
+const HOLDER_NAME_RE = /^[a-zA-Z\s]{3,100}$/;
 
 export default function UserPaymentPage() {
     const [profile, setProfile] = useState<PaymentProfile | null>(null);
@@ -24,6 +27,8 @@ export default function UserPaymentPage() {
     const [error, setError] = useState("");
     const [ifscError, setIfscError] = useState("");
     const [confirmError, setConfirmError] = useState("");
+    const [nameError, setNameError] = useState("");
+    const [accountError, setAccountError] = useState("");
 
     const [name, setName] = useState("");
     const [accountNumber, setAccountNumber] = useState("");
@@ -45,6 +50,16 @@ export default function UserPaymentPage() {
         e.preventDefault();
         setIfscError("");
         setConfirmError("");
+        setNameError("");
+        setAccountError("");
+        if (!HOLDER_NAME_RE.test(name.trim())) {
+            setNameError("Account holder name must contain only letters (min 3 characters)");
+            return;
+        }
+        if (!ACCOUNT_RE.test(accountNumber)) {
+            setAccountError("Account number must be 9–18 digits");
+            return;
+        }
         if (accountNumber !== confirmAccount) {
             setConfirmError("Account numbers do not match");
             return;
@@ -87,6 +102,8 @@ export default function UserPaymentPage() {
         setConfirmAccount("");
         setIfscError("");
         setConfirmError("");
+        setNameError("");
+        setAccountError("");
         setError("");
         setEditing(true);
     };
@@ -158,12 +175,13 @@ export default function UserPaymentPage() {
                                 <Building2 className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-[#064e3b] transition-colors" />
                                 <input
                                     required
-                                    className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-14 pr-6 text-slate-900 outline-none focus:ring-2 focus:ring-[#064e3b] focus:bg-white transition-all font-bold tracking-tight shadow-inner shadow-black/[0.01]"
+                                    className={`w-full bg-slate-50 border rounded-2xl py-4 pl-14 pr-6 text-slate-900 outline-none focus:ring-2 focus:ring-[#064e3b] focus:bg-white transition-all font-bold tracking-tight shadow-inner shadow-black/[0.01] ${nameError ? "border-rose-300" : "border-slate-100"}`}
                                     placeholder="Full name as on bank account"
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
                                 />
                             </div>
+                            {nameError && <p className="text-red-500 text-xs mt-1">{nameError}</p>}
                         </div>
 
                         <div className="space-y-2">
@@ -173,12 +191,13 @@ export default function UserPaymentPage() {
                                 <input
                                     required
                                     type="password"
-                                    className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-14 pr-6 text-slate-900 outline-none focus:ring-2 focus:ring-[#064e3b] focus:bg-white transition-all font-bold tracking-tight shadow-inner shadow-black/[0.01]"
+                                    className={`w-full bg-slate-50 border rounded-2xl py-4 pl-14 pr-6 text-slate-900 outline-none focus:ring-2 focus:ring-[#064e3b] focus:bg-white transition-all font-bold tracking-tight shadow-inner shadow-black/[0.01] ${accountError ? "border-rose-300" : "border-slate-100"}`}
                                     placeholder="9–18 digits"
                                     value={accountNumber}
                                     onChange={(e) => setAccountNumber(e.target.value)}
                                 />
                             </div>
+                            {accountError && <p className="text-red-500 text-xs mt-1">{accountError}</p>}
                         </div>
 
                         <div className="space-y-2">

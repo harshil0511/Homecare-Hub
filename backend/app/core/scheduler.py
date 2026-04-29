@@ -229,7 +229,7 @@ def _cleanup_old_notifications() -> None:
 
 
 def _expire_stale_emergencies() -> None:
-    """Run hourly. Mark PENDING EmergencyRequests whose expires_at has passed as EXPIRED."""
+    """Run every minute. Mark PENDING EmergencyRequests whose expires_at has passed as EXPIRED."""
     from app.emergency.domain.model import EmergencyRequest
     db = SessionLocal()
     try:
@@ -244,6 +244,16 @@ def _expire_stale_emergencies() -> None:
         )
         for req in stale:
             req.status = "EXPIRED"
+            db.add(Notification(
+                user_id=req.user_id,
+                title="Emergency SOS Expired",
+                message=(
+                    f"Your {req.category} emergency request received no response within 30 minutes "
+                    "and has been automatically closed. Please try again."
+                ),
+                notification_type="WARNING",
+                link="/user/bookings/emergency",
+            ))
         if stale:
             db.commit()
             logger.info("Emergency expiry: expired %d stale requests.", len(stale))
@@ -290,10 +300,10 @@ def start_scheduler() -> None:
     scheduler.add_job(
         _expire_stale_emergencies,
         trigger="interval",
-        hours=1,
+        minutes=1,
         id="emergency_expiry",
         replace_existing=True,
-        misfire_grace_time=300,
+        misfire_grace_time=60,
     )
     scheduler.start()
     logger.info("Alert notification scheduler started.")

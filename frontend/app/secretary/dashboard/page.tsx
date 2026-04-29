@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { getUsername } from "@/lib/auth";
@@ -56,6 +56,7 @@ export default function SecretaryDashboard() {
     const [alerts, setAlerts] = useState<Alert[]>([]);
     const [providers, setProviders] = useState<Provider[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState(false);
     const username = getUsername();
 
     // Inline society edit
@@ -74,10 +75,13 @@ export default function SecretaryDashboard() {
     useEffect(() => {
         Promise.all([
             apiFetch("/secretary/society").catch(() => null),
-            apiFetch("/secretary/members").catch(() => []),
-            apiFetch("/secretary/alerts").catch(() => []),
-            apiFetch("/secretary/providers").catch(() => []),
+            apiFetch("/secretary/members").catch(() => null),
+            apiFetch("/secretary/alerts").catch(() => null),
+            apiFetch("/secretary/providers").catch(() => null),
         ]).then(([s, m, a, p]) => {
+            if (m === null && a === null && p === null) {
+                setLoadError(true);
+            }
             setSociety(s);
             setEditName(s?.name ?? "");
             setEditAddress(s?.address ?? "");
@@ -142,6 +146,9 @@ export default function SecretaryDashboard() {
 
     return (
         <div className="space-y-8">
+            {loadError && (
+                <div className="p-4 bg-red-50 text-red-700 rounded-lg text-sm">Failed to load data. Please refresh.</div>
+            )}
             <div className="flex items-start justify-between">
                 <div>
                     <h1 className="text-2xl font-black text-slate-900 tracking-tight">Society Overview</h1>
@@ -254,7 +261,7 @@ export default function SecretaryDashboard() {
                             <Bell className="w-4 h-4 text-amber-500" />
                             <span className="text-sm font-black text-slate-900 uppercase tracking-wide">Recent Alerts</span>
                             {openAlerts.length > 0 && (
-                                <span className="text-[9px] font-black text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-full">{openAlerts.length} open</span>
+                                <span className="text-[10px] font-black text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-full">{openAlerts.length} open</span>
                             )}
                         </div>
                         <Link href="/secretary/alerts" className="text-[10px] font-black text-[#064e3b] uppercase tracking-widest hover:underline flex items-center gap-1">
@@ -284,11 +291,11 @@ export default function SecretaryDashboard() {
                                         </div>
                                         <div className="flex items-center gap-1.5 shrink-0">
                                             {a.priority && a.priority !== "LOW" && (
-                                                <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${PRIORITY_COLOR[a.priority] ?? ""}`}>
+                                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase ${PRIORITY_COLOR[a.priority] ?? ""}`}>
                                                     {a.priority}
                                                 </span>
                                             )}
-                                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border uppercase ${STATUS_COLOR[a.status] ?? "text-slate-500 bg-slate-50 border-slate-100"}`}>
+                                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border uppercase ${STATUS_COLOR[a.status] ?? "text-slate-500 bg-slate-50 border-slate-100"}`}>
                                                 {a.status.replace("_", " ")}
                                             </span>
                                         </div>
@@ -305,7 +312,7 @@ export default function SecretaryDashboard() {
                         <div className="flex items-center gap-2">
                             <Zap className="w-4 h-4 text-emerald-600" />
                             <span className="text-sm font-black text-slate-900 uppercase tracking-wide">Available Now</span>
-                            <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">{availableProviders.length} online</span>
+                            <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">{availableProviders.length} online</span>
                         </div>
                         <Link href="/secretary/providers" className="text-[10px] font-black text-[#064e3b] uppercase tracking-widest hover:underline flex items-center gap-1">
                             All <ChevronRight className="w-3 h-3" />
@@ -391,7 +398,7 @@ export default function SecretaryDashboard() {
             {/* Report Issue Modal */}
             {reportModal && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-md p-4 sm:p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
                         <div className="flex items-center justify-between mb-5">
                             <div>
                                 <h2 className="text-lg font-black text-slate-900 uppercase tracking-widest">Report Issue</h2>

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   LayoutDashboard, Wrench, Bell, Settings,
-  LogOut, Briefcase, Star, Users, ShieldCheck, ShieldAlert,
+  LogOut, Briefcase, Users, ShieldCheck, ShieldAlert,
   BarChart3, ClipboardList, UserCheck, ChevronRight,
   User, Lock, BellRing, Search, TrendingUp,
   PanelLeftClose, PanelLeftOpen, CreditCard,
@@ -52,7 +52,6 @@ const USER_NAV = [
 const SERVICER_NAV = [
   { name: "Overview", icon: LayoutDashboard, path: "/service/dashboard" },
   { name: "My Jobs", icon: Briefcase, path: "/service/jobs" },
-  { name: "Ratings", icon: Star, path: "/service/ratings" },
   { name: "Analytics", icon: TrendingUp, path: "/service/analytics" },
   { name: "Payment", icon: CreditCard, path: "/service/payment" },
   { name: "Settings", icon: Settings, path: "/service/settings" },

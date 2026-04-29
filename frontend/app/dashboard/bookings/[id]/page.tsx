@@ -340,7 +340,7 @@ export default function BookingDetailsPage() {
                                             : "bg-slate-50 border border-slate-100 text-slate-800 rounded-bl-none"
                                     }`}>
                                         {m.message}
-                                        <p className={`text-[8px] mt-2 font-black uppercase opacity-40 ${m.sender_id === booking.user_id ? "text-right" : "text-left"}`}>
+                                        <p className={`text-[10px] mt-2 font-black uppercase opacity-40 ${m.sender_id === booking.user_id ? "text-right" : "text-left"}`}>
                                             {new Date(m.timestamp!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                         </p>
                                     </div>

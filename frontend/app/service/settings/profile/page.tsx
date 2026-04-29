@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useRef } from "react";
 import {
@@ -136,7 +136,38 @@ export default function ServicerProfilePage() {
 
     const handleSaveProfile = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!isProfileValid) return;
+        if (!username.trim() || !/^[\w\s\-\.]{3,50}$/.test(username.trim())) {
+            setProfileError("Username must be 3–50 characters (letters, numbers, spaces, hyphens allowed).");
+            return;
+        }
+        if (!firstName.trim() || !/^[a-zA-Z\s\-\.]{2,50}$/.test(firstName.trim())) {
+            setProfileError("Name must contain only letters (min 2 characters).");
+            return;
+        }
+        if (!lastName.trim() || !/^[a-zA-Z\s\-\.]{2,50}$/.test(lastName.trim())) {
+            setProfileError("Name must contain only letters (min 2 characters).");
+            return;
+        }
+        if (!phone.trim() || !/^(\+91[\s-]?)?[6-9]\d{9}$/.test(phone.trim())) {
+            setProfileError("Enter a valid 10-digit mobile number.");
+            return;
+        }
+        if (bio.trim().length > 500) {
+            setProfileError("Bio cannot exceed 500 characters.");
+            return;
+        }
+        if (age !== "" && (Number(age) < 18 || Number(age) > 80)) {
+            setProfileError("Age must be between 18 and 80.");
+            return;
+        }
+        if (experienceYears !== "" && (Number(experienceYears) < 0 || Number(experienceYears) > 50)) {
+            setProfileError("Experience must be between 0 and 50 years.");
+            return;
+        }
+        if (typeof hourlyRate === "number" && hourlyRate <= 0) {
+            setProfileError("Hourly rate must be greater than 0.");
+            return;
+        }
         setSavingProfile(true); setProfileError(""); setProfileSuccess(false);
         try {
             await apiFetch("/user/me", { method: "PATCH", body: JSON.stringify({ username }) });
@@ -230,7 +261,7 @@ export default function ServicerProfilePage() {
     );
 
     return (
-        <div className="max-w-2xl mx-auto py-8 space-y-6">
+        <div className="max-w-2xl mx-auto py-4 sm:py-8 space-y-6">
 
             {/* ── Account Details (read-only info) ── */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
@@ -253,7 +284,7 @@ export default function ServicerProfilePage() {
             </div>
 
             {/* ── My Profile ── */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm">
                 <div className="flex items-center gap-3 mb-6">
                     <div className="p-2 bg-slate-100 rounded-xl"><Shield className="w-4 h-4 text-slate-600" /></div>
                     <h2 className="text-sm font-black text-slate-900 uppercase tracking-tight">My Profile</h2>
@@ -278,6 +309,9 @@ export default function ServicerProfilePage() {
                         <label className={labelCls}>Display Name <span className="text-rose-500">*</span></label>
                         <input className={inputCls} value={username} onChange={e => setUsername(e.target.value)} placeholder="e.g. ravi_plumber" required />
                         <p className="text-[10px] text-slate-400 mt-1">Your app username — shown to other users</p>
+                        {username.trim().length > 0 && !/^[\w\s\-\.]{3,50}$/.test(username.trim()) && (
+                            <p className="text-red-500 text-xs mt-1">Username must be 3–50 characters (letters, numbers, spaces, hyphens allowed).</p>
+                        )}
                     </div>
 
                     {/* Photo */}
@@ -304,14 +338,20 @@ export default function ServicerProfilePage() {
                     </div>
 
                     {/* Name row */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label className={labelCls}>First Name <span className="text-rose-500">*</span></label>
                             <input className={inputCls} value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Ravi" required />
+                            {firstName.trim().length > 0 && !/^[a-zA-Z\s\-\.]{2,50}$/.test(firstName.trim()) && (
+                                <p className="text-red-500 text-xs mt-1">Name must contain only letters (min 2 characters).</p>
+                            )}
                         </div>
                         <div>
                             <label className={labelCls}>Last Name <span className="text-rose-500">*</span></label>
                             <input className={inputCls} value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Kumar" required />
+                            {lastName.trim().length > 0 && !/^[a-zA-Z\s\-\.]{2,50}$/.test(lastName.trim()) && (
+                                <p className="text-red-500 text-xs mt-1">Name must contain only letters (min 2 characters).</p>
+                            )}
                         </div>
                     </div>
 
@@ -319,6 +359,9 @@ export default function ServicerProfilePage() {
                     <div>
                         <label className={labelCls}>Phone <span className="text-rose-500">*</span></label>
                         <input className={inputCls} type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+91 98765 43210" required />
+                        {phone.trim().length > 0 && !/^(\+91[\s-]?)?[6-9]\d{9}$/.test(phone.trim()) && (
+                            <p className="text-red-500 text-xs mt-1">Enter a valid 10-digit mobile number.</p>
+                        )}
                     </div>
 
                     {/* Bio */}
@@ -332,6 +375,8 @@ export default function ServicerProfilePage() {
                             placeholder="Tell customers about your skills and experience..."
                             required
                         />
+                        <p className={`text-[10px] mt-1 text-right ${bio.length > 500 ? "text-red-500" : "text-slate-400"}`}>{bio.length}/500</p>
+                        {bio.length > 500 && <p className="text-red-500 text-xs mt-1">Bio cannot exceed 500 characters.</p>}
                     </div>
 
                     {/* Categories */}
@@ -362,17 +407,26 @@ export default function ServicerProfilePage() {
                     <div>
                         <label className={labelCls}>Hourly Rate (₹) <span className="text-rose-500">*</span></label>
                         <input className={inputCls} type="number" min="0" value={hourlyRate} onChange={e => setHourlyRate(e.target.value === "" ? "" : Number(e.target.value))} placeholder="500" required />
+                        {hourlyRate !== "" && Number(hourlyRate) <= 0 && (
+                            <p className="text-red-500 text-xs mt-1">Hourly rate must be greater than 0.</p>
+                        )}
                     </div>
 
                     {/* Optional fields */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label className={labelCls}>Experience (Years)</label>
                             <input className={inputCls} type="number" min="0" value={experienceYears} onChange={e => setExperienceYears(e.target.value === "" ? "" : Number(e.target.value))} placeholder="3" />
+                            {experienceYears !== "" && (Number(experienceYears) < 0 || Number(experienceYears) > 50) && (
+                                <p className="text-red-500 text-xs mt-1">Experience must be between 0 and 50 years.</p>
+                            )}
                         </div>
                         <div>
                             <label className={labelCls}>Age</label>
                             <input className={inputCls} type="number" min="18" max="80" value={age} onChange={e => setAge(e.target.value === "" ? "" : Number(e.target.value))} placeholder="28" />
+                            {age !== "" && (Number(age) < 18 || Number(age) > 80) && (
+                                <p className="text-red-500 text-xs mt-1">Age must be between 18 and 80.</p>
+                            )}
                         </div>
                     </div>
 
@@ -394,13 +448,15 @@ export default function ServicerProfilePage() {
                         </select>
                     </div>
 
-                    <button
-                        type="submit"
-                        disabled={savingProfile || !isProfileValid}
-                        className="w-full bg-[#064e3b] hover:bg-emerald-950 text-white font-black py-3 rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-40 uppercase tracking-widest text-xs"
-                    >
-                        {savingProfile ? "Saving..." : "Save Profile"}
-                    </button>
+                    <div className="flex flex-wrap gap-3">
+                        <button
+                            type="submit"
+                            disabled={savingProfile || !isProfileValid}
+                            className="flex-1 min-w-[120px] bg-[#064e3b] hover:bg-emerald-950 text-white font-black py-3 rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-40 uppercase tracking-widest text-xs"
+                        >
+                            {savingProfile ? "Saving..." : "Save Profile"}
+                        </button>
+                    </div>
                 </form>
             </div>
 
@@ -516,11 +572,11 @@ export default function ServicerProfilePage() {
                                     <div>
                                         <p className="text-xs font-black text-slate-900 uppercase tracking-tight">{cert.title || "Certificate"}</p>
                                         <div className="flex items-center gap-2 mt-0.5">
-                                            <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded uppercase tracking-wide">{cert.category}</span>
+                                            <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded uppercase tracking-wide">{cert.category}</span>
                                             {cert.is_verified ? (
-                                                <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded uppercase">Verified</span>
+                                                <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded uppercase">Verified</span>
                                             ) : (
-                                                <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded uppercase">Under Review</span>
+                                                <span className="text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded uppercase">Under Review</span>
                                             )}
                                         </div>
                                     </div>
@@ -531,7 +587,7 @@ export default function ServicerProfilePage() {
                                             href={cert.certificate_url.startsWith("/") ? `${process.env.NEXT_PUBLIC_API_URL}${cert.certificate_url}` : cert.certificate_url}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="text-[9px] font-black text-blue-600 uppercase tracking-widest hover:underline"
+                                            className="text-[10px] font-black text-blue-600 uppercase tracking-widest hover:underline"
                                         >
                                             View
                                         </a>

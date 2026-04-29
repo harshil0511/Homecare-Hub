@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -46,6 +46,7 @@ export default function RegisterPage() {
     // Secretary-only
     const [societyName, setSocietyName] = useState("");
     const [societyAddress, setSocietyAddress] = useState("");
+    const [societyRegNumber, setSocietyRegNumber] = useState("");
 
     // Wizard step (0–4, only rendered when role === "SERVICER")
     const [step, setStep] = useState(0);
@@ -111,6 +112,7 @@ export default function RegisterPage() {
         setError("");
         if (step === 0) {
             if (!username.trim()) { setError("Please enter your name."); return false; }
+            if (!/^[\w\s\-\.]{3,50}$/.test(username.trim())) { setError("Username must be 3–50 characters (letters, numbers, spaces, hyphens allowed)."); return false; }
             if (!email.trim() || !isValidEmail(email)) { setError("Please enter a valid email address (e.g. name@gmail.com)."); return false; }
             const hasCapital = /[A-Z]/.test(password);
             const hasSpecial = /[@#$!%*?&]/.test(password);
@@ -120,16 +122,17 @@ export default function RegisterPage() {
             }
         }
         if (step === 1) {
-            if (!age || Number(age) < 18 || Number(age) > 80) { setError("Please enter a valid age (18–80)."); return false; }
+            if (!age || Number(age) < 18 || Number(age) > 80) { setError("Age must be between 18 and 80."); return false; }
             if (!gender) { setError("Please select your gender."); return false; }
         }
         if (step === 2) {
-            if (!phone.trim() || phone.replace(/\D/g, "").length < 10) { setError("Please enter a valid phone number (min 10 digits)."); return false; }
+            if (!phone.trim() || !/^(\+91[\s-]?)?[6-9]\d{9}$/.test(phone.trim())) { setError("Enter a valid 10-digit mobile number."); return false; }
             if (!location.trim()) { setError("Please enter your city / location."); return false; }
         }
         if (step === 3) {
-            if (!experience || Number(experience) < 0) { setError("Please enter your years of experience."); return false; }
+            if (experience === "" || Number(experience) < 0 || Number(experience) > 50) { setError("Experience must be between 0 and 50 years."); return false; }
             if (!education.trim()) { setError("Please enter your education details."); return false; }
+            if (bio.trim().length > 500) { setError("Bio cannot exceed 500 characters."); return false; }
             if (categories.length === 0) { setError("Please select at least one service category."); return false; }
         }
         return true;
@@ -142,6 +145,10 @@ export default function RegisterPage() {
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
+        if (!username.trim() || !/^[\w\s\-\.]{3,50}$/.test(username.trim())) {
+            const msg = "Username must be 3–50 characters (letters, numbers, spaces, hyphens allowed).";
+            setError(msg); showToast(msg, "error"); return;
+        }
         if (!isValidEmail(email)) {
             const msg = "Please enter a valid email address (e.g. name@gmail.com).";
             setError(msg); showToast(msg, "error"); return;
@@ -156,10 +163,14 @@ export default function RegisterPage() {
             const msg = "Please enter your society name and location.";
             setError(msg); showToast(msg, "error"); return;
         }
+        if (role === "SECRETARY" && societyRegNumber.trim() && !/^[a-zA-Z0-9\-\/]{4,30}$/.test(societyRegNumber.trim())) {
+            const msg = "Registration number must be 4–30 alphanumeric characters";
+            setError(msg); showToast(msg, "error"); return;
+        }
         setLoading(true);
         try {
             const body: Record<string, unknown> = { email, username, password, role };
-            if (role === "SECRETARY") { body.society_name = societyName.trim(); body.society_address = societyAddress.trim(); }
+            if (role === "SECRETARY") { body.society_name = societyName.trim(); body.society_address = societyAddress.trim(); if (societyRegNumber.trim()) body.registration_number = societyRegNumber.trim(); }
             await apiFetch("/auth/signup", { method: "POST", body: JSON.stringify(body) });
             // Save credentials for login autofill
             const saved = JSON.parse(localStorage.getItem("hc_saved_accounts") || "[]");
@@ -318,7 +329,7 @@ export default function RegisterPage() {
                 <div className="w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-lg overflow-hidden">
                     {/* Step progress header */}
                     <div className="bg-[#064e3b] px-6 py-5">
-                        <p className="text-[9px] font-black text-emerald-300 uppercase tracking-[0.3em] mb-3">Servicer Registration</p>
+                        <p className="text-[10px] font-black text-emerald-300 uppercase tracking-[0.3em] mb-3">Servicer Registration</p>
                         <div className="flex items-center gap-1">
                             {SERVICER_STEPS.map((s, i) => {
                                 const Icon = s.icon;
@@ -330,7 +341,7 @@ export default function RegisterPage() {
                                                 : <Icon className={`w-4 h-4 ${i === step ? "text-[#064e3b]" : "text-white/50"}`} />
                                             }
                                         </div>
-                                        <span className={`text-[9px] font-black uppercase tracking-widest hidden sm:block ${i === step ? "text-white" : "text-white/40"}`}>{s.label}</span>
+                                        <span className={`text-[10px] font-black uppercase tracking-widest hidden sm:block ${i === step ? "text-white" : "text-white/40"}`}>{s.label}</span>
                                         {i < SERVICER_STEPS.length - 1 && <div className={`flex-1 h-px mx-1 ${i < step ? "bg-emerald-400" : "bg-white/20"}`} />}
                                     </div>
                                 );
@@ -453,18 +464,20 @@ export default function RegisterPage() {
                                 <div>
                                     <label className={labelCls}>Bio <span className="text-slate-400 font-normal">(optional)</span></label>
                                     <textarea rows={2} className={inputCls} placeholder="Tell customers about yourself..." value={bio} onChange={e => setBio(e.target.value)} />
+                                    <p className={`text-[10px] mt-1 text-right ${bio.length > 500 ? "text-red-500" : "text-slate-400"}`}>{bio.length}/500</p>
+                                    {bio.length > 500 && <p className="text-red-500 text-xs mt-1">Bio cannot exceed 500 characters.</p>}
                                 </div>
                                 <div>
                                     <label className={labelCls}>Service Categories <span className="text-rose-500">*</span></label>
                                     <div className="flex flex-wrap gap-2 mt-1">
                                         {SERVICE_CATEGORIES.map(cat => (
                                             <button key={cat} type="button" onClick={() => toggleCategory(cat)}
-                                                className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-all ${categories.includes(cat) ? "bg-[#064e3b] text-white border-[#064e3b]" : "bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-300"}`}>
+                                                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide border transition-all ${categories.includes(cat) ? "bg-[#064e3b] text-white border-[#064e3b]" : "bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-300"}`}>
                                                 {cat}
                                             </button>
                                         ))}
                                     </div>
-                                    {categories.length > 0 && <p className="text-[9px] text-emerald-700 mt-2 font-semibold">{categories.length} selected</p>}
+                                    {categories.length > 0 && <p className="text-[10px] text-emerald-700 mt-2 font-semibold">{categories.length} selected</p>}
                                 </div>
                             </div>
                         )}
@@ -484,8 +497,8 @@ export default function RegisterPage() {
                                     <label className={labelCls}>Certification / Work Document</label>
                                     <div onClick={() => certInputRef.current?.click()} className="border-2 border-dashed border-slate-200 rounded-xl p-5 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-[#064e3b] transition-colors">
                                         {certName
-                                            ? <><CheckCircle2 className="w-6 h-6 text-emerald-500" /><p className="text-xs font-semibold text-slate-700">{certName}</p><p className="text-[9px] text-slate-400">Click to change</p></>
-                                            : <><Upload className="w-6 h-6 text-slate-300" /><p className="text-xs font-semibold text-slate-500">Upload Certificate or ID Proof</p><p className="text-[9px] text-slate-400">PDF, JPG, PNG — Optional</p></>
+                                            ? <><CheckCircle2 className="w-6 h-6 text-emerald-500" /><p className="text-xs font-semibold text-slate-700">{certName}</p><p className="text-[10px] text-slate-400">Click to change</p></>
+                                            : <><Upload className="w-6 h-6 text-slate-300" /><p className="text-xs font-semibold text-slate-500">Upload Certificate or ID Proof</p><p className="text-[10px] text-slate-400">PDF, JPG, PNG — Optional</p></>
                                         }
                                     </div>
                                     <input ref={certInputRef} type="file" accept=".pdf,image/*" className="hidden" onChange={handleCertChange} />
@@ -584,6 +597,15 @@ export default function RegisterPage() {
                                 <input required placeholder="e.g. Sector 12, Ahmedabad" value={societyAddress} onChange={e => setSocietyAddress(e.target.value)}
                                     className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition" />
                             </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">Registration Number <span className="text-slate-400 font-normal">(optional)</span></label>
+                            <div className="relative">
+                                <FileText className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                <input placeholder="e.g. REG-2024/001" value={societyRegNumber} onChange={e => setSocietyRegNumber(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition" />
+                            </div>
+                            <p className="text-xs text-slate-400 mt-1.5">4–30 alphanumeric characters, hyphens and slashes allowed</p>
                         </div>
                     </div>
                 )}

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -14,11 +14,13 @@ export default function BookingHistoryPage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [bookings, setBookings] = useState<Record<string, any>[]>([]);
     const [loading, setLoading] = useState(true);
+    const [fetchError, setFetchError] = useState<string | null>(null);
     const [categoryFilter, setCategoryFilter] = useState("All");
 
     useEffect(() => {
         apiFetch("/bookings/list")
             .then(setBookings)
+            .catch(() => setFetchError("Failed to load data. Please refresh."))
             .finally(() => setLoading(false));
     }, []);
 
@@ -28,6 +30,9 @@ export default function BookingHistoryPage() {
 
     return (
         <div className="max-w-7xl mx-auto space-y-12 pb-20">
+            {fetchError && (
+                <div className="p-4 bg-red-50 text-red-700 rounded-lg text-sm">{fetchError}</div>
+            )}
             {/* Header & Controls */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
                 <div>
@@ -81,10 +86,10 @@ export default function BookingHistoryPage() {
                                 </div>
 
                                 {/* Main Details */}
-                                <div className="flex-1 space-y-2">
-                                    <div className="flex items-center gap-3">
-                                        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">{booking.service_type}</h3>
-                                        <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest ${
+                                <div className="flex-1 min-w-0 space-y-2">
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight truncate">{booking.service_type}</h3>
+                                        <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest ${
                                             booking.status === "Completed" ? "bg-emerald-50 text-emerald-600" :
                                             booking.status === "Cancelled" ? "bg-rose-50 text-rose-600" :
                                             booking.status === "Pending" ? "bg-amber-50 text-amber-600" :
@@ -100,16 +105,16 @@ export default function BookingHistoryPage() {
                                 </div>
 
                                 {/* Stats & Action */}
-                                <div className="flex items-center gap-10">
+                                <div className="flex items-center gap-10 flex-wrap">
                                     <div className="text-right hidden lg:block">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Operation Cost</p>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Operation Cost</p>
                                         <p className="text-xl font-black text-slate-900 tracking-tighter">
                                             {(booking.final_cost || booking.estimated_cost)
                                                 ? `₹${Number(booking.final_cost || booking.estimated_cost).toLocaleString("en-IN")}`
                                                 : "—"}
                                         </p>
                                     </div>
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-3 flex-wrap">
                                         {(booking.status === "Completed" || booking.status === "Cancelled") && (
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); router.push("/user/providers"); }}

@@ -212,7 +212,7 @@ export default function Navbar({ onMenuToggle, isSidebarOpen }: NavbarProps) {
                     >
                         <Bell className="w-5 h-5" />
                         {unreadCount > 0 && (
-                            <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-rose-500 text-white text-[9px] font-black rounded-full border-2 border-[#064e3b] flex items-center justify-center">
+                            <span className="absolute top-1 right-1 min-w-[18px] h-[18px] bg-rose-500 text-white text-[10px] font-black rounded-full border-2 border-[#064e3b] flex items-center justify-center px-0.5">
                                 {unreadCount}
                             </span>
                         )}
@@ -223,15 +223,15 @@ export default function Navbar({ onMenuToggle, isSidebarOpen }: NavbarProps) {
                             {/* Header */}
                             <div className="px-4 py-3 border-b border-slate-100 mb-1 flex justify-between items-center">
                                 <div className="flex items-center gap-2">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Notifications</p>
+                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Notifications</p>
                                     {unreadCount > 0 && (
-                                        <span className="px-1.5 py-0.5 bg-rose-50 text-rose-500 border border-rose-100 rounded text-[8px] font-black">{unreadCount} new</span>
+                                        <span className="px-1.5 py-0.5 bg-rose-50 text-rose-600 border border-rose-100 rounded text-[10px] font-black">{unreadCount} new</span>
                                     )}
                                 </div>
                                 {unreadCount > 0 && (
                                     <button
                                         onClick={markAllRead}
-                                        className="flex items-center gap-1 text-[9px] font-black text-emerald-700 uppercase tracking-widest hover:text-emerald-900 transition-colors"
+                                        className="flex items-center gap-1 text-[10px] font-black text-emerald-700 uppercase tracking-widest hover:text-emerald-900 transition-colors"
                                     >
                                         <CheckCheck className="w-3 h-3" />
                                         Mark all read
@@ -243,7 +243,7 @@ export default function Navbar({ onMenuToggle, isSidebarOpen }: NavbarProps) {
                                 {notifications.length === 0 ? (
                                     <div className="p-8 text-center">
                                         <Shield className="w-8 h-8 text-slate-100 mx-auto mb-2" />
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">All caught up</p>
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">All caught up</p>
                                     </div>
                                 ) : (
                                     notifications.map(notif => (
@@ -262,13 +262,13 @@ export default function Navbar({ onMenuToggle, isSidebarOpen }: NavbarProps) {
                                                 }`} />
                                                 <div className="flex-1 min-w-0 space-y-0.5">
                                                     <p className="text-xs font-black text-[#000000] uppercase tracking-tight leading-tight">{notif.title}</p>
-                                                    <p className="text-[8px] font-black text-slate-400 uppercase">
+                                                    <p className="text-[10px] font-semibold text-slate-400 uppercase">
                                                         {new Date(notif.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                                     </p>
                                                 </div>
                                                 <button
                                                     onClick={e => { e.stopPropagation(); markAsRead(notif.id); }}
-                                                    className="w-5 h-5 flex items-center justify-center text-slate-300 hover:text-slate-500 hover:bg-slate-200 rounded transition-all flex-shrink-0"
+                                                    className="w-7 h-7 flex items-center justify-center text-slate-300 hover:text-slate-600 hover:bg-slate-200 rounded-lg transition-all flex-shrink-0"
                                                     title="Dismiss"
                                                 >
                                                     <X className="w-3 h-3" />
@@ -291,7 +291,7 @@ export default function Navbar({ onMenuToggle, isSidebarOpen }: NavbarProps) {
                             <Link
                                 href={ROLE_ALERTS[role] ?? "/user/alerts"}
                                 onClick={() => setIsNotifOpen(false)}
-                                className="block text-center py-2.5 mt-1 text-[10px] font-black text-[#064e3b] uppercase tracking-widest hover:bg-emerald-50 rounded-lg transition-all"
+                                className="block text-center py-3 mt-1 text-xs font-black text-[#064e3b] uppercase tracking-widest hover:bg-emerald-50 rounded-lg transition-all"
                             >
                                 View All Control Alerts ↗
                             </Link>
@@ -311,7 +311,7 @@ export default function Navbar({ onMenuToggle, isSidebarOpen }: NavbarProps) {
                             <p className="text-sm font-bold text-white leading-tight">
                                 {user?.username || "User"}
                             </p>
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-tighter mt-1 ${roleBadge[user?.role || "USER"]}`}>
+                            <span className={`text-xs font-bold px-1.5 py-0.5 rounded uppercase tracking-tight mt-1 ${roleBadge[user?.role || "USER"]}`}>
                                 {user?.role || "USER"}
                             </span>
                         </div>
@@ -324,7 +324,7 @@ export default function Navbar({ onMenuToggle, isSidebarOpen }: NavbarProps) {
                     {isDropdownOpen && (
                         <div className="absolute top-full right-0 mt-3 w-60 bg-white border border-slate-200 rounded-xl shadow-[0_12px_40px_rgba(0,0,0,0.15)] p-2 animate-fade-in z-[100]">
                             <div className="px-4 py-3 border-b border-slate-100 mb-1">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Account</p>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-0.5">Account</p>
                                 <p className="text-sm text-[#000000] font-black truncate">{user?.email || user?.username}</p>
                             </div>
 

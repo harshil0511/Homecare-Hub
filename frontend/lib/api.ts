@@ -169,6 +169,7 @@ export interface EmergencyRequestRead {
     photos?: string[] | null;
     contact_name: string;
     contact_phone: string;
+    flow_type?: string;
     status: string;
     config_id?: string | null;
     expires_at: string;
@@ -192,6 +193,7 @@ export interface IncomingEmergencyRead {
     photos?: string[] | null;
     contact_name: string;
     contact_phone: string;
+    flow_type?: string;
     expires_at: string;
     created_at?: string | null;
     callout_fee?: number | null;
@@ -212,6 +214,7 @@ export interface EmergencyRequestCreate {
     contact_name: string;
     contact_phone: string;
     provider_ids?: string[];
+    flow_type?: string;
 }
 
 export interface EmergencyStarAdjustCreate {

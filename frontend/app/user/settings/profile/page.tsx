@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { apiFetch } from "@/lib/api";
@@ -12,6 +12,7 @@ export default function ProfilePage() {
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
     const [error, setError] = useState("");
+    const [loadError, setLoadError] = useState("");
 
     const isDirty = username !== savedUsername && savedUsername !== "";
 
@@ -23,8 +24,8 @@ export default function ProfilePage() {
                 setSavedUsername(data.username);
                 setEmail(data.email);
                 setRole(data.role);
-            } catch (err) {
-                console.error("Failed to load profile");
+            } catch {
+                setLoadError("Failed to load data. Please refresh.");
             }
         };
         fetchUser();
@@ -46,6 +47,11 @@ export default function ProfilePage() {
         setLoading(true);
         setError("");
         setSuccess(false);
+        if (!username.trim() || !/^[\w\s\-\.]{3,50}$/.test(username.trim())) {
+            setError("Username must be 3–50 characters (letters, numbers, spaces, hyphens allowed).");
+            setLoading(false);
+            return;
+        }
         try {
             await apiFetch("/user/me", {
                 method: "PATCH",
@@ -71,8 +77,11 @@ export default function ProfilePage() {
     };
 
     return (
-        <div className="max-w-2xl mx-auto py-12">
-            <div className="bg-white border border-slate-200 rounded-[2rem] p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+        <div className="max-w-2xl mx-auto py-8 sm:py-12">
+            {loadError && (
+                <div className="mb-4 p-4 bg-red-50 text-red-700 rounded-lg text-sm">{loadError}</div>
+            )}
+            <div className="bg-white border border-slate-200 rounded-[2rem] p-6 sm:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
                 <div className="flex items-center justify-between gap-3 mb-8">
                     <div className="flex items-center gap-3">
                         <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-100">
@@ -81,7 +90,7 @@ export default function ProfilePage() {
                         <h2 className="text-lg font-black text-[#000000] uppercase tracking-tight">Profile Information</h2>
                     </div>
                     {isDirty && (
-                        <span className="text-[9px] font-black uppercase tracking-widest text-amber-600 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-lg">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-lg">
                             Unsaved Changes
                         </span>
                     )}
@@ -134,11 +143,11 @@ export default function ProfilePage() {
                         </span>
                     </div>
 
-                    <div className="pt-2">
+                    <div className="pt-2 flex flex-wrap gap-3">
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full bg-[#064e3b] hover:bg-emerald-950 text-white font-black py-5 rounded-2xl shadow-xl shadow-emerald-950/10 transition-all active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-50 uppercase tracking-[0.2em] text-xs"
+                            className="flex-1 min-w-[120px] bg-[#064e3b] hover:bg-emerald-950 text-white font-black py-5 rounded-2xl shadow-xl shadow-emerald-950/10 transition-all active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-50 uppercase tracking-[0.2em] text-xs"
                         >
                             {loading ? "Saving..." : "Save Profile"}
                         </button>

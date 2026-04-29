@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
@@ -26,8 +26,10 @@ import {
     Pencil,
     Save,
     Loader2,
+    MessageSquare,
 } from "lucide-react";
 import { apiFetch, emergencyApi, EmergencyRequestRead } from "@/lib/api";
+import { useToast } from "@/lib/toast-context";
 import { page, card, stat, btn, form, modal, iconBox } from "@/lib/ui";
 import Link from "next/link";
 import Spinner from "@/components/ui/Spinner";
@@ -155,10 +157,13 @@ const StatCard = ({ title, value, icon: Icon, iconColor, iconBg }: StatCardProps
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+    const toast = useToast();
     const [userAlerts, setUserAlerts]         = useState<UserAlert[]>([]);
     const [bookings, setBookings]             = useState<ActiveBooking[]>([]);
     const [loading, setLoading]               = useState(true);
     const [activeEmergency, setActiveEmergency] = useState<EmergencyRequestRead | null>(null);
+    const [openRequestCount, setOpenRequestCount] = useState(0);
+    const [pendingResponseCount, setPendingResponseCount] = useState(0);
 
     // Create Reminder modal
     const [showTaskModal, setShowTaskModal]   = useState(false);
@@ -184,8 +189,8 @@ export default function DashboardPage() {
 
     const fetchAlerts = useCallback(async () => {
         try { setUserAlerts(await apiFetch("/maintenance/alerts/")); }
-        catch { /* silent */ }
-    }, []);
+        catch (err) { toast.error((err as Error).message || "Failed to refresh reminders"); }
+    }, [toast]);
 
     const fetchData = useCallback(async () => {
         try {
@@ -200,12 +205,30 @@ export default function DashboardPage() {
         }
     }, []);
 
-    useEffect(() => {
-        fetchData();
+    const fetchBannerData = useCallback(() => {
         emergencyApi.getActive()
             .then(em => setActiveEmergency(em))
             .catch(() => setActiveEmergency(null));
-    }, [fetchData]);
+        apiFetch("/requests?status_filter=OPEN")
+            .then((reqs: { responses?: { status: string }[] }[]) => {
+                const list = reqs || [];
+                setOpenRequestCount(list.length);
+                setPendingResponseCount(
+                    list.filter(r => r.responses?.some(resp => resp.status === "PENDING")).length
+                );
+            })
+            .catch(() => {});
+    }, []);
+
+    useEffect(() => {
+        fetchData();
+        fetchBannerData();
+        const id = setInterval(() => {
+            void fetchData();
+            fetchBannerData();
+        }, 15000);
+        return () => clearInterval(id);
+    }, [fetchData, fetchBannerData]);
 
     // ── Create Reminder ───────────────────────────────────────────────────────
 
@@ -226,7 +249,7 @@ export default function DashboardPage() {
             setNewTask(BLANK);
             fetchAlerts();
         } catch (err) {
-            alert((err as Error).message || "Failed to create reminder");
+            toast.error((err as Error).message || "Failed to create reminder");
         } finally {
             setTaskSaving(false);
         }
@@ -261,7 +284,7 @@ export default function DashboardPage() {
             });
             cancelEdit();
             fetchAlerts();
-        } catch { /* silent */ }
+        } catch (err) { toast.error((err as Error).message || "Failed to save reminder"); }
         finally { setEditSaving(false); }
     };
 
@@ -275,7 +298,7 @@ export default function DashboardPage() {
                 body: JSON.stringify({ status: "Completed" }),
             });
             fetchAlerts();
-        } catch { /* silent */ }
+        } catch (err) { toast.error((err as Error).message || "Failed to mark reminder as done"); }
         finally { setActionLoading(null); }
     };
 
@@ -288,7 +311,7 @@ export default function DashboardPage() {
                 body: JSON.stringify({ status: "Cancelled" }),
             });
             fetchAlerts();
-        } catch { /* silent */ }
+        } catch (err) { toast.error((err as Error).message || "Failed to cancel reminder"); }
         finally { setActionLoading(null); }
     };
 
@@ -355,6 +378,63 @@ export default function DashboardPage() {
                 </Link>
             )}
 
+            {/* Active Requests Banner */}
+            {openRequestCount > 0 && pendingResponseCount === 0 && (
+                <Link
+                    href="/user/bookings?tab=active"
+                    className="flex items-center justify-between bg-blue-700 text-white rounded-2xl px-5 py-4 shadow-lg shadow-blue-700/25 hover:bg-blue-800 transition-all animate-in fade-in duration-300"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                        <div>
+                            <p className="text-xs font-black uppercase tracking-widest">
+                                {openRequestCount} Active Request{openRequestCount > 1 ? "s" : ""} Pending
+                            </p>
+                            <p className="text-[10px] text-blue-200 mt-0.5">Waiting for provider responses · Tap to view</p>
+                        </div>
+                    </div>
+                    <MessageSquare size={20} className="shrink-0" />
+                </Link>
+            )}
+
+            {/* Pending Request Responses Banner */}
+            {pendingResponseCount > 0 && (
+                <Link
+                    href="/user/bookings?tab=responses"
+                    className="flex items-center justify-between bg-blue-700 text-white rounded-2xl px-5 py-4 shadow-lg shadow-blue-700/25 hover:bg-blue-800 transition-all animate-in fade-in duration-300"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                        <div>
+                            <p className="text-xs font-black uppercase tracking-widest">
+                                {pendingResponseCount} Response{pendingResponseCount > 1 ? "s" : ""} to Your Request
+                            </p>
+                            <p className="text-[10px] text-blue-200 mt-0.5">Providers have replied · Tap to review</p>
+                        </div>
+                    </div>
+                    <MessageSquare size={20} className="shrink-0" />
+                </Link>
+            )}
+
+            {/* Active Contracts Banner */}
+            {bookings.filter(b => b.status === "Accepted" || b.status === "In Progress" || b.status === "Pending Confirmation").length > 0 && (
+                <Link
+                    href="/user/bookings?tab=contracts"
+                    className="flex items-center justify-between bg-blue-700 text-white rounded-2xl px-5 py-4 shadow-lg shadow-blue-700/25 hover:bg-blue-800 transition-all animate-in fade-in duration-300"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                        <div>
+                            <p className="text-xs font-black uppercase tracking-widest">
+                                {bookings.filter(b => b.status === "Accepted" || b.status === "In Progress" || b.status === "Pending Confirmation").length} Active Contract{bookings.filter(b => b.status === "Accepted" || b.status === "In Progress" || b.status === "Pending Confirmation").length > 1 ? "s" : ""}
+                            </p>
+                            <p className="text-[10px] text-blue-200 mt-0.5">Service in progress · Tap to view</p>
+                        </div>
+                    </div>
+                    <ClipboardList size={20} className="shrink-0" />
+                </Link>
+            )}
+
             {/* Stat Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard title="Active Reminders" value={activeCount}       icon={Bell}        iconBg="bg-emerald-50" iconColor="text-emerald-700" />
@@ -373,17 +453,17 @@ export default function DashboardPage() {
                                 <AlarmClock className="w-3.5 h-3.5 text-[#064e3b]" />
                                 My Reminders
                                 {activeCount > 0 && (
-                                    <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded text-[8px] font-black">
+                                    <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded text-[10px] font-black">
                                         {activeCount} active
                                     </span>
                                 )}
                                 {overdueCount > 0 && (
-                                    <span className="px-1.5 py-0.5 bg-rose-50 text-rose-600 border border-rose-100 rounded text-[8px] font-black">
+                                    <span className="px-1.5 py-0.5 bg-rose-50 text-rose-600 border border-rose-100 rounded text-[10px] font-black">
                                         {overdueCount} overdue
                                     </span>
                                 )}
                             </h2>
-                            <Link href="/user/alerts" className="text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-[#064e3b] transition-colors">
+                            <Link href="/user/alerts" className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-[#064e3b] transition-colors">
                                 All Reminders ↗
                             </Link>
                         </div>
@@ -435,14 +515,14 @@ export default function DashboardPage() {
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
                                                             <p className="text-xs font-black text-slate-800 tracking-tight">{alert.title}</p>
-                                                            <span className={`text-[8px] font-black px-1.5 py-0.5 rounded border uppercase tracking-widest ${cfg.badge}`}>
+                                                            <span className={`text-[10px] font-black px-1.5 py-0.5 rounded border uppercase tracking-widest ${cfg.badge}`}>
                                                                 {cfg.label}
                                                             </span>
                                                         </div>
                                                         {alert.description && (
                                                             <p className="text-[10px] text-slate-400 font-medium truncate">{alert.description}</p>
                                                         )}
-                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1 mt-0.5">
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1 mt-0.5">
                                                             <CalendarClock className="w-3 h-3" />
                                                             {formatDueDate(alert.due_date, alert.due_time)}
                                                         </p>
@@ -460,7 +540,7 @@ export default function DashboardPage() {
                                                                 ds === "Upcoming"                      ? "text-amber-500" :
                                                                 "text-emerald-600"
                                                             }`} />
-                                                            <span className={`text-[9px] font-black uppercase tracking-widest tabular-nums ${
+                                                            <span className={`text-[10px] font-black uppercase tracking-widest tabular-nums ${
                                                                 ds === "Due Today" || ds === "Overdue" ? "text-rose-700" :
                                                                 ds === "Upcoming"                      ? "text-amber-700" :
                                                                 "text-emerald-700"
@@ -510,10 +590,10 @@ export default function DashboardPage() {
                                                             </>
                                                         )}
                                                         {ds === "Completed" && (
-                                                            <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 uppercase tracking-widest">Done</span>
+                                                            <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 uppercase tracking-widest">Done</span>
                                                         )}
                                                         {(ds === "Cancelled" || ds === "Expired") && (
-                                                            <span className="text-[8px] font-black text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-100 uppercase tracking-widest">{cfg.label}</span>
+                                                            <span className="text-[10px] font-black text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-100 uppercase tracking-widest">{cfg.label}</span>
                                                         )}
                                                     </div>
                                                 </div>
@@ -524,7 +604,7 @@ export default function DashboardPage() {
                                                 <div className="px-5 py-4 bg-amber-50/40 border-l-4 border-amber-400">
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
                                                         <div>
-                                                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Service Type</label>
+                                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Service Type</label>
                                                             <select
                                                                 value={editForm.service_type}
                                                                 onChange={e => setEditForm(f => ({ ...f, service_type: e.target.value }))}
@@ -536,7 +616,7 @@ export default function DashboardPage() {
                                                             </select>
                                                         </div>
                                                         <div>
-                                                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Description</label>
+                                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Description</label>
                                                             <input
                                                                 type="text"
                                                                 value={editForm.description}
@@ -545,7 +625,7 @@ export default function DashboardPage() {
                                                             />
                                                         </div>
                                                         <div>
-                                                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Target Date</label>
+                                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Target Date</label>
                                                             <input
                                                                 type="date"
                                                                 value={editForm.due_date}
@@ -555,7 +635,7 @@ export default function DashboardPage() {
                                                         </div>
                                                         <div className="flex gap-2 items-end">
                                                             <div className="flex-1">
-                                                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Time</label>
+                                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Time</label>
                                                                 <input
                                                                     type="time"
                                                                     value={editForm.due_time}
@@ -590,7 +670,7 @@ export default function DashboardPage() {
                         {/* Footer link */}
                         {sortedAlerts.length > 0 && (
                             <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/40">
-                                <Link href="/user/alerts" className="text-[9px] font-black text-[#064e3b] uppercase tracking-widest hover:underline flex items-center gap-1">
+                                <Link href="/user/alerts" className="text-[10px] font-black text-[#064e3b] uppercase tracking-widest hover:underline flex items-center gap-1">
                                     Manage all reminders <ArrowRight className="w-3 h-3" />
                                 </Link>
                             </div>
@@ -606,19 +686,19 @@ export default function DashboardPage() {
                             <Zap className="w-3 h-3 text-[#064e3b]" /> Quick Actions
                         </h3>
                         <div className="space-y-1.5">
-                            <Link href="/user/providers" className="flex items-center justify-between w-full p-3 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-white hover:border-slate-300 transition-all">
+                            <Link href="/user/providers" className="flex items-center justify-between w-full p-3 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-white hover:border-slate-300 transition-all">
                                 <span className="flex items-center gap-2"><Calendar className="w-3 h-3" />Book a Service</span>
                                 <ChevronRight className="w-3 h-3" />
                             </Link>
-                            <Link href="/user/bookings/emergency" className="flex items-center justify-between w-full p-3 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-white hover:border-slate-300 transition-all">
+                            <Link href="/user/bookings/emergency" className="flex items-center justify-between w-full p-3 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-white hover:border-slate-300 transition-all">
                                 <span className="flex items-center gap-2"><AlertCircle className="w-3 h-3" />Emergency SOS</span>
                                 <ChevronRight className="w-3 h-3" />
                             </Link>
-                            <Link href="/user/providers" className="flex items-center justify-between w-full p-3 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-white hover:border-slate-300 transition-all">
+                            <Link href="/user/providers" className="flex items-center justify-between w-full p-3 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-white hover:border-slate-300 transition-all">
                                 <span className="flex items-center gap-2"><Search className="w-3 h-3" />Find Experts</span>
                                 <ChevronRight className="w-3 h-3" />
                             </Link>
-                            <Link href="/user/bookings" className="flex items-center justify-between w-full p-3 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-white hover:border-slate-300 transition-all">
+                            <Link href="/user/bookings" className="flex items-center justify-between w-full p-3 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-white hover:border-slate-300 transition-all">
                                 <span className="flex items-center gap-2"><ClipboardList className="w-3 h-3" />My Bookings</span>
                                 <ChevronRight className="w-3 h-3" />
                             </Link>
@@ -632,13 +712,13 @@ export default function DashboardPage() {
                                 <ShieldCheck className="w-3 h-3 text-[#064e3b]" /> Active Bookings
                             </h3>
                             {activeBookings.length > 0 && (
-                                <span className="px-2 py-0.5 bg-blue-50 text-blue-600 border border-blue-100 rounded text-[8px] font-black uppercase">
+                                <span className="px-2 py-0.5 bg-blue-50 text-blue-600 border border-blue-100 rounded text-[10px] font-black uppercase">
                                     {activeBookings.length}
                                 </span>
                             )}
                         </div>
                         {activeBookings.length === 0 ? (
-                            <div className="py-6 text-center text-slate-300 text-[9px] font-black uppercase tracking-widest">
+                            <div className="py-6 text-center text-slate-300 text-[10px] font-black uppercase tracking-widest">
                                 No active bookings
                             </div>
                         ) : (
@@ -654,22 +734,22 @@ export default function DashboardPage() {
                                             className="block p-3 rounded-xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50 transition-all"
                                         >
                                             <div className="flex items-center justify-between gap-2">
-                                                <div>
-                                                    <p className="text-[9px] font-black text-slate-700 uppercase tracking-tight">{b.service_type}</p>
-                                                    <p className="text-[8px] text-slate-400 mt-0.5">{providerName}</p>
+                                                <div className="min-w-0">
+                                                    <p className="text-[10px] font-black text-slate-700 uppercase tracking-tight truncate">{b.service_type}</p>
+                                                    <p className="text-[10px] text-slate-400 mt-0.5 truncate">{providerName}</p>
                                                 </div>
-                                                <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase ${b.status === "In Progress" ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-600"}`}>
+                                                <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase ${b.status === "In Progress" ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-600"}`}>
                                                     {b.status}
                                                 </span>
                                             </div>
-                                            <p className="text-[8px] text-slate-400 mt-1">
+                                            <p className="text-[10px] text-slate-400 mt-1">
                                                 {new Date(b.scheduled_at).toLocaleDateString()}
                                             </p>
                                         </Link>
                                     );
                                 })}
                                 {activeBookings.length > 4 && (
-                                    <Link href="/user/bookings" className="block text-center text-[9px] font-black text-[#064e3b] uppercase tracking-widest hover:underline pt-1">
+                                    <Link href="/user/bookings" className="block text-center text-[10px] font-black text-[#064e3b] uppercase tracking-widest hover:underline pt-1">
                                         View all {activeBookings.length} →
                                     </Link>
                                 )}

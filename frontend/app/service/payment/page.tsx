@@ -17,6 +17,9 @@ interface PaymentProfile {
 }
 
 const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/i;
+const UPI_RE = /^[\w.\-]+@[\w.\-]+$/;
+const ACCOUNT_RE = /^\d{9,18}$/;
+const HOLDER_NAME_RE = /^[a-zA-Z\s]{3,100}$/;
 
 function Badge({ label, active }: { label: string; active: boolean }) {
     return (
@@ -35,6 +38,10 @@ export default function ProviderPaymentPage() {
     const [error, setError] = useState("");
     const [ifscError, setIfscError] = useState("");
     const [confirmError, setConfirmError] = useState("");
+    const [nameError, setNameError] = useState("");
+    const [accountError, setAccountError] = useState("");
+    const [upiError, setUpiError] = useState("");
+    const [qrError, setQrError] = useState("");
 
     const [name, setName] = useState("");
     const [accountNumber, setAccountNumber] = useState("");
@@ -59,6 +66,13 @@ export default function ProviderPaymentPage() {
     const handleQrFile = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+        if (!allowedTypes.includes(file.type)) {
+            setQrError("Only JPEG, PNG, or WebP images allowed for QR code");
+            if (qrFileRef.current) qrFileRef.current.value = "";
+            return;
+        }
+        setQrError("");
         if (file.size > 2 * 1024 * 1024) {
             setError("QR image must be under 2 MB. Please upload a smaller image.");
             return;
@@ -79,12 +93,27 @@ export default function ProviderPaymentPage() {
         e.preventDefault();
         setIfscError("");
         setConfirmError("");
+        setNameError("");
+        setAccountError("");
+        setUpiError("");
+        if (!HOLDER_NAME_RE.test(name.trim())) {
+            setNameError("Account holder name must contain only letters (min 3 characters)");
+            return;
+        }
+        if (!ACCOUNT_RE.test(accountNumber)) {
+            setAccountError("Account number must be 9–18 digits");
+            return;
+        }
         if (accountNumber !== confirmAccount) {
             setConfirmError("Account numbers do not match");
             return;
         }
         if (!IFSC_RE.test(ifsc)) {
             setIfscError("Invalid IFSC code format");
+            return;
+        }
+        if (upiId.trim() && !UPI_RE.test(upiId.trim())) {
+            setUpiError("Enter a valid UPI ID (e.g. name@upi)");
             return;
         }
         setLoading(true);
@@ -126,6 +155,10 @@ export default function ProviderPaymentPage() {
         setConfirmAccount("");
         setIfscError("");
         setConfirmError("");
+        setNameError("");
+        setAccountError("");
+        setUpiError("");
+        setQrError("");
         setError("");
         setEditing(true);
     };
@@ -232,16 +265,18 @@ export default function ProviderPaymentPage() {
                             <label className="block text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] ml-1">Account Holder Name</label>
                             <div className="relative group">
                                 <Building2 className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-[#064e3b] transition-colors" />
-                                <input required className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-14 pr-6 text-slate-900 outline-none focus:ring-2 focus:ring-[#064e3b] focus:bg-white transition-all font-bold tracking-tight shadow-inner shadow-black/[0.01]" placeholder="Full name as on bank account" value={name} onChange={(e) => setName(e.target.value)} />
+                                <input required className={`w-full bg-slate-50 border rounded-2xl py-4 pl-14 pr-6 text-slate-900 outline-none focus:ring-2 focus:ring-[#064e3b] focus:bg-white transition-all font-bold tracking-tight shadow-inner shadow-black/[0.01] ${nameError ? "border-rose-300" : "border-slate-100"}`} placeholder="Full name as on bank account" value={name} onChange={(e) => setName(e.target.value)} />
                             </div>
+                            {nameError && <p className="text-red-500 text-xs mt-1">{nameError}</p>}
                         </div>
 
                         <div className="space-y-2">
                             <label className="block text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] ml-1">Account Number</label>
                             <div className="relative group">
                                 <Hash className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-[#064e3b] transition-colors" />
-                                <input required type="password" className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-14 pr-6 text-slate-900 outline-none focus:ring-2 focus:ring-[#064e3b] focus:bg-white transition-all font-bold tracking-tight shadow-inner shadow-black/[0.01]" placeholder="9–18 digits" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
+                                <input required type="password" className={`w-full bg-slate-50 border rounded-2xl py-4 pl-14 pr-6 text-slate-900 outline-none focus:ring-2 focus:ring-[#064e3b] focus:bg-white transition-all font-bold tracking-tight shadow-inner shadow-black/[0.01] ${accountError ? "border-rose-300" : "border-slate-100"}`} placeholder="9–18 digits" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
                             </div>
+                            {accountError && <p className="text-red-500 text-xs mt-1">{accountError}</p>}
                         </div>
 
                         <div className="space-y-2">
@@ -278,8 +313,9 @@ export default function ProviderPaymentPage() {
                                     <label className="block text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] ml-1">UPI ID</label>
                                     <div className="relative group">
                                         <Smartphone className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-[#064e3b] transition-colors" />
-                                        <input className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-14 pr-6 text-slate-900 outline-none focus:ring-2 focus:ring-[#064e3b] focus:bg-white transition-all font-bold tracking-tight shadow-inner shadow-black/[0.01]" placeholder="e.g. name@upi" value={upiId} onChange={(e) => setUpiId(e.target.value)} />
+                                        <input className={`w-full bg-slate-50 border rounded-2xl py-4 pl-14 pr-6 text-slate-900 outline-none focus:ring-2 focus:ring-[#064e3b] focus:bg-white transition-all font-bold tracking-tight shadow-inner shadow-black/[0.01] ${upiError ? "border-rose-300" : "border-slate-100"}`} placeholder="e.g. name@upi" value={upiId} onChange={(e) => setUpiId(e.target.value)} />
                                     </div>
+                                    {upiError && <p className="text-red-500 text-xs mt-1">{upiError}</p>}
                                 </div>
 
                                 <div className="space-y-2">
@@ -301,6 +337,7 @@ export default function ProviderPaymentPage() {
                                         <QrCode className="w-4 h-4 text-slate-400" />
                                         {upiQr ? "Replace QR Image" : "Upload QR Image"}
                                     </button>
+                                    {qrError && <p className="text-red-500 text-xs mt-1">{qrError}</p>}
                                     {qrPreview && (
                                         <div className="flex flex-col items-center gap-2 mt-2">
                                             {/* eslint-disable-next-line @next/next/no-img-element */}

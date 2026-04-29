@@ -15,18 +15,18 @@ interface EmptyStateProps {
 export default function EmptyState({ icon: Icon, title, description, action, py = "py-16" }: EmptyStateProps) {
     return (
         <div className={`${py} flex flex-col items-center text-center gap-3 bg-slate-50/50 rounded-xl border border-dashed border-slate-200`}>
-            <Icon className="w-8 h-8 text-slate-200" />
-            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">{title}</p>
+            <Icon className="w-10 h-10 text-slate-300" />
+            <p className="text-xs font-black text-slate-400 uppercase tracking-widest">{title}</p>
             {description && (
-                <p className="text-[9px] text-slate-300 max-w-[200px]">{description}</p>
+                <p className="text-[10px] text-slate-400 max-w-xs w-full">{description}</p>
             )}
             {action && (
                 action.href ? (
-                    <a href={action.href} className="text-[9px] font-black text-[#064e3b] uppercase tracking-widest hover:underline">
+                    <a href={action.href} className="text-[10px] font-black text-[#064e3b] uppercase tracking-widest hover:underline">
                         {action.label} →
                     </a>
                 ) : (
-                    <button onClick={action.onClick} className="text-[9px] font-black text-[#064e3b] uppercase tracking-widest hover:underline">
+                    <button onClick={action.onClick} className="text-[10px] font-black text-[#064e3b] uppercase tracking-widest hover:underline">
                         {action.label} →
                     </button>
                 )

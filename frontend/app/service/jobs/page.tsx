@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Briefcase, Clock, MapPin, CheckCircle, XCircle, User, IndianRupee, Calendar, Send, X, FileText, ShieldAlert } from "lucide-react";
 import { apiFetch, emergencyApi, createServicerAlertSocket, IncomingEmergencyRead } from "@/lib/api";
 import { useToast } from "@/lib/toast-context";
@@ -104,11 +105,21 @@ interface SocietyContractItem {
 }
 
 export default function ServicerJobsPage() {
+    const searchParams = useSearchParams();
+    const tabParam = searchParams.get("tab") as JobTab | null;
+
     const [bookings, setBookings] = useState<Booking[]>([]);
     const [loading, setLoading] = useState(true);
     const [fetchError, setFetchError] = useState<string | null>(null);
+    const [requestsError, setRequestsError] = useState<string | null>(null);
+    const [completedError, setCompletedError] = useState<string | null>(null);
+    const [societyError, setSocietyError] = useState<string | null>(null);
 
-    const [activeTab, setActiveTab] = useState<JobTab>("jobs");
+    const [activeTab, setActiveTab] = useState<JobTab>(
+        tabParam && ["jobs", "requests", "emergency", "completed", "society"].includes(tabParam)
+            ? tabParam
+            : "jobs"
+    );
     const [incomingRequests, setIncomingRequests] = useState<IncomingRequest[]>([]);
     const [requestsLoading, setRequestsLoading] = useState(false);
     const [respondingTo, setRespondingTo] = useState<IncomingRequest | null>(null);
@@ -185,30 +196,36 @@ export default function ServicerJobsPage() {
     }, []);
 
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        void fetchJobs();
-        // Pre-fetch incoming requests so the tab badge count is visible from any tab
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        void apiFetch("/requests/incoming")
-            .then((d: IncomingRequest[]) => setIncomingRequests(d || []))
-            .catch(() => {});
+        const refresh = () => {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            void fetchJobs();
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            void apiFetch("/requests/incoming")
+                .then((d: IncomingRequest[]) => setIncomingRequests(d || []))
+                .catch(() => {});
+        };
+        refresh();
+        const id = setInterval(refresh, 15000);
+        return () => clearInterval(id);
     }, [fetchJobs]);
 
     useEffect(() => {
         if (activeTab === "requests") {
             // eslint-disable-next-line react-hooks/set-state-in-effect
             setRequestsLoading(true);
+            setRequestsError(null);
             apiFetch("/requests/incoming")
                 .then((d: IncomingRequest[]) => setIncomingRequests(d || []))
-                .catch(() => setIncomingRequests([]))
+                .catch(() => setRequestsError("Failed to load data. Please refresh."))
                 .finally(() => setRequestsLoading(false));
         }
         if (activeTab === "completed") {
             // eslint-disable-next-line react-hooks/set-state-in-effect
             setCompletedLoading(true);
+            setCompletedError(null);
             apiFetch("/bookings/completed-provider")
                 .then((d: CompletedJob[]) => setCompletedJobs(d || []))
-                .catch(() => setCompletedJobs([]))
+                .catch(() => setCompletedError("Failed to load data. Please refresh."))
                 .finally(() => setCompletedLoading(false));
         }
     }, [activeTab]);
@@ -217,9 +234,10 @@ export default function ServicerJobsPage() {
         if (activeTab !== "society") return;
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setSocietyLoading(true);
+        setSocietyError(null);
         apiFetch("/service/contracts")
             .then(d => setSocietyContracts(d || []))
-            .catch(() => {})
+            .catch(() => setSocietyError("Failed to load data. Please refresh."))
             .finally(() => setSocietyLoading(false));
     }, [activeTab]);
 
@@ -550,14 +568,14 @@ export default function ServicerJobsPage() {
                     >
                         {tab.label}
                         {tab.key === "requests" && incomingRequests.filter(r => !r.has_responded).length > 0 && (
-                            <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-black ${
+                            <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-black ${
                                 activeTab === tab.key ? "bg-white/20 text-white" : "bg-amber-100 text-amber-700"
                             }`}>
                                 {incomingRequests.filter(r => !r.has_responded).length}
                             </span>
                         )}
                         {tab.key === "emergency" && emergencies.filter(e => !e.has_responded).length > 0 && (
-                            <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-black ${
+                            <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-black ${
                                 activeTab === tab.key ? "bg-white/20 text-white" : "bg-rose-100 text-rose-700"
                             }`}>
                                 {emergencies.filter(e => !e.has_responded).length}
@@ -581,13 +599,13 @@ export default function ServicerJobsPage() {
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 rounded-bl-full -mr-16 -mt-16 group-hover:scale-110 transition-transform duration-700 opacity-50" />
 
                                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 relative z-10">
-                                        <div className="flex items-start gap-6">
+                                        <div className="flex items-start gap-6 min-w-0">
                                             <div className="w-16 h-16 bg-[#064e3b] rounded-2xl flex items-center justify-center text-white flex-shrink-0 shadow-lg shadow-emerald-900/10">
                                                 <User className="w-8 h-8" />
                                             </div>
-                                            <div className="space-y-2">
+                                            <div className="space-y-2 min-w-0">
                                                 <div className="flex items-center gap-3 flex-wrap">
-                                                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest ${
+                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest ${
                                                         booking.status === "Accepted" ? "bg-blue-600 text-white" :
                                                         booking.status === "Pending" ? "bg-amber-500 text-white" :
                                                         booking.status === "Completed" ? "bg-emerald-600 text-white" :
@@ -596,14 +614,14 @@ export default function ServicerJobsPage() {
                                                         {booking.status}
                                                     </span>
                                                     {booking.priority !== "Normal" && (
-                                                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest ${
+                                                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest ${
                                                             booking.priority === "Emergency" ? "bg-rose-600 text-white" : "bg-orange-500 text-white"
                                                         }`}>
                                                             {booking.priority}
                                                         </span>
                                                     )}
                                                     {booking.flow_type && (
-                                                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest ${
+                                                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest ${
                                                             booking.flow_type === "direct"
                                                                 ? "bg-slate-700 text-white"
                                                                 : "bg-blue-600 text-white"
@@ -616,7 +634,7 @@ export default function ServicerJobsPage() {
                                                         ID: BK-{booking.id}
                                                     </span>
                                                 </div>
-                                                <h3 className="text-xl font-black text-[#000000] tracking-tight">{booking.service_type} Service</h3>
+                                                <h3 className="text-xl font-black text-[#000000] tracking-tight truncate">{booking.service_type} Service</h3>
                                                 <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
                                                     <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-widest">
                                                         <MapPin className="w-3.5 h-3.5" />
@@ -741,6 +759,9 @@ export default function ServicerJobsPage() {
             {/* Incoming Requests tab */}
             {activeTab === "requests" && (
                 <div>
+                    {requestsError && (
+                        <div className="p-4 bg-red-50 text-red-700 rounded-lg text-sm mb-4">{requestsError}</div>
+                    )}
                     {requestsLoading ? (
                         <Spinner />
                     ) : incomingRequests.length === 0 ? (
@@ -757,15 +778,15 @@ export default function ServicerJobsPage() {
 
                                 return (
                                     <div key={req.id} className={`bg-white border border-slate-200 border-l-4 ${urgencyColor} rounded-2xl p-6`}>
-                                        <div className="flex items-start justify-between mb-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-sm font-black text-slate-600">
+                                        <div className="flex items-start justify-between mb-4 gap-2 flex-wrap">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-sm font-black text-slate-600 flex-shrink-0">
                                                     {req.contact_name.charAt(0).toUpperCase()}
                                                 </div>
-                                                <div>
-                                                    <p className="font-black text-slate-900 text-sm">{req.contact_name}</p>
-                                                    <p className="text-xs text-slate-500 flex items-center gap-1">
-                                                        <MapPin className="w-3 h-3" />{req.location}
+                                                <div className="min-w-0">
+                                                    <p className="font-black text-slate-900 text-sm truncate">{req.contact_name}</p>
+                                                    <p className="text-xs text-slate-500 flex items-center gap-1 truncate">
+                                                        <MapPin className="w-3 h-3 flex-shrink-0" />{req.location}
                                                     </p>
                                                 </div>
                                             </div>
@@ -887,7 +908,16 @@ export default function ServicerJobsPage() {
                                                 <p className="text-xs text-slate-500">{em.building_name}, {em.flat_no}</p>
                                             </div>
                                         </div>
-                                        <div className="text-right">
+                                        <div className="flex items-center gap-2">
+                                            {em.flow_type && (
+                                                <span className={`text-[10px] font-black px-2.5 py-1 rounded-full ${
+                                                    em.flow_type === "direct"
+                                                        ? "bg-slate-100 text-slate-700"
+                                                        : "bg-blue-50 text-blue-700"
+                                                }`}>
+                                                    {em.flow_type === "direct" ? "Direct Pay" : "Systematic"}
+                                                </span>
+                                            )}
                                             {timeLeft && (
                                                 <span className={`text-xs font-black px-3 py-1 rounded-full ${expired ? "bg-slate-100 text-slate-400" : "bg-rose-100 text-rose-600"}`}>
                                                     {expired ? "Expired" : timeLeft}
@@ -943,8 +973,8 @@ export default function ServicerJobsPage() {
             {/* Emergency Respond Modal */}
             {respondingToEmergency && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl">
-                        <div className="p-8 space-y-5">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
+                        <div className="p-4 sm:p-8 space-y-5">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <h2 className="text-lg font-black text-slate-900 uppercase">Respond to SOS</h2>
@@ -1005,6 +1035,9 @@ export default function ServicerJobsPage() {
             {/* ── Completed Jobs tab ──────────────────────────────────── */}
             {activeTab === "completed" && (
                 <div className="space-y-4">
+                    {completedError && (
+                        <div className="p-4 bg-red-50 text-red-700 rounded-lg text-sm">{completedError}</div>
+                    )}
                     {completedLoading ? (
                         <Spinner size="lg" />
                     ) : completedJobs.length === 0 ? (
@@ -1015,20 +1048,20 @@ export default function ServicerJobsPage() {
                                 <div key={job.id} className="bg-white border border-slate-200 rounded-[2rem] p-6 shadow-sm space-y-4">
                                     {/* Header row */}
                                     <div className="flex items-start justify-between gap-4">
-                                        <div className="flex items-start gap-4">
+                                        <div className="flex items-start gap-4 min-w-0">
                                             <div className="w-12 h-12 bg-emerald-600 rounded-xl flex items-center justify-center text-white shrink-0">
                                                 <CheckCircle className="w-6 h-6" />
                                             </div>
-                                            <div>
+                                            <div className="min-w-0">
                                                 <div className="flex items-center gap-2 flex-wrap">
-                                                    <span className="text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest bg-emerald-600 text-white">Completed</span>
+                                                    <span className="text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest bg-emerald-600 text-white">Completed</span>
                                                     {job.priority !== "Normal" && (
-                                                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest ${job.priority === "Emergency" ? "bg-rose-600 text-white" : "bg-orange-500 text-white"}`}>
+                                                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest ${job.priority === "Emergency" ? "bg-rose-600 text-white" : "bg-orange-500 text-white"}`}>
                                                             {job.priority}
                                                         </span>
                                                     )}
                                                 </div>
-                                                <h3 className="text-lg font-black text-slate-900 mt-1">{job.service_type} Service</h3>
+                                                <h3 className="text-lg font-black text-slate-900 mt-1 truncate">{job.service_type} Service</h3>
                                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 flex items-center gap-1">
                                                     <Calendar className="w-3 h-3" />
                                                     {new Date(job.scheduled_at).toLocaleDateString()} at {new Date(job.scheduled_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -1044,13 +1077,13 @@ export default function ServicerJobsPage() {
                                     {/* User details */}
                                     {job.user && (
                                         <div className="bg-slate-50 rounded-xl px-4 py-3 flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-lg bg-slate-200 flex items-center justify-center">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className="w-8 h-8 rounded-lg bg-slate-200 flex items-center justify-center flex-shrink-0">
                                                     <User className="w-4 h-4 text-slate-500" />
                                                 </div>
-                                                <div>
-                                                    <p className="text-sm font-black text-slate-900">{job.user.username}</p>
-                                                    <p className="text-[10px] text-slate-400 font-semibold">{job.user.email}</p>
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-black text-slate-900 truncate">{job.user.username}</p>
+                                                    <p className="text-[10px] text-slate-400 font-semibold truncate">{job.user.email}</p>
                                                 </div>
                                             </div>
                                             {job.user.home_number && (
@@ -1108,7 +1141,7 @@ export default function ServicerJobsPage() {
             {/* Report Issue Modal */}
             {reportIssueTarget && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-md p-4 sm:p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
                         <div className="flex items-center justify-between mb-4">
                             <div>
                                 <h2 className="text-lg font-black text-slate-900 uppercase tracking-widest">Report Issue</h2>
@@ -1145,7 +1178,7 @@ export default function ServicerJobsPage() {
             {/* Servicer Counter Offer Modal */}
             {counterModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+                    <div className="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-base font-black text-slate-900 uppercase tracking-widest">Send New Offer</h2>
                             <button onClick={() => { setCounterModal(null); setServicerCounterIsFinal(false); }} className="text-slate-400 hover:text-slate-600">
@@ -1221,6 +1254,9 @@ export default function ServicerJobsPage() {
             {/* Society Jobs tab */}
             {activeTab === "society" && (
                 <div className="space-y-6">
+                    {societyError && (
+                        <div className="p-4 bg-red-50 text-red-700 rounded-lg text-sm">{societyError}</div>
+                    )}
                     {societyLoading ? (
                         <div className="flex justify-center py-12">
                             <div className="w-8 h-8 border-4 border-emerald-200 border-t-[#064e3b] rounded-full animate-spin" />
@@ -1429,7 +1465,7 @@ export default function ServicerJobsPage() {
 
                 return (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                        <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+                        <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
                             <div className="flex items-center justify-between mb-4">
                                 <div>
                                     <h2 className="text-lg font-semibold text-gray-900">
@@ -1523,8 +1559,8 @@ export default function ServicerJobsPage() {
             {/* Response modal */}
             {respondingTo && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-lg shadow-2xl">
-                        <div className="p-8">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
+                        <div className="p-4 sm:p-8">
                             <div className="flex items-center justify-between mb-6">
                                 <div>
                                     <h2 className="text-lg font-black text-slate-900 uppercase tracking-widest">Your Offer</h2>

@@ -35,6 +35,8 @@ def get_stats(
         "total_bookings": db.query(ServiceBooking).count(),
         "total_tasks": db.query(MaintenanceTask).count(),
         "pending_verifications": db.query(ServiceProvider).filter(ServiceProvider.is_verified == False).count(),
+        "open_complaints": db.query(BookingComplaint).filter(BookingComplaint.status == "OPEN").count(),
+        "flagged_bookings_count": db.query(ServiceBooking).filter(ServiceBooking.is_flagged == True).count(),
     }
 
 
@@ -709,10 +711,11 @@ def update_complaint(
     booking = db.query(ServiceBooking).filter(ServiceBooking.id == complaint.booking_id).first()
 
     if body.action == "cancel_bill":
-        if not booking or booking.status != "Pending Confirmation":
-            raise HTTPException(status_code=400, detail="Booking must be in 'Pending Confirmation' to cancel bill")
+        if not booking or booking.status in ("Cancelled", "Pending", "Accepted"):
+            raise HTTPException(status_code=400, detail="No active bill to cancel for this booking")
         # Revert to In Progress so servicer re-submits
         booking.status = "In Progress"
+        booking.completed_at = None
         booking.final_cost = None
         booking.actual_hours = None
         booking.completion_notes = None
@@ -742,45 +745,36 @@ def update_complaint(
             raise HTTPException(status_code=400, detail="override_amount is required for override_amount action")
         if not booking or booking.status != "Pending Confirmation":
             raise HTTPException(status_code=400, detail="Booking must be in 'Pending Confirmation' to override amount")
-        booking.status = "Completed"
+        # Only update the charge — status stays "Pending Confirmation" so user still pays
         booking.final_cost = body.override_amount
         booking.is_flagged = False
-        booking.completed_at = datetime.utcnow()
         from app.booking.domain.model import BookingStatusHistory
         db.add(BookingStatusHistory(
             booking_id=booking.id,
-            status="Completed",
-            notes=f"Admin resolved dispute. Final amount overridden to \u20b9{body.override_amount:.0f}.",
+            status="Pending Confirmation",
+            notes=f"Admin adjusted charge to ₹{body.override_amount:.0f}. Awaiting user payment.",
         ))
-        complaint.status = "RESOLVED"
-        complaint.resolved_at = datetime.utcnow()
+        complaint.status = "UNDER_REVIEW"
         if body.admin_notes:
             complaint.admin_notes = body.admin_notes
-        # Notify both parties
-        msg = f"Admin resolved the dispute — final amount: \u20b9{body.override_amount:.0f}"
+        # Notify user to review updated amount and complete payment
         db.add(NotificationModel(
             user_id=booking.user_id,
-            title="Dispute Resolved",
-            message=msg,
-            notification_type="SUCCESS",
+            title="Charge Adjusted by Admin",
+            message=f"Admin updated the charge for '{booking.service_type}' to ₹{body.override_amount:.0f}. Please review and complete payment.",
+            notification_type="URGENT",
             link=f"/user/bookings/{booking.id}",
         ))
         from app.service.domain.model import ServiceProvider as SP
         provider = db.query(SP).filter(SP.id == booking.provider_id).first()
-        if provider:
+        if provider and provider.user_id:
             db.add(NotificationModel(
                 user_id=provider.user_id,
-                title="Dispute Resolved",
-                message=msg,
-                notification_type="SUCCESS",
+                title="Charge Adjusted by Admin",
+                message=f"Admin adjusted the final charge for '{booking.service_type}' to ₹{body.override_amount:.0f}. Awaiting user payment.",
+                notification_type="INFO",
                 link="/service/jobs",
             ))
-        # Award points now that booking is completed
-        try:
-            event = "URGENT_COMPLETE" if booking.priority in ("High", "Emergency") else "REGULAR_COMPLETE"
-            award_points(db, provider_id=booking.provider_id, event_type=event, source_id=booking.id)
-        except Exception:
-            pass
 
     else:
         # Normal status/notes update

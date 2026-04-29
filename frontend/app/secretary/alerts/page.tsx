@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import Spinner from "@/components/ui/Spinner";
@@ -242,7 +242,7 @@ export default function SecretaryAlertsPage() {
                                                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                                                     <div className="flex items-center gap-1.5">
                                                         <div className="w-5 h-5 bg-blue-50 rounded-lg flex items-center justify-center">
-                                                            <span className="text-[9px] font-black text-blue-700">{member?.username?.charAt(0)?.toUpperCase() ?? "?"}</span>
+                                                            <span className="text-[10px] font-black text-blue-700">{member?.username?.charAt(0)?.toUpperCase() ?? "?"}</span>
                                                         </div>
                                                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
                                                             {member?.username ?? `Member #${a.user_id}`}
@@ -258,11 +258,11 @@ export default function SecretaryAlertsPage() {
 
                                         <div className="flex items-center gap-2 shrink-0">
                                             {a.priority && (
-                                                <span className={`text-[9px] font-black px-2.5 py-1 rounded-xl border uppercase tracking-widest ${PRIORITY_COLOR[a.priority] ?? "text-slate-500 bg-slate-50 border-slate-100"}`}>
+                                                <span className={`text-[10px] font-black px-2.5 py-1 rounded-xl border uppercase tracking-widest ${PRIORITY_COLOR[a.priority] ?? "text-slate-500 bg-slate-50 border-slate-100"}`}>
                                                     {a.priority}
                                                 </span>
                                             )}
-                                            <span className={`text-[9px] font-black px-2.5 py-1 rounded-xl border uppercase tracking-widest ${STATUS_COLOR[a.status] ?? "text-slate-500 bg-slate-50 border-slate-100"}`}>
+                                            <span className={`text-[10px] font-black px-2.5 py-1 rounded-xl border uppercase tracking-widest ${STATUS_COLOR[a.status] ?? "text-slate-500 bg-slate-50 border-slate-100"}`}>
                                                 {a.status.replace("_", " ")}
                                             </span>
                                         </div>

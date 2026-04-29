@@ -45,7 +45,7 @@ Route access is enforced by **dual-layer protection**:
 ### Residents (USER)
 - **Service Booking** — Book verified providers by category (Plumbing, AC, Electrical, Carpentry, etc.) with time-conflict detection (3-hour window)
 - **Service Request Broadcast** — Describe a problem and broadcast to 1–10 providers simultaneously; review proposals and accept the best one
-- **Emergency SOS** — Real-time emergency dispatch via WebSocket; providers are alerted instantly and can submit arrival estimates
+- **Emergency SOS** — Real-time emergency dispatch via WebSocket; providers are alerted instantly and can submit arrival estimates. Users choose between **broadcast mode** (all available providers) or **targeted mode** (one specific expert). Emergency requests auto-expire after 30 minutes with a live countdown timer
 - **Maintenance Task Tracker** — Create, track, and assign routine or one-time maintenance tasks; receive staged alerts (2 days before → due → overdue → expired)
 - **Booking Chat** — In-booking messaging with the assigned provider
 - **Booking Review** — Rate completed jobs with overall + quality + punctuality + professionalism scores
@@ -53,30 +53,39 @@ Route access is enforced by **dual-layer protection**:
 - **Dispute Flagging** — If a charge is incorrect, resident can flag the booking to admin with a written reason; flagged bookings are highlighted in the admin panel for review
 - **Routine Maintenance** — Intelligent category matching to find the right provider automatically
 - **AI Assistant** — Ask home service questions via integrated Claude AI chat
+- **Autocomplete Form Memory** — Emergency SOS and service forms remember previously entered address and contact details, suggesting them on next visit via a localStorage-backed dropdown
 
 ### Service Providers (SERVICER)
 - **Job Board** — View assigned bookings and incoming service request broadcasts
 - **Emergency Alert Feed** — Real-time emergency alerts via WebSocket with 5-minute response window
-- **Job Charge Entry** — After job completion, enter actual hours worked; charge is auto-calculated as `hours × estimated_cost (hourly rate)` and sent to the resident
-- **Professional Profile** — Bio, category, hourly rate, location, certifications, government ID, profile photo
+- **Dual Job Completion Flows** — Direct jobs complete instantly (`direct-complete`); systematic jobs require submitting actual hours → charge auto-calculated → resident reviews and confirms or rejects
+- **Emergency Job Billing** — Emergency jobs billed at `callout_fee + (hourly_rate × hours × 1.5×)` via `emergency-complete`
+- **Professional Profile** — Bio, category, hourly rate, location, certifications, government ID, profile photo upload
 - **Availability Management** — Toggle between `AVAILABLE`, `WORKING`, `VACATION`
-- **Ratings Dashboard** — View detailed feedback: overall, quality, punctuality, professionalism
 - **Points-Based Star Rating** — 100 pts = 1 star, uncapped. Earn via completed jobs and reviews; lose via cancellations and penalties. Displayed as `★ X.X` throughout the UI. Providers are sorted by star rating across all listings
 - **Auto-Verification** — Providers who earn ≥ 10 stars (1,000 pts) are automatically verified — no admin action needed
 - **Analytics Dashboard** — Full performance view: total/emergency/urgent jobs, completion rate, points breakdown by category, recent activity log, and 6-month performance history at `/service/analytics`
+- **Society Recruitment** — Accept or decline invitations to join a society's trusted provider list
 
 ### Society Secretaries (SECRETARY)
 - **Member Directory** — View all society residents; assign home numbers
+- **Home Members** — Track household members per home unit (name, relationship)
 - **Trusted Provider Curation** — Manage society-specific verified provider list
-- **Maintenance Alerts** — Receive and act on alerts raised by any member
+- **Maintenance Alerts** — Receive and act on alerts raised by any member; create and update alert status
 - **Provider Trust Requests** — Send and receive provider approval requests
+- **Secretary Complaints** — File and track formal complaints about providers or incidents
+- **Society Broadcast** — Send announcements to all society members at once
+- **Society Contracts** — Manage and track service contracts with providers
 - **Society Profile** — Edit name, address, registration number, and details
 
 ### Admins (ADMIN)
 - **User Management** — View all users, change roles, toggle active status, delete accounts; superadmin is protected from demotion
-- **Provider Oversight** — Verify providers, revoke verification, view full profile with booking history and certificates; providers listed by star rating
+- **Provider Oversight** — Verify providers, revoke verification, view full profile with booking history and certificates; providers listed by star rating; AI-based verification support
 - **Booking Monitor** — All bookings with detailed view; flagged/disputed bookings appear with a visible warning badge so admins can prioritize review
-- **Charge Dispute Panel** — When a resident flags an incorrect charge, admin sees full charge details (actual hours, computed amount, rejection reason) in a dedicated panel and can take action
+- **Charge Dispute Panel** — When a resident flags an incorrect charge, admin sees full charge details (actual hours, computed amount, rejection reason) in a dedicated panel; admin can override the amount or cancel the bill entirely
+- **Complaint Management** — View and resolve all booking complaints; update status (OPEN → UNDER_REVIEW → RESOLVED) with notes
+- **Service Request Oversight** — View all service requests across the platform; cancel OPEN or ACCEPTED requests if needed
+- **Revenue Analytics** — Platform-wide revenue summary, monthly breakdown, top service categories, provider earnings tracking, and 7-day booking trend charts
 - **Emergency Management** — Configure emergency category pricing (callout fee + hourly rate), manage penalty configs (LATE_ARRIVAL, CANCELLATION, NO_SHOW), view all SOS incidents, apply penalties with star deductions
 - **System Logs** — Full activity audit log for security and compliance
 - **Health Dashboard** — Live DB / API / backend status indicators
@@ -118,11 +127,11 @@ This gives residents transparency and accountability over every billing event, w
 | **Frontend** | Next.js 16 (App Router), React 19, TypeScript | `"use client"` components, App Router file-based routing |
 | **Styling** | Tailwind CSS 4, ShigenTech Premium design system | Emerald/Charcoal palette, Manrope + Inter fonts, light theme only |
 | **Icons** | `lucide-react` | All icons use this library exclusively |
-| **Backend** | FastAPI (Python 3.10+), Uvicorn ASGI | 14 routers, domain-driven structure, WebSocket support |
-| **ORM** | SQLAlchemy 2.0 | `Mapped` / `mapped_column` style, 22 tables |
+| **Backend** | FastAPI (Python 3.10+), Uvicorn ASGI | 15 routers, domain-driven structure, WebSocket support |
+| **ORM** | SQLAlchemy 2.0 | `Mapped` / `mapped_column` style, 29 tables |
 | **Validation** | Pydantic v2 | Request/response schemas with strict validators |
 | **Database** | PostgreSQL | UUID primary keys on all tables |
-| **Migrations** | Alembic | File naming: `DD_MM_YYYY_slug.py` (13 migrations to date) |
+| **Migrations** | Alembic | File naming: `DD_MM_YYYY_slug.py` (25 migrations to date) |
 | **Auth** | JWT HS256, PBKDF2/SHA-256 | Token TTL: 480 minutes (8 hours), role-segregated storage |
 | **Real-time** | WebSocket (FastAPI) | Emergency SOS dispatch + servicer alert feed |
 | **Scheduler** | APScheduler | Hourly maintenance alert jobs (warning → final → overdue → expire) |
@@ -290,9 +299,10 @@ All endpoints prefixed `/api/v1`. Docs at `http://localhost:8000/api/v1/docs`
 | Emergency | `/emergency` | SOS create, provider responses, status updates |
 | Secretary | `/secretary` | society edit, member management, trusted providers |
 | Notifications | `/notifications` | list, mark read, delete |
-| Admin | `/admin` | users, providers, bookings (with flagged filter), logs, stats, health |
+| Admin | `/admin` | users, providers, bookings, complaints, requests, revenue analytics, logs, stats, health |
 | Admin Emergency | `/admin/emergency` | pricing config, penalty config, incident management |
-| AI | `/ai` | Claude AI chat |
+| Payment | `/payment` | user/provider payment profile management (UPI/card) |
+| AI | `/ai` | Claude AI diagnosis |
 
 ### WebSocket Endpoints
 | Path | User | Purpose |
@@ -319,7 +329,7 @@ All endpoints prefixed `/api/v1`. Docs at `http://localhost:8000/api/v1/docs`
 
 ## Database Schema Summary
 
-22 tables, all with UUID primary keys. Key relationships:
+29 tables, all with UUID primary keys. Key relationships:
 
 ```
 User ──────────────── 1:1 ── ServiceProvider
@@ -334,8 +344,11 @@ ServiceBooking ────── 1:N ── BookingChat
 ServiceBooking ────── 1:1 ── BookingReview
 ServiceRequest ────── 1:N ── ServiceRequestRecipient  (cascade delete)
 ServiceRequest ────── 1:N ── ServiceRequestResponse   (cascade delete)
+ServiceRequestResponse ─ 1:N ── NegotiationOffer
 EmergencyRequest ──── 1:N ── EmergencyResponse        (cascade delete)
 ServiceProvider ───── 1:N ── EmergencyStarAdjustment
+Society ───────────── 1:N ── SocietyContract
+Society ───────────── 1:N ── HomeMember
 ```
 
 ---
@@ -376,7 +389,12 @@ ServiceProvider ───── 1:N ── EmergencyStarAdjustment
 
 - [x] **Points-Based Star Rating** — Uncapped, achievement-driven rating system with auto-verification at 10 stars
 - [x] **Provider Analytics Dashboard** — Performance dashboard with job stats, points breakdown, and monthly trends
-- [x] **Charge Dispute Resolution** — Resident can reject incorrect charges and flag to admin; admin sees full charge breakdown in booking panel
+- [x] **Charge Dispute Resolution** — Resident can reject incorrect charges and flag to admin; admin can override or cancel disputed bills
+- [x] **Negotiation System** — Counter-offer round on service request proposals (1 round max)
+- [x] **Society Contract Records** — Secretary can track service contracts with providers
+- [x] **Payment Profile Management** — UPI/card storage per user/provider
+- [x] **Revenue Analytics** — Admin-facing revenue dashboard with monthly breakdown and provider earnings
+- [x] **Dual Booking Flows** — Direct (instant complete) and systematic (charge submission + confirmation) flows
 
 - [ ] **Smart Provider Matching** — AI-powered provider recommendation based on rating, proximity, category, and past booking satisfaction scores
 - [ ] **Predictive Maintenance** — Suggest upcoming maintenance actions based on past task history and seasonal patterns (e.g. "AC service usually needed in April based on your history")

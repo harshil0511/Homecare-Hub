@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { useToast } from "@/lib/toast-context";
 import Spinner from "@/components/ui/Spinner";
 import EmptyState from "@/components/ui/EmptyState";
 import { Wrench, Star, Phone, CheckSquare, Square, Send, Users, X, ShieldCheck, Briefcase } from "lucide-react";
@@ -25,6 +26,7 @@ const AVAIL_STYLE: Record<string, string> = {
 const CATEGORIES = ["All", "Plumbing", "Electrical", "Cleaning", "Mechanical", "Carpentry", "Painting", "Gardening", "HVAC", "Pest Control", "Appliance Repair"];
 
 export default function SecretaryProvidersPage() {
+    const { success, error } = useToast();
     const [providers, setProviders] = useState<Provider[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -89,8 +91,9 @@ export default function SecretaryProvidersPage() {
             setSelectedIds(new Set());
             setMemberName(""); setMemberUnit(""); setMemberMobile("");
             setBehalfProblem(""); setBehalfDesc(""); setBehalfUrgency("Normal");
+            success("Request sent successfully on behalf of member.");
         } catch (err) {
-            console.error("Failed to submit behalf request:", err);
+            error(err instanceof Error ? err.message : "Failed to send request. Please try again.");
         } finally {
             setSubmittingBehalf(false);
         }
@@ -115,8 +118,9 @@ export default function SecretaryProvidersPage() {
             setContractRate("");
             setContractNotes("");
             setContractDuration(6);
+            success("Contract invite sent to provider.");
         } catch (err) {
-            console.error("Failed to send contract invite:", err);
+            error(err instanceof Error ? err.message : "Failed to send contract invite. Please try again.");
         } finally {
             setSubmittingContract(false);
         }
@@ -207,7 +211,7 @@ export default function SecretaryProvidersPage() {
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <p className="font-black text-slate-900">{p.company_name}</p>
                             {p.is_verified && (
-                                <span className="flex items-center gap-1 text-[9px] font-black text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-wide">
+                                <span className="flex items-center gap-1 text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-wide">
                                     <ShieldCheck size={10} /> Verified
                                 </span>
                             )}

@@ -31,21 +31,25 @@ backend/
 │   │   ├── secretary/endpoints.py + schemas.py
 │   │   ├── request/endpoints.py + schemas.py
 │   │   ├── notification/endpoints.py + schemas.py
+│   │   ├── payment/endpoints.py + schemas.py
 │   │   └── ai/endpoints.py + schemas.py
 │   ├── auth/domain/model.py     ← User, Society, society_trusted_providers
 │   ├── service/
 │   │   ├── domain/model.py      ← ServiceProvider, ServiceCertificate, SocietyRequest, ProviderPoints
 │   │   ├── services.py          ← find_verified_provider, get_provider_display_name
 │   │   └── point_engine.py      ← award_points() — ONLY way to mutate provider rating
-│   ├── booking/domain/model.py  ← ServiceBooking, BookingStatusHistory, BookingChat, BookingReview
+│   ├── booking/domain/model.py  ← ServiceBooking, BookingStatusHistory, BookingChat, BookingReview, BookingComplaint
 │   ├── maintenance/domain/model.py ← MaintenanceTask
 │   ├── notification/domain/model.py ← Notification
-│   ├── request/domain/model.py  ← ServiceRequest, ServiceRequestRecipient, ServiceRequestResponse
+│   ├── request/domain/model.py  ← ServiceRequest, ServiceRequestRecipient, ServiceRequestResponse, NegotiationOffer
 │   ├── emergency/
 │   │   ├── domain/model.py      ← EmergencyConfig, EmergencyPenaltyConfig, EmergencyRequest, EmergencyResponse, EmergencyStarAdjustment
 │   │   └── services.py          ← apply_star_delta, calculate_emergency_bill
+│   ├── secretary/domain/model.py ← SecretaryComplaint, HomeMember
+│   ├── contract/domain/model.py  ← SocietyContract, SocietyDispatch
+│   ├── payment/domain/model.py   ← PaymentProfile
 │   └── websockets/emergency.py  ← EmergencyConnectionManager singleton
-├── alembic/                     ← Migration files (never edit existing versions)
+├── alembic/                     ← Migration files (23 versions, never edit existing)
 │   └── env.py                   ← Imports Base + all domain models for autogenerate
 └── alembic.ini
 ```
@@ -65,8 +69,11 @@ backend/
 | `ServiceBooking`, `BookingReview`, `BookingComplaint` | `app.booking.domain.model` |
 | `MaintenanceTask` | `app.maintenance.domain.model` |
 | `Notification` | `app.notification.domain.model` |
-| `ServiceRequest`, `ServiceRequestRecipient` | `app.request.domain.model` |
+| `ServiceRequest`, `ServiceRequestRecipient`, `NegotiationOffer` | `app.request.domain.model` |
 | `EmergencyRequest`, `EmergencyConfig` | `app.emergency.domain.model` |
+| `SecretaryComplaint`, `HomeMember` | `app.secretary.domain.model` |
+| `SocietyContract`, `SocietyDispatch` | `app.contract.domain.model` |
+| `PaymentProfile` | `app.payment.domain.model` |
 | `award_points` | `app.service.point_engine` |
 | Auth schemas (`TokenData`, etc.) | `app.api.auth.schemas` |
 | Domain schemas | `app.api.<domain>.schemas` |
@@ -93,6 +100,7 @@ backend/
 | `emergency_router` | `/api/v1/emergency` |
 | `emergency_servicer_router` | `/api/v1/emergency` |
 | `admin_emergency_router` | `/api/v1/admin/emergency` |
+| `payment_router` | `/api/v1/payment` |
 
 ---
 
@@ -190,6 +198,57 @@ Health: `http://localhost:8000/api/v1/health`
 - **CORS**: Backend allows the frontend origin defined in `FRONTEND_URL` env var
 - **Auth tokens**: Stored in role-segregated localStorage keys (see `lib/auth.ts` for key names)
 - **Token format**: JWT signed with `SECRET_KEY` — claims defined in `app/api/auth/schemas.py`
+
+---
+
+## Emergency SOS Endpoints (`/api/v1/emergency`)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/emergency/config` | Get pricing config |
+| GET | `/emergency/providers` | Available emergency providers |
+| GET | `/emergency/me/active` | Get current user's active (PENDING/ACTIVE) emergency request |
+| POST | `/emergency/` | Create SOS request |
+| GET | `/emergency/{request_id}` | Request detail |
+| GET | `/emergency/incoming-servicer` | Incoming emergencies for servicer (filtered by targeted_provider_ids) |
+| POST | `/emergency/{request_id}/respond` | Servicer submits response with committed arrival time |
+| POST | `/emergency/{request_id}/ignore` | Servicer ignores emergency — records dismissal and deducts points |
+| POST | `/emergency/{request_id}/accept/{response_id}` | User accepts servicer response — creates ServiceBooking |
+| POST | `/emergency/{request_id}/cancel` | User cancels emergency before any response accepted |
+| PATCH | `/emergency/{request_id}/status` | Update status |
+
+---
+
+## Emergency Model Fields
+
+`EmergencyRequest` key fields: `id, user_id, category, status, config_id, expires_at, flow_type, targeted_provider_ids`
+
+- `flow_type`: `"direct"` or `"systematic"` — controls emergency billing mode (instant complete vs charge submit + confirm)
+- `targeted_provider_ids`: JSON text list of provider UUIDs; `NULL` = broadcast to all available providers
+
+---
+
+## Scheduler
+
+`app/core/scheduler.py` runs the following APScheduler jobs:
+
+| Job | Interval | Description |
+|---|---|---|
+| Maintenance alert checks | Every 1 hour | WARNING (2 days before), FINAL (day of), OVERDUE (past due), AUTO-EXPIRE (7 days overdue) |
+| `_expire_stale_emergencies` | Every 1 minute | Marks PENDING emergency requests past `expires_at` as EXPIRED; sends notification to user |
+
+---
+
+## Emergency Schema Validators
+
+`EmergencyRequestCreate` enforces strict field validation:
+
+| Field | Rule |
+|---|---|
+| `contact_name` | Letters, spaces, hyphens, and dots only; 2–100 chars |
+| `contact_phone` | Indian mobile format — `^(\+91[\s-]?)?[6-9]\d{9}$` |
+| `full_address` | 5–500 chars |
+| `society_name`, `building_name`, `landmark`, `flat_no` | 1–200 chars, non-empty strings |
 
 ---
 

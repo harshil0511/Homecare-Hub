@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import {
     Briefcase, Clock, Star, TrendingUp, CheckCircle2,
     ChevronRight, MapPin, DollarSign, Calendar, GraduationCap,
-    ShieldCheck, Building2, Phone, AlertTriangle, User, CreditCard
+    ShieldCheck, Building2, Phone, AlertTriangle, User, CreditCard,
+    X, IndianRupee, FileText, MessageSquare, ShieldAlert,
 } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, emergencyApi } from "@/lib/api";
 import Image from "next/image";
 import Link from "next/link";
 import Spinner from "@/components/ui/Spinner";
@@ -24,6 +25,13 @@ export default function ServicerDashboard() {
     const [filterStatus, setFilterStatus] = useState("ACTIVE");
     const [fetchError, setFetchError] = useState<string | null>(null);
     const [hasPaymentProfile, setHasPaymentProfile] = useState<boolean | null>(null);
+    const [incomingRequestCount, setIncomingRequestCount] = useState(0);
+    const [incomingEmergencyCount, setIncomingEmergencyCount] = useState(0);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [selectedJob, setSelectedJob] = useState<Record<string, any> | null>(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [jobDetail, setJobDetail] = useState<Record<string, any> | null>(null);
+    const [detailLoading, setDetailLoading] = useState(false);
 
     const fetchData = async () => {
         try {
@@ -40,11 +48,18 @@ export default function ServicerDashboard() {
             apiFetch("/payment/provider")
                 .then(() => setHasPaymentProfile(true))
                 .catch(() => setHasPaymentProfile(false));
+            apiFetch("/requests/incoming")
+                .then((reqs: unknown[]) => setIncomingRequestCount((reqs || []).length))
+                .catch(() => {});
+            emergencyApi.getIncoming()
+                .then(ems => setIncomingEmergencyCount((ems || []).filter(e => !e.has_responded).length))
+                .catch(() => {});
         } catch (err) {
             const errMsg = err instanceof Error ? err.message.toLowerCase() : "";
             if ((err instanceof TypeError && errMsg.includes("failed to fetch")) || errMsg.includes("timed out") || errMsg.includes("request timed out")) {
                 setFetchError("Could not connect to the server. Please ensure the backend is running.");
             } else {
+                setFetchError("Failed to load dashboard data. Please refresh the page.");
                 console.error(err);
             }
         } finally {
@@ -55,6 +70,8 @@ export default function ServicerDashboard() {
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         void fetchData();
+        const id = setInterval(() => { void fetchData(); }, 15000);
+        return () => clearInterval(id);
     }, []);
 
     const handleInviteResponse = async (id: number, status: string) => {
@@ -82,6 +99,25 @@ export default function ServicerDashboard() {
         } finally {
             setUpdatingStatus(false);
         }
+    };
+
+    const openJobDetail = async (job: Record<string, any>) => {
+        setSelectedJob(job);
+        setJobDetail(null);
+        setDetailLoading(true);
+        try {
+            const detail = await apiFetch(`/bookings/${job.id}`);
+            setJobDetail(detail);
+        } catch {
+            setJobDetail(null);
+        } finally {
+            setDetailLoading(false);
+        }
+    };
+
+    const closeJobDetail = () => {
+        setSelectedJob(null);
+        setJobDetail(null);
     };
 
     const filteredJobs = jobs.filter((j) => {
@@ -124,6 +160,63 @@ export default function ServicerDashboard() {
                     <AlertTriangle className="w-4 h-4 flex-shrink-0" />
                     <span className="text-xs font-black uppercase tracking-widest">{fetchError}</span>
                 </div>
+            )}
+
+            {/* Active Jobs Banner */}
+            {jobs.filter(j => j.status !== "Completed" && j.status !== "Cancelled").length > 0 && incomingRequestCount === 0 && (
+                <Link
+                    href="/service/jobs?tab=jobs"
+                    className="flex items-center justify-between bg-blue-700 text-white rounded-2xl px-5 py-4 shadow-lg shadow-blue-700/25 hover:bg-blue-800 transition-all animate-in fade-in duration-300"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                        <div>
+                            <p className="text-xs font-black uppercase tracking-widest">
+                                {jobs.filter(j => j.status !== "Completed" && j.status !== "Cancelled").length} Active Job{jobs.filter(j => j.status !== "Completed" && j.status !== "Cancelled").length > 1 ? "s" : ""} In Progress
+                            </p>
+                            <p className="text-[10px] text-blue-200 mt-0.5">Service ongoing · Tap to manage</p>
+                        </div>
+                    </div>
+                    <Briefcase size={20} className="shrink-0" />
+                </Link>
+            )}
+
+            {/* Incoming Job Requests Banner */}
+            {incomingRequestCount > 0 && (
+                <Link
+                    href="/service/jobs?tab=requests"
+                    className="flex items-center justify-between bg-blue-700 text-white rounded-2xl px-5 py-4 shadow-lg shadow-blue-700/25 hover:bg-blue-800 transition-all animate-in fade-in duration-300"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                        <div>
+                            <p className="text-xs font-black uppercase tracking-widest">
+                                {incomingRequestCount} New Job Request{incomingRequestCount > 1 ? "s" : ""}
+                            </p>
+                            <p className="text-[10px] text-blue-200 mt-0.5">Residents need your service · Tap to view</p>
+                        </div>
+                    </div>
+                    <Briefcase size={20} className="shrink-0" />
+                </Link>
+            )}
+
+            {/* Emergency SOS Incoming Banner */}
+            {incomingEmergencyCount > 0 && (
+                <Link
+                    href="/service/jobs?tab=emergency"
+                    className="flex items-center justify-between bg-rose-600 text-white rounded-2xl px-5 py-4 shadow-lg shadow-rose-600/25 hover:bg-rose-700 transition-all animate-in fade-in duration-300"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                        <div>
+                            <p className="text-xs font-black uppercase tracking-widest">
+                                {incomingEmergencyCount} Emergency SOS Request{incomingEmergencyCount > 1 ? "s" : ""} — Respond Now
+                            </p>
+                            <p className="text-[10px] text-rose-200 mt-0.5">Urgent · Tap to view and respond</p>
+                        </div>
+                    </div>
+                    <ShieldAlert size={20} className="shrink-0" />
+                </Link>
             )}
 
             {/* Header */}
@@ -176,13 +269,13 @@ export default function ServicerDashboard() {
             )}
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm hover:shadow-md transition-all">
                     <div className="flex items-center justify-between mb-4">
                         <div className="w-12 h-12 bg-emerald-50 text-[#064e3b] rounded-2xl flex items-center justify-center"><Briefcase className="w-6 h-6" /></div>
                         <TrendingUp className="w-4 h-4 text-emerald-500" />
                     </div>
-                    <p className="text-3xl font-black text-[#000000] tracking-tight">{jobs.length}</p>
+                    <p className="text-3xl font-black text-[#000000] tracking-tight">{jobs.filter(j => j.status !== "Completed" && j.status !== "Cancelled").length}</p>
                     <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mt-1">Active Jobs</p>
                 </div>
                 <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm hover:shadow-md transition-all">
@@ -190,7 +283,7 @@ export default function ServicerDashboard() {
                         <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center"><DollarSign className="w-6 h-6" /></div>
                         <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded uppercase">Week 12</span>
                     </div>
-                    <p className="text-3xl font-black text-[#000000] tracking-tight">₹{jobs.filter((j) => j.status === "Completed").reduce((sum: number, j) => sum + (j.estimated_cost || 0), 0).toFixed(2)}</p>
+                    <p className="text-3xl font-black text-[#000000] tracking-tight">₹{jobs.filter((j) => j.status === "Completed").reduce((sum: number, j) => sum + (j.final_cost || j.estimated_cost || 0), 0).toFixed(2)}</p>
                     <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mt-1">Total Earnings</p>
                 </div>
                 <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm hover:shadow-md transition-all">
@@ -262,20 +355,20 @@ export default function ServicerDashboard() {
                                         <User className="w-7 h-7 text-slate-300" />
                                     )}
                                 </div>
-                                <div>
-                                    <p className="text-lg font-black text-[#000000] uppercase tracking-tight">
+                                <div className="min-w-0">
+                                    <p className="text-lg font-black text-[#000000] uppercase tracking-tight truncate">
                                         {profile?.first_name && profile?.last_name
                                             ? `${profile.first_name} ${profile.last_name}`
                                             : profile?.owner_name || "No name set"}
                                     </p>
                                     {profile?.location && (
-                                        <p className="text-xs font-black text-slate-500 flex items-center gap-1 mt-1">
-                                            <MapPin className="w-3 h-3" /> {profile.location}
+                                        <p className="text-xs font-black text-slate-500 flex items-center gap-1 mt-1 min-w-0">
+                                            <MapPin className="w-3 h-3 shrink-0" /> <span className="truncate">{profile.location}</span>
                                         </p>
                                     )}
                                     {profile?.phone && (
                                         <p className="text-xs font-black text-slate-500 flex items-center gap-1 mt-1">
-                                            <Phone className="w-3 h-3" /> {profile.phone}
+                                            <Phone className="w-3 h-3 shrink-0" /> {profile.phone}
                                         </p>
                                     )}
                                 </div>
@@ -338,6 +431,126 @@ export default function ServicerDashboard() {
                 </div>
             </div>
 
+            {/* Job Detail Modal */}
+            {selectedJob && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm" onClick={closeJobDetail}>
+                    <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[70vh] flex flex-col" onClick={e => e.stopPropagation()}>
+
+                        {/* Header */}
+                        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3 flex-shrink-0">
+                            <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-8 h-8 bg-[#064e3b] rounded-xl flex items-center justify-center flex-shrink-0">
+                                    <Briefcase size={13} className="text-white" />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-sm font-black text-slate-900 uppercase truncate">{selectedJob.service_type} Service</p>
+                                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest ${
+                                        selectedJob.status === "Completed"   ? "bg-emerald-100 text-emerald-700" :
+                                        selectedJob.status === "Cancelled"   ? "bg-rose-100 text-rose-600" :
+                                        selectedJob.status === "In Progress" ? "bg-blue-100 text-blue-700" :
+                                        selectedJob.status === "Accepted"    ? "bg-violet-100 text-violet-700" :
+                                        "bg-amber-100 text-amber-700"
+                                    }`}>{selectedJob.status}</span>
+                                </div>
+                            </div>
+                            <button onClick={closeJobDetail} className="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-500 transition-colors flex-shrink-0">
+                                <X size={14} />
+                            </button>
+                        </div>
+
+                        {/* Scrollable Body */}
+                        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
+                            {detailLoading ? (
+                                <div className="flex items-center justify-center py-8">
+                                    <div className="animate-spin w-6 h-6 border-2 border-slate-200 border-t-[#064e3b] rounded-full" />
+                                </div>
+                            ) : (
+                                <>
+                                    {/* Info Grid */}
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {[
+                                            { icon: <Calendar size={8} />, label: "Date", value: selectedJob.scheduled_at ? new Date(selectedJob.scheduled_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—" },
+                                            { icon: <Clock size={8} />, label: "Time", value: selectedJob.scheduled_at ? new Date(selectedJob.scheduled_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—" },
+                                            { icon: <MapPin size={8} />, label: "Location", value: selectedJob.property_details || "—" },
+                                            { icon: <User size={8} />, label: "Client Ref", value: `#${String(selectedJob.user_id || "").slice(0, 8).toUpperCase()}` },
+                                        ].map(({ icon, label, value }) => (
+                                            <div key={label} className="bg-slate-50 rounded-xl p-3">
+                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1 mb-0.5">{icon} {label}</p>
+                                                <p className="text-xs font-black text-slate-900 truncate">{value}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Earnings */}
+                                    <div className="bg-[#064e3b] rounded-xl p-4 text-white flex items-center justify-between">
+                                        <div>
+                                            <p className="text-[9px] font-black text-emerald-300 uppercase tracking-widest mb-1 flex items-center gap-1"><IndianRupee size={8} /> Earnings</p>
+                                            <p className="text-2xl font-black">₹{(jobDetail?.final_cost ?? selectedJob.final_cost ?? selectedJob.estimated_cost ?? 0).toLocaleString("en-IN")}</p>
+                                            <p className="text-[10px] text-emerald-400 mt-0.5">{jobDetail?.actual_hours ? `${jobDetail.actual_hours}h × ₹${selectedJob.estimated_cost?.toFixed(0)}/h` : "Estimated rate"}</p>
+                                        </div>
+                                        {jobDetail?.actual_hours && (
+                                            <div className="text-right">
+                                                <p className="text-[9px] text-emerald-400 uppercase">Hours</p>
+                                                <p className="text-xl font-black">{jobDetail.actual_hours}h</p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Notes */}
+                                    {(jobDetail?.completion_notes || selectedJob.completion_notes) && (
+                                        <div className="bg-slate-50 rounded-xl p-3">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1 mb-1"><FileText size={8} /> Your Notes</p>
+                                            <p className="text-xs text-slate-700 italic">&ldquo;{jobDetail?.completion_notes || selectedJob.completion_notes}&rdquo;</p>
+                                        </div>
+                                    )}
+
+                                    {/* Review */}
+                                    {jobDetail?.review && (
+                                        <div className="border border-amber-100 bg-amber-50 rounded-xl p-3 space-y-2">
+                                            <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-1"><Star size={8} /> Client Feedback</p>
+                                            <div className="flex items-center gap-1">
+                                                {[1,2,3,4,5].map(s => <Star key={s} size={12} className={jobDetail.review.rating >= s ? "text-amber-400 fill-amber-400" : "text-slate-200"} />)}
+                                                <span className="text-xs font-black text-amber-700 ml-1">{jobDetail.review.rating}/5</span>
+                                            </div>
+                                            {jobDetail.review.review_text && <p className="text-xs text-slate-700">&ldquo;{jobDetail.review.review_text}&rdquo;</p>}
+                                            <div className="grid grid-cols-3 gap-1.5">
+                                                {[
+                                                    { label: "Quality", val: jobDetail.review.quality_rating },
+                                                    { label: "Punctuality", val: jobDetail.review.punctuality_rating },
+                                                    { label: "Professional", val: jobDetail.review.professionalism_rating },
+                                                ].map(r => r.val != null && (
+                                                    <div key={r.label} className="text-center bg-white rounded-lg p-1.5">
+                                                        <p className="text-[8px] font-black text-slate-400 uppercase">{r.label}</p>
+                                                        <p className="text-xs font-black text-amber-600">{r.val}/5</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Timeline */}
+                                    {jobDetail?.status_history && jobDetail.status_history.length > 0 && (
+                                        <div className="space-y-1.5">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><MessageSquare size={8} /> Timeline</p>
+                                            {[...jobDetail.status_history].reverse().slice(0, 4).map((h: Record<string, string>, i: number) => (
+                                                <div key={i} className="flex items-start gap-2 bg-slate-50 rounded-xl px-3 py-2">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-[#064e3b] mt-1.5 flex-shrink-0" />
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-[10px] font-black text-slate-900 uppercase">{h.status}</p>
+                                                        {h.notes && <p className="text-[9px] text-slate-500 truncate">{h.notes}</p>}
+                                                        {h.timestamp && <p className="text-[9px] text-slate-400">{new Date(h.timestamp).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} · {new Date(h.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Job History */}
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden min-h-[40vh] flex flex-col">
                 <div className="px-10 py-8 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between bg-slate-50/50 gap-4">
@@ -345,7 +558,7 @@ export default function ServicerDashboard() {
                         <Clock className="w-4 h-4 text-[#064e3b]" />
                         <h2 className="text-sm font-black text-[#000000] uppercase tracking-[0.2em]">Job History</h2>
                     </div>
-                    <div className="flex bg-white border border-slate-200 p-1 rounded-xl shadow-sm">
+                    <div className="flex flex-wrap bg-white border border-slate-200 p-1 rounded-xl shadow-sm">
                         {["ACTIVE", "COMPLETED", "CANCELLED", "ALL"].map((status) => (
                             <button
                                 key={status}
@@ -369,7 +582,7 @@ export default function ServicerDashboard() {
                 ) : (
                     <div className="divide-y divide-slate-50">
                         {filteredJobs.map((job) => (
-                            <div key={job.id} className="px-10 py-8 hover:bg-slate-50/80 transition-all cursor-pointer group flex items-center justify-between">
+                            <div key={job.id} onClick={() => openJobDetail(job)} className="px-10 py-8 hover:bg-slate-50/80 transition-all cursor-pointer group flex items-center justify-between">
                                 <div className="flex items-center gap-8">
                                     <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center group-hover:bg-[#064e3b] transition-colors">
                                         <Briefcase className="w-6 h-6 text-slate-400 group-hover:text-white transition-colors" />

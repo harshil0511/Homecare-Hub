@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Star, ShieldCheck, Clock, MapPin, ChevronRight } from "lucide-react";
 
@@ -59,11 +59,11 @@ export default function ProviderCard({ provider, onSelect, isSelected }: Provide
 
             <div className="grid grid-cols-2 gap-4 mb-8">
                 <div className={`p-4 rounded-2xl border ${isSelected ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-100"}`}>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Standard Rate</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Standard Rate</p>
                     <p className={`text-lg font-black ${isSelected ? "text-white" : "text-slate-900"}`}>${provider.hourly_rate}/hr</p>
                 </div>
                 <div className={`p-4 rounded-2xl border ${isSelected ? "bg-white/5 border-white/10" : "bg-slate-50 border-slate-100"}`}>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Status</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Status</p>
                     <p className={`text-sm font-black uppercase ${
                         provider.availability_status === "WORKING" ? "text-amber-500" :
                         provider.availability_status === "VACATION" ? "text-slate-400" :

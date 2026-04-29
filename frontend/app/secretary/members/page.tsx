@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import Spinner from "@/components/ui/Spinner";
@@ -37,6 +37,10 @@ interface Alert {
 
 const EMPTY_FORM = { full_name: "", family_members: "", house_no: "", mobile: "" };
 
+const FULL_NAME_RE = /^[a-zA-Z\s\-\.]{2,50}$/;
+const HOUSE_NO_RE = /^[a-zA-Z0-9\-\/]{1,20}$/;
+const MOBILE_RE = /^(\+91[\s-]?)?[6-9]\d{9}$/;
+
 export default function SecretaryMembersPage() {
     const [tab, setTab] = useState<"app" | "home">("app");
 
@@ -53,17 +57,22 @@ export default function SecretaryMembersPage() {
     const [form, setForm] = useState(EMPTY_FORM);
     const [saving, setSaving] = useState(false);
     const [formError, setFormError] = useState("");
+    const [formErrors, setFormErrors] = useState<Record<string, string>>({});
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [viewMember, setViewMember] = useState<HomeMember | null>(null);
 
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState(false);
 
     useEffect(() => {
         Promise.all([
-            apiFetch("/secretary/members").catch(() => []),
-            apiFetch("/secretary/alerts").catch(() => []),
-            apiFetch("/secretary/home-members").catch(() => []),
+            apiFetch("/secretary/members").catch(() => null),
+            apiFetch("/secretary/alerts").catch(() => null),
+            apiFetch("/secretary/home-members").catch(() => null),
         ]).then(([m, a, h]) => {
+            if (m === null && h === null) {
+                setLoadError(true);
+            }
             setAppMembers(m || []);
             setAlerts(a || []);
             setHomeMembers(h || []);
@@ -107,6 +116,31 @@ export default function SecretaryMembersPage() {
         form.mobile.trim() !== "";
 
     const handleAddHomeMember = async () => {
+        const errs: Record<string, string> = {};
+        if (!form.full_name.trim()) {
+            errs.full_name = "Name must contain only letters (min 2 characters)";
+        } else if (!FULL_NAME_RE.test(form.full_name.trim())) {
+            errs.full_name = "Name must contain only letters (min 2 characters)";
+        }
+        if (!form.house_no.trim()) {
+            errs.house_no = "Enter a valid flat/house number (e.g. A-101, 202)";
+        } else if (!HOUSE_NO_RE.test(form.house_no.trim())) {
+            errs.house_no = "Enter a valid flat/house number (e.g. A-101, 202)";
+        }
+        if (!form.family_members || parseInt(form.family_members) < 1) {
+            errs.family_members = "Enter at least 1 family member";
+        }
+        if (!form.mobile.trim()) {
+            errs.mobile = "Enter a valid 10-digit mobile number";
+        } else if (!MOBILE_RE.test(form.mobile.trim())) {
+            errs.mobile = "Enter a valid 10-digit mobile number";
+        }
+        if (Object.keys(errs).length > 0) {
+            setFormErrors(errs);
+            setFormError("");
+            return;
+        }
+        setFormErrors({});
         if (!formValid) { setFormError("All fields are required."); return; }
         setSaving(true);
         setFormError("");
@@ -151,6 +185,9 @@ export default function SecretaryMembersPage() {
 
     return (
         <div className="space-y-6">
+            {loadError && (
+                <div className="p-4 bg-red-50 text-red-700 rounded-lg text-sm">Failed to load data. Please refresh.</div>
+            )}
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
@@ -159,7 +196,7 @@ export default function SecretaryMembersPage() {
                 </div>
                 {tab === "home" && (
                     <button
-                        onClick={() => { setShowModal(true); setFormError(""); setForm(EMPTY_FORM); }}
+                        onClick={() => { setShowModal(true); setFormError(""); setFormErrors({}); setForm(EMPTY_FORM); }}
                         className="flex items-center gap-2 px-4 py-2.5 bg-[#064e3b] text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-950 transition-all"
                     >
                         <Plus size={14} /> Add Home Member
@@ -183,7 +220,7 @@ export default function SecretaryMembersPage() {
                         }`}
                     >
                         {t.label}
-                        <span className="ml-2 text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full font-black">
+                        <span className="ml-2 text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full font-black">
                             {t.count}
                         </span>
                     </button>
@@ -244,18 +281,18 @@ export default function SecretaryMembersPage() {
                                     const counts = getAlertCounts(m.id);
                                     return (
                                         <div key={m.id} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                                            <div className="flex items-center gap-4">
+                                            <div className="flex items-center gap-4 min-w-0">
                                                 <div className="w-10 h-10 bg-blue-50 rounded-2xl flex items-center justify-center border border-blue-100 shrink-0">
                                                     <span className="text-sm font-black text-blue-700">{m.username.charAt(0).toUpperCase()}</span>
                                                 </div>
-                                                <div>
+                                                <div className="min-w-0">
                                                     <div className="flex items-center gap-2">
-                                                        <p className="font-black text-slate-900 text-sm">{m.username}</p>
+                                                        <p className="font-black text-slate-900 text-sm truncate">{m.username}</p>
                                                         {m.is_active
                                                             ? <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
                                                             : <XCircle className="w-3.5 h-3.5 text-slate-400" />}
                                                     </div>
-                                                    <p className="text-xs text-slate-400 font-medium mt-0.5">{m.email}</p>
+                                                    <p className="text-xs text-slate-400 font-medium mt-0.5 truncate">{m.email}</p>
                                                     {m.home_number && (
                                                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 flex items-center gap-1">
                                                             <Home className="w-3 h-3" /> Flat {m.home_number}
@@ -317,18 +354,18 @@ export default function SecretaryMembersPage() {
                                         onClick={() => setViewMember(m)}
                                         className="px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer"
                                     >
-                                        <div className="flex items-center gap-4">
+                                        <div className="flex items-center gap-4 min-w-0">
                                             <div className="w-10 h-10 bg-emerald-50 rounded-2xl flex items-center justify-center border border-emerald-100 shrink-0">
                                                 <Home className="w-4 h-4 text-emerald-700" />
                                             </div>
-                                            <div>
+                                            <div className="min-w-0">
                                                 <div className="flex items-center gap-2">
-                                                    <p className="text-base font-black text-slate-900">Flat {m.house_no}</p>
+                                                    <p className="text-base font-black text-slate-900 truncate">Flat {m.house_no}</p>
                                                     <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
                                                         {m.family_members} member{m.family_members !== 1 ? "s" : ""}
                                                     </span>
                                                 </div>
-                                                <p className="text-sm font-bold text-slate-700 mt-0.5">{m.full_name}</p>
+                                                <p className="text-sm font-bold text-slate-700 mt-0.5 truncate">{m.full_name}</p>
                                                 <p className="text-[10px] text-slate-400 font-bold mt-0.5 flex items-center gap-1">
                                                     <Phone className="w-3 h-3" /> {m.mobile}
                                                 </p>
@@ -407,7 +444,7 @@ export default function SecretaryMembersPage() {
                                 <UserCheck className="w-4 h-4 text-emerald-700" />
                                 <span className="text-sm font-black text-slate-900 uppercase tracking-wide">Add Home Member</span>
                             </div>
-                            <button onClick={() => setShowModal(false)}
+                            <button onClick={() => { setShowModal(false); setFormErrors({}); }}
                                 className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 transition-colors">
                                 <X className="w-4 h-4" />
                             </button>
@@ -430,8 +467,11 @@ export default function SecretaryMembersPage() {
                                         value={form[field.key as keyof typeof form]}
                                         min={field.type === "number" ? 1 : undefined}
                                         onChange={e => setForm(f => ({ ...f, [field.key]: e.target.value }))}
-                                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 transition-all placeholder:text-slate-400"
+                                        className={`w-full px-3 py-2.5 bg-slate-50 border rounded-xl text-sm font-medium text-slate-900 outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 transition-all placeholder:text-slate-400 ${formErrors[field.key] ? "border-rose-300" : "border-slate-200"}`}
                                     />
+                                    {formErrors[field.key] && (
+                                        <p className="text-red-500 text-xs mt-1">{formErrors[field.key]}</p>
+                                    )}
                                 </div>
                             ))}
 
@@ -442,7 +482,7 @@ export default function SecretaryMembersPage() {
 
                         <div className="flex gap-2 mt-5">
                             <button
-                                onClick={() => setShowModal(false)}
+                                onClick={() => { setShowModal(false); setFormErrors({}); }}
                                 className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-black text-slate-500 uppercase tracking-widest hover:bg-slate-50 transition-colors"
                             >
                                 Cancel

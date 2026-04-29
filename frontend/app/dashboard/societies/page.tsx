@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { Building2, Plus, Users, MapPin, Search, CheckCircle2, Loader2, X, ShieldCheck } from "lucide-react";
@@ -117,20 +117,20 @@ export default function SocietiesPage() {
                     <div className="absolute top-0 right-0 w-40 h-40 bg-emerald-900/30 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
                     <div className="relative z-10 flex items-start justify-between">
                         <div>
-                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] mb-2">Your Active Society</p>
+                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mb-2">Your Active Society</p>
                             <h2 className="text-2xl font-black text-white uppercase tracking-tight">{mySociety.name}</h2>
                             <p className="text-slate-400 text-xs mt-1 flex items-center gap-1">
                                 <MapPin className="w-3 h-3" /> {mySociety.address}
                             </p>
                         </div>
-                        <span className="px-3 py-1.5 bg-emerald-900 text-emerald-400 text-[9px] font-black uppercase tracking-[0.3em] rounded-lg border border-emerald-800">
+                        <span className="px-3 py-1.5 bg-emerald-900 text-emerald-400 text-[10px] font-black uppercase tracking-[0.3em] rounded-lg border border-emerald-800">
                             Joined
                         </span>
                     </div>
                     {mySociety.is_legal && (
                         <div className="relative z-10 flex items-center gap-1.5 mt-4">
                             <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                            <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Legally Registered</span>
+                            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Legally Registered</span>
                         </div>
                     )}
                 </div>
@@ -174,7 +174,7 @@ export default function SocietiesPage() {
                                         <Building2 className="w-5 h-5 text-slate-400 group-hover:text-emerald-600 transition-colors" />
                                     </div>
                                     {isJoined && (
-                                        <span className="flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase tracking-widest rounded-lg">
+                                        <span className="flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-widest rounded-lg">
                                             <CheckCircle2 className="w-3 h-3" /> Active
                                         </span>
                                     )}
@@ -187,7 +187,7 @@ export default function SocietiesPage() {
                                     <MapPin className="w-3 h-3 shrink-0 mt-0.5" />{society.address}
                                 </p>
                                 {society.secretary_name && (
-                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-4 flex items-center gap-1">
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-4 flex items-center gap-1">
                                         <Users className="w-3 h-3" /> Secretary: {society.secretary_name}
                                     </p>
                                 )}
@@ -218,7 +218,7 @@ export default function SocietiesPage() {
                         </div>
                         <form onSubmit={handleCreate} className="space-y-4">
                             <div>
-                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Society Name *</label>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Society Name *</label>
                                 <input
                                     required
                                     value={form.name}
@@ -228,7 +228,7 @@ export default function SocietiesPage() {
                                 />
                             </div>
                             <div>
-                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Address *</label>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Address *</label>
                                 <input
                                     required
                                     value={form.address}
@@ -238,7 +238,7 @@ export default function SocietiesPage() {
                                 />
                             </div>
                             <div>
-                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Registration Number</label>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Registration Number</label>
                                 <input
                                     value={form.registration_number}
                                     onChange={e => setForm(f => ({ ...f, registration_number: e.target.value }))}
@@ -247,7 +247,7 @@ export default function SocietiesPage() {
                                 />
                             </div>
                             <div>
-                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Secretary Name</label>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Secretary Name</label>
                                 <input
                                     value={form.secretary_name}
                                     onChange={e => setForm(f => ({ ...f, secretary_name: e.target.value }))}
@@ -256,7 +256,7 @@ export default function SocietiesPage() {
                                 />
                             </div>
                             <div>
-                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Your Role</label>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Your Role</label>
                                 <select
                                     value={form.creator_role}
                                     onChange={e => setForm(f => ({ ...f, creator_role: e.target.value }))}

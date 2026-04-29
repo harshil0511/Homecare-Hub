@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { Bell, AlertCircle, ShieldAlert, CheckCircle2, Clock, MoreHorizontal, Search, Loader2, ArrowRight, ChevronDown, Send, DollarSign } from "lucide-react";
@@ -174,7 +174,7 @@ export default function AlertsPage() {
                         <h2 className="text-xs font-black text-slate-500 uppercase tracking-[0.25em]">
                             Pending Requests — Awaiting Response
                         </h2>
-                        <span className="ml-auto text-[9px] font-black bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                        <span className="ml-auto text-[10px] font-black bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase tracking-widest">
                             {pendingBookings.length} pending
                         </span>
                     </div>
@@ -200,7 +200,7 @@ export default function AlertsPage() {
                                                         {booking.service_type}
                                                     </p>
                                                     {booking.priority === "Emergency" && (
-                                                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-red-50 text-red-700 uppercase tracking-widest flex-shrink-0">
+                                                        <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-red-50 text-red-700 uppercase tracking-widest flex-shrink-0">
                                                             Emergency
                                                         </span>
                                                     )}
@@ -212,7 +212,7 @@ export default function AlertsPage() {
                                             </div>
 
                                             <div className="flex items-center gap-2 flex-shrink-0">
-                                                <span className="text-[9px] font-black text-blue-600 bg-blue-50 border border-blue-100 px-3 py-1.5 rounded-lg uppercase tracking-widest">
+                                                <span className="text-[10px] font-black text-blue-600 bg-blue-50 border border-blue-100 px-3 py-1.5 rounded-lg uppercase tracking-widest">
                                                     Awaiting Response
                                                 </span>
                                                 <ChevronDown className={`w-4 h-4 text-slate-300 transition-transform duration-200 ${isOpen ? "rotate-180 text-blue-600" : ""}`} />
@@ -230,13 +230,13 @@ export default function AlertsPage() {
                                                     <div className="max-h-[360px] overflow-y-auto space-y-4 pr-2">
                                                         {/* Status & ID */}
                                                         <div className="flex items-center gap-3 flex-wrap">
-                                                            <span className="text-[9px] font-black bg-amber-100 text-amber-700 px-2.5 py-1 rounded uppercase tracking-widest">
+                                                            <span className="text-[10px] font-black bg-amber-100 text-amber-700 px-2.5 py-1 rounded uppercase tracking-widest">
                                                                 {bookingDetail.status}
                                                             </span>
-                                                            <span className="text-[9px] font-black bg-slate-100 text-slate-500 px-2.5 py-1 rounded uppercase tracking-widest">
+                                                            <span className="text-[10px] font-black bg-slate-100 text-slate-500 px-2.5 py-1 rounded uppercase tracking-widest">
                                                                 ID: #{bookingDetail.id?.toString().padStart(5, "0")}
                                                             </span>
-                                                            <span className="text-[9px] font-black bg-blue-100 text-blue-700 px-2.5 py-1 rounded uppercase tracking-widest">
+                                                            <span className="text-[10px] font-black bg-blue-100 text-blue-700 px-2.5 py-1 rounded uppercase tracking-widest">
                                                                 {bookingDetail.priority}
                                                             </span>
                                                         </div>
@@ -244,22 +244,22 @@ export default function AlertsPage() {
                                                         {/* Info Grid */}
                                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                             <div className="bg-white border border-slate-100 rounded-xl p-4">
-                                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Service Type</p>
+                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Service Type</p>
                                                                 <p className="text-sm font-black text-[#000000]">{bookingDetail.service_type}</p>
                                                             </div>
                                                             <div className="bg-white border border-slate-100 rounded-xl p-4">
-                                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Scheduled</p>
+                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Scheduled</p>
                                                                 <p className="text-sm font-black text-[#000000]">
                                                                     {new Date(bookingDetail.scheduled_at).toLocaleDateString()} @ {new Date(bookingDetail.scheduled_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                                                                 </p>
                                                             </div>
                                                             <div className="bg-white border border-slate-100 rounded-xl p-4">
-                                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Estimated Cost</p>
+                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Estimated Cost</p>
                                                                 <p className="text-sm font-black text-[#000000]">${bookingDetail.estimated_cost?.toFixed(2) || "0.00"}</p>
                                                             </div>
                                                             {bookingDetail.property_details && (
                                                                 <div className="bg-white border border-slate-100 rounded-xl p-4">
-                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Location</p>
+                                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Location</p>
                                                                     <p className="text-sm font-black text-[#000000]">{bookingDetail.property_details}</p>
                                                                 </div>
                                                             )}
@@ -268,7 +268,7 @@ export default function AlertsPage() {
                                                         {/* Description */}
                                                         {bookingDetail.issue_description && (
                                                             <div className="bg-white border border-slate-100 rounded-xl p-4">
-                                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Description</p>
+                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Description</p>
                                                                 <p className="text-xs font-medium text-slate-600 leading-relaxed">{bookingDetail.issue_description}</p>
                                                             </div>
                                                         )}
@@ -280,7 +280,7 @@ export default function AlertsPage() {
                                                                     {(bookingDetail.provider.first_name || bookingDetail.provider.company_name || "?")[0].toUpperCase()}
                                                                 </div>
                                                                 <div>
-                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Assigned Expert</p>
+                                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Assigned Expert</p>
                                                                     <p className="text-sm font-black text-[#000000]">
                                                                         {bookingDetail.provider.first_name && bookingDetail.provider.last_name
                                                                             ? `${bookingDetail.provider.first_name} ${bookingDetail.provider.last_name}`
@@ -354,7 +354,7 @@ export default function AlertsPage() {
                                         }`} />
 
                                         {/* Type badge */}
-                                        <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-widest flex-shrink-0 ${
+                                        <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-widest flex-shrink-0 ${
                                             alert.notification_type === "URGENT" ? "bg-rose-100 text-rose-700" :
                                             alert.notification_type === "WARNING" ? "bg-amber-100 text-amber-700" :
                                             "bg-emerald-100 text-emerald-700"

@@ -156,7 +156,8 @@ export default function HomecareLandingPage() {
                 desc: "Certified electricians, plumbers, and carpenters ready to handle any repair or installation at home.",
                 color: "text-emerald-700",
                 bg: "bg-emerald-50/50",
-                accent: "border-emerald-100"
+                accent: "border-emerald-100",
+                href: "/dashboard/home/info"
               },
               {
                 icon: CheckCircle,
@@ -164,7 +165,8 @@ export default function HomecareLandingPage() {
                 desc: "Daily help with cleaning, garden care, and deep maintenance to keep your home in perfect condition.",
                 color: "text-teal-700",
                 bg: "bg-teal-50/50",
-                accent: "border-teal-100"
+                accent: "border-teal-100",
+                href: "/dashboard/household/info"
               },
               {
                 icon: ShieldCheck,
@@ -172,7 +174,8 @@ export default function HomecareLandingPage() {
                 desc: "Regular safety checks for gas, electrical systems, and security to ensure a safe living environment.",
                 color: "text-emerald-800",
                 bg: "bg-emerald-50/50",
-                accent: "border-emerald-200"
+                accent: "border-emerald-200",
+                href: "/dashboard/technical/info"
               }
             ].map((service, i) => (
               <div key={i} className={`bg-white border ${service.accent} p-12 rounded-[3.5rem] shadow-xl shadow-slate-200/40 hover:shadow-2xl hover:shadow-emerald-900/10 transition-all group hover:-translate-y-2 duration-500 overflow-hidden relative`}>
@@ -182,7 +185,7 @@ export default function HomecareLandingPage() {
                 </div>
                 <h3 className="text-2xl font-black mb-4 tracking-tight text-slate-900 relative z-10">{service.title}</h3>
                 <p className="text-slate-500 font-bold mb-10 text-sm leading-relaxed relative z-10">{service.desc}</p>
-                <Link href="/dashboard/bookings" className={`inline-flex items-center space-x-2 font-black ${service.color} group/btn relative z-10`}>
+                <Link href={service.href} className={`inline-flex items-center space-x-2 font-black ${service.color} group/btn relative z-10`}>
                   <span>Request Service</span>
                   <ArrowRight size={18} className="group-hover/btn:translate-x-1.5 transition-transform" />
                 </Link>

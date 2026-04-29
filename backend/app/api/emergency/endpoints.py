@@ -125,6 +125,11 @@ async def create_emergency_request(
         EmergencyConfig.category == request_in.category
     ).first()
 
+    # Store targeted provider IDs (as JSON text) when specific providers are chosen
+    targeted_ids_json: Optional[str] = None
+    if request_in.provider_ids:
+        targeted_ids_json = json.dumps([str(pid) for pid in request_in.provider_ids])
+
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     emergency = EmergencyRequest(
         user_id=current_user.id,
@@ -139,6 +144,8 @@ async def create_emergency_request(
         photos=json.dumps(request_in.photos) if request_in.photos else None,
         contact_name=request_in.contact_name,
         contact_phone=request_in.contact_phone,
+        flow_type=request_in.flow_type,
+        targeted_provider_ids=targeted_ids_json,
         status="PENDING",
         config_id=config.id if config else None,
         expires_at=now + timedelta(minutes=EMERGENCY_WINDOW_MINUTES),
@@ -191,10 +198,10 @@ def list_incoming_emergencies(
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(servicer_only),
 ):
-    """List open emergency requests visible to this servicer (all PENDING, not expired).
+    """List open emergency requests visible to this servicer.
 
-    Note: the model does not persist a recipient join table, so all open emergencies
-    are shown. The has_responded flag tells the servicer if they have already acted.
+    Broadcast requests (targeted_provider_ids=NULL) are shown to all servicers.
+    Targeted requests (targeted_provider_ids set) are only shown to the selected provider(s).
     """
     provider = db.query(ServiceProvider).filter(
         ServiceProvider.user_id == current_user.id
@@ -208,8 +215,18 @@ def list_incoming_emergencies(
         EmergencyRequest.expires_at > now,
     ).all()
 
+    provider_id_str = str(provider.id)
     result = []
     for em in emergencies:
+        # If the request was targeted at specific providers, only show to those providers
+        if em.targeted_provider_ids:
+            try:
+                targeted = json.loads(em.targeted_provider_ids)
+                if provider_id_str not in targeted:
+                    continue
+            except (json.JSONDecodeError, ValueError):
+                pass
+
         existing_response = db.query(EmergencyResponse).filter(
             EmergencyResponse.request_id == em.id,
             EmergencyResponse.provider_id == provider.id,
@@ -229,6 +246,7 @@ def list_incoming_emergencies(
             photos=em.photos,
             contact_name=em.contact_name,
             contact_phone=em.contact_phone,
+            flow_type=em.flow_type,
             expires_at=em.expires_at,
             created_at=em.created_at,
             callout_fee=config.callout_fee if config else None,
@@ -290,6 +308,7 @@ async def accept_emergency_response(
     em_building = em.building_name
     em_flat = em.flat_no
     em_description = em.description
+    em_flow_type = em.flow_type
     resp_provider_id = resp.provider_id
     resp_arrival_time = resp.arrival_time
 
@@ -305,6 +324,7 @@ async def accept_emergency_response(
         status="Accepted",
         source_type="emergency",
         source_id=request_id,
+        flow_type=em_flow_type,
     )
     db.add(booking)
     db.flush()  # get booking.id

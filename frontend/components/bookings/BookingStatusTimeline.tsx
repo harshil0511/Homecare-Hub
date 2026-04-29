@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Check, Clock, Play, CheckCircle2, XCircle, Hourglass } from "lucide-react";
 
@@ -65,7 +65,7 @@ export default function BookingStatusTimeline({ currentStatus, history = [] }: B
                                 <Icon size={18} />
                             </div>
                             <div className="text-center">
-                                <p className={`text-[9px] font-black uppercase tracking-widest ${isCurrent ? "text-emerald-500" : isPassed ? "text-slate-900" : "text-slate-300"}`}>
+                                <p className={`text-[10px] font-black uppercase tracking-widest ${isCurrent ? "text-emerald-500" : isPassed ? "text-slate-900" : "text-slate-300"}`}>
                                     {stage.label}
                                 </p>
                             </div>
@@ -85,7 +85,7 @@ export default function BookingStatusTimeline({ currentStatus, history = [] }: B
                                 <div>
                                     <p className="text-sm font-black text-slate-900">{h.status}</p>
                                     <p className="text-[11px] font-bold text-slate-500">{h.notes}</p>
-                                    <p className="text-[9px] font-black text-emerald-500 uppercase mt-1">{new Date(h.timestamp).toLocaleString()}</p>
+                                    <p className="text-[10px] font-black text-emerald-500 uppercase mt-1">{new Date(h.timestamp).toLocaleString()}</p>
                                 </div>
                             </div>
                         ))}

@@ -73,15 +73,15 @@ export default function ReviewModal({ bookingId, onClose, onSubmit }: ReviewModa
                             { label: "Professionalism", val: professionalism, set: setProfessionalism },
                         ].map((item) => (
                             <div key={item.label} className="space-y-3">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">{item.label}</p>
-                                <div className="flex items-center justify-center gap-1.5">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">{item.label}</p>
+                                <div className="flex items-center justify-center gap-2">
                                     {[1, 2, 3, 4, 5].map((s) => (
                                         <button
                                             key={s}
                                             onClick={() => item.set(s)}
-                                            className={`transition-colors ${item.val >= s ? "text-amber-400" : "text-slate-100"}`}
+                                            className={`transition-colors p-0.5 ${item.val >= s ? "text-amber-400" : "text-slate-200"}`}
                                         >
-                                            <Star size={16} fill="currentColor" />
+                                            <Star size={22} fill="currentColor" />
                                         </button>
                                     ))}
                                 </div>
@@ -102,13 +102,13 @@ export default function ReviewModal({ bookingId, onClose, onSubmit }: ReviewModa
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                        <button onClick={onClose} className="py-5 rounded-2xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:bg-slate-50 transition-all">
+                        <button onClick={onClose} className="py-5 rounded-2xl border border-slate-200 text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 transition-all">
                             Cancel
                         </button>
-                        <button 
-                            onClick={handleSubmit} 
+                        <button
+                            onClick={handleSubmit}
                             disabled={loading}
-                            className="py-5 rounded-2xl bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest shadow-xl shadow-slate-900/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                            className="py-5 rounded-2xl bg-slate-900 text-white text-xs font-black uppercase tracking-widest shadow-xl shadow-slate-900/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                         >
                             {loading ? "Submitting..." : <>Submit Feedback <Check size={16} /></>}
                         </button>

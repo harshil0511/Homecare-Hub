@@ -319,8 +319,14 @@ def reschedule_booking(
 
     booking.scheduled_at = reschedule_in.new_date
 
-    # If the booking was cancelled or completed, flip it back to Pending so it's active again
-    if booking.status in ["Cancelled", "Completed"]:
+    # If the booking was cancelled, flip it back to Pending so it's active again
+    # Completed bookings are final — they cannot be reopened via reschedule
+    if booking.status == "Completed":
+        raise HTTPException(
+            status_code=400,
+            detail="Completed bookings cannot be rescheduled."
+        )
+    if booking.status == "Cancelled":
         booking.status = "Pending"
 
     history = BookingStatusHistory(
@@ -368,9 +374,20 @@ def cancel_booking(
     ).first()
     if _cancel_provider and _cancel_provider.user_id == current_user.id:
         priority = (booking.priority or "Normal").strip()
-        cancel_event = "EMERGENCY_CANCEL" if priority == "Emergency" else "REGULAR_CANCEL"
-        award_points(db, _cancel_provider.id, cancel_event, source_id=booking.id,
-                     note=f"Cancelled by provider: {cancel_in.reason}")
+        if priority == "Emergency" and booking.source_type == "emergency":
+            # Use the admin-configured emergency cancellation penalty if available
+            from app.emergency.domain.model import EmergencyPenaltyConfig
+            penalty_cfg = db.query(EmergencyPenaltyConfig).filter(
+                EmergencyPenaltyConfig.event_type == "CANCELLATION"
+            ).first()
+            penalty_delta = -(penalty_cfg.star_deduction * 100) if penalty_cfg else -20.0
+            award_points(db, _cancel_provider.id, "EMERGENCY_CANCEL", source_id=booking.id,
+                         custom_delta=penalty_delta,
+                         note=f"Emergency SOS booking cancelled by provider: {cancel_in.reason}")
+        else:
+            cancel_event = "EMERGENCY_CANCEL" if priority == "Emergency" else "REGULAR_CANCEL"
+            award_points(db, _cancel_provider.id, cancel_event, source_id=booking.id,
+                         note=f"Cancelled by provider: {cancel_in.reason}")
 
     history = BookingStatusHistory(
         booking_id=booking.id,
@@ -434,10 +451,16 @@ def direct_complete_booking(
     booking.status = "Completed"
     booking.completed_at = now
 
+    is_emergency_direct = booking.source_type == "emergency"
+    direct_note = (
+        "Emergency SOS direct-flow job done. Payment collected in cash from resident."
+        if is_emergency_direct
+        else "Direct-flow job marked done by provider. Payment handled offline."
+    )
     db.add(BookingStatusHistory(
         booking_id=booking.id,
         status="Completed",
-        notes="Direct-flow job marked done by provider. Payment handled offline.",
+        notes=direct_note,
         timestamp=now,
     ))
 
@@ -619,6 +642,12 @@ def emergency_complete_booking(
 
     if booking.source_type != "emergency":
         raise HTTPException(status_code=400, detail="This endpoint is only for emergency bookings")
+
+    if booking.flow_type == "direct":
+        raise HTTPException(
+            status_code=400,
+            detail="This is a direct-flow emergency booking. Use /direct-complete instead — no hour entry required."
+        )
 
     if booking.status not in ("In Progress", "Accepted"):
         raise HTTPException(
@@ -998,8 +1027,11 @@ def file_complaint(
     is_servicer = provider is not None and provider.id == booking.provider_id
     if not is_user and not is_servicer:
         raise HTTPException(status_code=403, detail="Only the booking's user or assigned servicer can file a complaint")
-    if booking.status not in ("Completed", "Pending Confirmation"):
-        raise HTTPException(status_code=400, detail="Can only file complaints on completed or pending-confirmation bookings")
+    if booking.status != "Completed":
+        raise HTTPException(
+            status_code=400,
+            detail="Complaints can only be filed on completed bookings. For a charge dispute use the reject-charge or flag options."
+        )
 
     complaint = BookingComplaint(
         booking_id=booking_id,

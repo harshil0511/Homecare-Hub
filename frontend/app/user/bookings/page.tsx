@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -127,6 +127,8 @@ export default function UserBookingsPage() {
   const [bookings, setBookings] = useState<ActiveBooking[]>([]);
   const [history, setHistory] = useState<HistoryBooking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [confirmAccept, setConfirmAccept] = useState<{
     requestId: number;
     responseId: number;
@@ -164,13 +166,16 @@ export default function UserBookingsPage() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setFetchError(null);
     try {
       const [reqData, bookData] = await Promise.all([
-        apiFetch("/requests?status_filter=OPEN").catch(() => []),
-        apiFetch("/bookings/list").catch(() => []),
+        apiFetch("/requests?status_filter=OPEN"),
+        apiFetch("/bookings/list"),
       ]);
       setRequests(Array.isArray(reqData) ? reqData : []);
       setBookings(Array.isArray(bookData) ? bookData : []);
+    } catch (err) {
+      setFetchError((err as Error).message || "Failed to load bookings — please refresh");
     } finally {
       setLoading(false);
     }
@@ -179,12 +184,17 @@ export default function UserBookingsPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadData();
+    const id = setInterval(() => { void loadData(); }, 15000);
+    return () => clearInterval(id);
   }, [loadData]);
 
   useEffect(() => {
     if (activeTab === "history" && history.length === 0) {
+      setHistoryError(null);
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      void apiFetch("/bookings/list?status=Completed").then(d => setHistory(Array.isArray(d) ? d : [])).catch(() => {});
+      void apiFetch("/bookings/list?status=Completed")
+        .then(d => setHistory(Array.isArray(d) ? d : []))
+        .catch((err: Error) => setHistoryError(err.message || "Failed to load history"));
     }
   }, [activeTab, history.length]);
 
@@ -361,12 +371,12 @@ export default function UserBookingsPage() {
       </div>
 
       {/* Tab Strip */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-1.5 flex gap-1 mb-6 overflow-x-auto">
+      <div className="bg-white border border-slate-200 rounded-2xl p-1.5 flex gap-1 mb-6 overflow-x-auto whitespace-nowrap">
         {tabs.map(tab => (
           <button
             key={tab.key}
             onClick={() => { setActiveTab(tab.key); router.replace(`/user/bookings?tab=${tab.key}`, { scroll: false }); }}
-            className={`flex-1 min-w-max flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+            className={`flex-shrink-0 flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
               activeTab === tab.key
                 ? "bg-[#064e3b] text-white shadow-lg"
                 : "text-slate-400 hover:text-slate-700 hover:bg-slate-50"
@@ -374,7 +384,7 @@ export default function UserBookingsPage() {
           >
             {tab.label}
             {tab.count !== undefined && tab.count > 0 && (
-              <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
                 activeTab === tab.key
                   ? "bg-white/20 text-white"
                   : tab.key === "responses"
@@ -385,6 +395,13 @@ export default function UserBookingsPage() {
           </button>
         ))}
       </div>
+
+      {fetchError && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl text-sm text-rose-700 font-semibold">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+          {fetchError}
+        </div>
+      )}
 
       {loading ? (
         <Spinner />
@@ -408,10 +425,10 @@ export default function UserBookingsPage() {
                   return (
                     <div key={req.id} className={`bg-white border border-slate-200 border-l-4 ${urgencyColor} rounded-2xl p-6`}>
                       <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <p className="font-black text-slate-900 text-base">{req.device_or_issue}</p>
+                        <div className="min-w-0 mr-2">
+                          <p className="font-black text-slate-900 text-base truncate">{req.device_or_issue}</p>
                           <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
-                            <MapPin className="w-3 h-3" />{req.location}
+                            <MapPin className="w-3 h-3 flex-shrink-0" /><span className="truncate">{req.location}</span>
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -423,7 +440,7 @@ export default function UserBookingsPage() {
                           )}
                         </div>
                       </div>
-                      {req.description && <p className="text-xs text-slate-500 italic mb-3 border-l-2 border-slate-200 pl-3">{req.description}</p>}
+                      {req.description && <p className="text-xs text-slate-500 italic mb-3 border-l-2 border-slate-200 pl-3 line-clamp-2">{req.description}</p>}
                       <div className="flex items-center justify-between text-xs text-slate-400">
                         <span className="flex items-center gap-1"><Users className="w-3 h-3" />Sent to {(req.recipients || []).length} provider{(req.recipients || []).length !== 1 ? "s" : ""}</span>
                         <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(req.created_at).toLocaleDateString()}</span>
@@ -501,8 +518,8 @@ export default function UserBookingsPage() {
                           {initials || "?"}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-black text-slate-900 text-sm">{servicerName}</p>
-                          <p className="text-xs text-slate-500">Response to: <span className="font-bold">{req.device_or_issue}</span></p>
+                          <p className="font-black text-slate-900 text-sm truncate">{servicerName}</p>
+                          <p className="text-xs text-slate-500 truncate">Response to: <span className="font-bold">{req.device_or_issue}</span></p>
                         </div>
                         <div className="flex items-center gap-2 flex-wrap justify-end">
                           <button
@@ -594,16 +611,16 @@ export default function UserBookingsPage() {
                     b.status === "Pending Confirmation" ? "border-amber-300 border-l-4 border-l-amber-500" : "border-slate-200"
                   }`}>
                     <div className="flex-1 min-w-0">
-                      <p className="font-black text-slate-900 text-sm">{b.service_type}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">{getProviderName(b.provider)}</p>
+                      <p className="font-black text-slate-900 text-sm truncate">{b.service_type}</p>
+                      <p className="text-xs text-slate-500 mt-0.5 truncate">{getProviderName(b.provider)}</p>
                       {b.scheduled_at && (
                         <p className="text-xs text-slate-400 flex items-center gap-1 mt-1">
-                          <Calendar className="w-3 h-3" />
+                          <Calendar className="w-3 h-3 flex-shrink-0" />
                           {new Date(b.scheduled_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap justify-end">
                       {/* flow type badge */}
                       {b.flow_type && (
                         <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase ${
@@ -644,14 +661,20 @@ export default function UserBookingsPage() {
           {/* Tab 4: History */}
           {activeTab === "history" && (
             <div className="space-y-4">
-              {history.length === 0 ? (
+              {historyError && (
+                <div className="flex items-center gap-3 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl text-sm text-rose-700 font-semibold">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                  {historyError}
+                </div>
+              )}
+              {history.length === 0 && !historyError ? (
                 <EmptyState icon={Clock} title="No completed bookings" />
               ) : (
                 history.map(b => (
                   <div key={b.id} className="bg-white border border-slate-200 rounded-2xl p-6 flex items-center gap-4">
                     <div className="flex-1 min-w-0">
-                      <p className="font-black text-slate-900 text-sm">{b.service_type}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">{getProviderName(b.provider)}</p>
+                      <p className="font-black text-slate-900 text-sm truncate">{b.service_type}</p>
+                      <p className="text-xs text-slate-500 mt-0.5 truncate">{getProviderName(b.provider)}</p>
                       {b.scheduled_at && (
                         <p className="text-xs text-slate-400 mt-1">{new Date(b.scheduled_at).toLocaleDateString("en-IN")}</p>
                       )}
@@ -685,7 +708,7 @@ export default function UserBookingsPage() {
       {/* Receipt Confirmation Modal */}
       {receiptModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-md p-4 sm:p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-lg font-black text-slate-900 uppercase tracking-widest">Confirm Receipt</h2>
@@ -791,7 +814,7 @@ export default function UserBookingsPage() {
       {/* Reject Confirmation Dialog */}
       {confirmReject && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-md p-4 sm:p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-black text-slate-900 uppercase tracking-widest mb-2">Decline This Offer?</h2>
             <p className="text-sm text-slate-600 mb-6">
               You are about to decline <span className="font-bold">{confirmReject.servicerName}</span>&apos;s offer.
@@ -816,7 +839,7 @@ export default function UserBookingsPage() {
       {/* Accept Confirmation Dialog */}
       {confirmAccept && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-md p-4 sm:p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-black text-slate-900 uppercase tracking-widest mb-2">Confirm Acceptance</h2>
             <p className="text-sm text-slate-600 mb-6">
               Accept <span className="font-bold">{confirmAccept.servicerName}</span>&apos;s offer for{" "}
@@ -843,7 +866,7 @@ export default function UserBookingsPage() {
       {/* Counter Offer Modal */}
       {counterOffer && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-black text-slate-900 uppercase tracking-widest">
                 Counter Offer

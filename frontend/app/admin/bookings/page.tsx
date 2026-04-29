@@ -130,6 +130,7 @@ export default function AdminBookingsPage() {
 
     const [bookings, setBookings] = useState<Booking[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState(false);
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("ALL");
     const [selectedBooking, setSelectedBooking] = useState<string | null>(null);
@@ -203,7 +204,7 @@ export default function AdminBookingsPage() {
                     ...(action === "override_amount" && amount !== undefined ? { override_amount: amount } : {}),
                 }),
             });
-            toast.success(action === "cancel_bill" ? "Bill cancelled — servicer notified" : "Amount overridden — booking completed");
+            toast.success(action === "cancel_bill" ? "Bill cancelled — servicer notified" : "Amount updated — user notified to complete payment");
             fetchComplaints();
         } catch (err) {
             toast.error((err as Error).message || "Action failed");
@@ -231,7 +232,7 @@ export default function AdminBookingsPage() {
     useEffect(() => {
         apiFetch("/admin/bookings")
             .then((d) => setBookings(d || []))
-            .catch(() => {})
+            .catch(() => setLoadError(true))
             .finally(() => setLoading(false));
     }, []);
 
@@ -270,6 +271,9 @@ export default function AdminBookingsPage() {
 
     return (
         <div className="space-y-8 animate-fade-in pb-12">
+            {loadError && (
+                <div className="p-4 bg-red-50 text-red-700 rounded-lg text-sm">Failed to load data. Please refresh.</div>
+            )}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
                     <h1 className="text-3xl font-black text-[#000000] tracking-tight uppercase">All Bookings</h1>
@@ -280,7 +284,7 @@ export default function AdminBookingsPage() {
             </div>
 
             {/* Tab bar */}
-            <div className="flex gap-2 border-b border-slate-200">
+            <div className="flex flex-wrap gap-2 border-b border-slate-200">
                 {tabs.map(tab => (
                     <button
                         key={tab.key}
@@ -317,10 +321,10 @@ export default function AdminBookingsPage() {
                     )}
 
                     {/* Search + filter */}
-                    <div className="flex gap-3 items-center">
-                        <div className="relative">
+                    <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                        <div className="relative w-full sm:w-auto">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                            <input className="bg-white border border-slate-200 rounded-xl py-2.5 pl-12 pr-4 text-xs font-black outline-none focus:ring-1 focus:ring-emerald-500 w-64 transition-all"
+                            <input className="bg-white border border-slate-200 rounded-xl py-2.5 pl-12 pr-4 text-xs font-black outline-none focus:ring-1 focus:ring-emerald-500 w-full sm:w-64 transition-all"
                                 placeholder="Search by ID or service type..."
                                 value={search} onChange={(e) => setSearch(e.target.value)} />
                         </div>
@@ -371,7 +375,7 @@ export default function AdminBookingsPage() {
                                                     </div>
                                                 </td>
                                                 <td className="px-8 py-5">
-                                                    <p className="text-sm font-black text-[#000000] uppercase tracking-tight">{b.service_type || "—"}</p>
+                                                    <p className="text-sm font-black text-[#000000] uppercase tracking-tight truncate max-w-[120px]">{b.service_type || "—"}</p>
                                                 </td>
                                                 <td className="px-8 py-5">
                                                     <div className="flex flex-col gap-1">
@@ -500,6 +504,7 @@ export default function AdminBookingsPage() {
                                                 {actionLoading === `under-review-${c.id}` ? "Updating..." : "Mark Under Review"}
                                             </button>
                                         )}
+                                        {c.booking_status !== "In Progress" && (
                                         <button
                                             onClick={() => handleComplaintAction(c.id, "cancel_bill")}
                                             disabled={applyingAction === c.id + "cancel_bill"}
@@ -507,6 +512,7 @@ export default function AdminBookingsPage() {
                                         >
                                             {applyingAction === c.id + "cancel_bill" ? "Cancelling..." : "Cancel Bill"}
                                         </button>
+                                        )}
                                         {overrideTarget === c.id ? (
                                             <div className="flex items-center gap-2">
                                                 <input
@@ -755,8 +761,8 @@ export default function AdminBookingsPage() {
 
             {selectedBooking !== null && (
                 <div className="fixed inset-0 z-[1001] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl">
-                        <div className="p-8">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
+                        <div className="p-4 sm:p-8">
                             <div className="flex items-center justify-between mb-6">
                                 <h2 className="text-base font-black text-slate-900 uppercase tracking-widest">
                                     Booking #{selectedBooking}

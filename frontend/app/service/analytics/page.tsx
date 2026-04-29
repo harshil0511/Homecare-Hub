@@ -2,14 +2,12 @@
 
 import { useEffect, useState, useCallback } from "react";
 import {
-    Briefcase, Star, TrendingUp,
-    AlertTriangle, Award, BarChart2,
-    Calendar, Activity, RefreshCw, IndianRupee
+    RefreshCw, AlertTriangle, BarChart2
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import Spinner from "@/components/ui/Spinner";
-import EmptyState from "@/components/ui/EmptyState";
 
+// ── Data types ────────────────────────────────────────────────────────────────
 interface PointsBreakdown {
     emergency: number;
     urgent: number;
@@ -48,6 +46,7 @@ interface AnalyticsData {
     monthly_stats: MonthlyStatEntry[];
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function formatMonth(monthStr: string): string {
     const [year, month] = monthStr.split("-");
     const date = new Date(parseInt(year), parseInt(month) - 1, 1);
@@ -56,302 +55,194 @@ function formatMonth(monthStr: string): string {
 
 function formatEventDate(dateStr: string): string {
     const d = new Date(dateStr);
-    return `${d.getMonth() + 1}/${d.getDate()}`;
+    return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
-function StarRating({ rating }: { rating: number }) {
+function formatEventLabel(eventType: string): string {
+    return eventType
+        .toLowerCase()
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// ── Combo Chart: bars (jobs) + line (rating) ──────────────────────────────────
+function ComboChart({ stats }: { stats: MonthlyStatEntry[] }) {
+    if (stats.length === 0) {
+        return (
+            <div className="flex items-center justify-center h-48 text-slate-400 text-xs font-semibold">
+                No data for the last 6 months
+            </div>
+        );
+    }
+
+    const W = 680;
+    const H = 180;
+    const PL = 40; // left padding (jobs Y axis)
+    const PR = 40; // right padding (rating Y axis)
+    const PT = 20; // top padding
+    const PB = 32; // bottom padding (x labels)
+    const chartW = W - PL - PR;
+    const chartH = H - PT - PB;
+
+    const n = stats.length;
+    const slotW = chartW / n;
+    const barW = Math.min(slotW * 0.42, 28);
+
+    // Jobs Y scale (left axis)
+    const maxJobs = Math.max(...stats.map((s) => s.jobs), 1);
+    const jobsYScale = (v: number) => PT + chartH - (v / maxJobs) * chartH;
+    const jobsTicks = [0, Math.ceil(maxJobs / 2), maxJobs];
+
+    // Rating Y scale (right axis, 0–max rating or min 5)
+    const maxRating = Math.max(...stats.map((s) => s.rating_end), 5);
+    const ratingYScale = (v: number) => PT + chartH - (v / maxRating) * chartH;
+
+    // Line points
+    const linePts = stats
+        .map((s, i) => {
+            const cx = PL + i * slotW + slotW / 2;
+            const cy = ratingYScale(s.rating_end);
+            return `${cx},${cy}`;
+        })
+        .join(" L ");
+
+    const firstX = PL + 0 * slotW + slotW / 2;
+    const lastX = PL + (n - 1) * slotW + slotW / 2;
+    const firstY = ratingYScale(stats[0].rating_end);
+    const lastY = ratingYScale(stats[n - 1].rating_end);
+
+    const areaPath = `M ${firstX},${PT + chartH} L ${linePts.replace(" L ", ",")} L ${lastX},${PT + chartH} Z`;
+
     return (
-        <div className="flex items-center gap-1">
-            {[1, 2, 3, 4, 5].map((s) => {
-                const filled = rating >= s;
-                const partial = !filled && rating > s - 1;
+        <svg
+            viewBox={`0 0 ${W} ${H}`}
+            width="100%"
+            height="100%"
+            style={{ overflow: "visible" }}
+        >
+            <defs>
+                <linearGradient id="ratingAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f97316" stopOpacity="0.18" />
+                    <stop offset="100%" stopColor="#f97316" stopOpacity="0.01" />
+                </linearGradient>
+            </defs>
+
+            {/* Grid lines (jobs) */}
+            {jobsTicks.map((t, i) => (
+                <line
+                    key={i}
+                    x1={PL} y1={jobsYScale(t)}
+                    x2={W - PR} y2={jobsYScale(t)}
+                    stroke="#f1f5f9" strokeWidth={1}
+                />
+            ))}
+
+            {/* Jobs Y axis labels */}
+            {jobsTicks.map((t, i) => (
+                <text
+                    key={i}
+                    x={PL - 6} y={jobsYScale(t)}
+                    textAnchor="end" dominantBaseline="middle"
+                    style={{ fontSize: 9, fill: "#94a3b8", fontWeight: 700 }}
+                >
+                    {t}
+                </text>
+            ))}
+
+            {/* Rating Y axis labels (right) */}
+            {[0, Math.round(maxRating / 2), maxRating].map((t, i) => (
+                <text
+                    key={i}
+                    x={W - PR + 6} y={ratingYScale(t)}
+                    textAnchor="start" dominantBaseline="middle"
+                    style={{ fontSize: 9, fill: "#f97316", fontWeight: 700 }}
+                >
+                    {t.toFixed(1)}
+                </text>
+            ))}
+
+            {/* Bars */}
+            {stats.map((s, i) => {
+                const cx = PL + i * slotW + slotW / 2;
+                const bx = cx - barW / 2;
+                const bTop = jobsYScale(s.jobs);
+                const bH = Math.max(jobsYScale(0) - bTop, 2);
                 return (
-                    <span key={s} className="relative inline-block">
-                        <Star className="w-5 h-5 text-slate-200 fill-slate-200" />
-                        {(filled || partial) && (
-                            <span
-                                className="absolute inset-0 overflow-hidden"
-                                style={{ width: filled ? "100%" : `${(rating - (s - 1)) * 100}%` }}
+                    <g key={i}>
+                        <rect x={bx} y={bTop} width={barW} height={bH} rx={4}
+                            fill="#1e3a5f" opacity={0.85} />
+                        {s.jobs > 0 && (
+                            <text
+                                x={cx} y={bTop - 5}
+                                textAnchor="middle"
+                                style={{ fontSize: 9, fill: "#475569", fontWeight: 800 }}
                             >
-                                <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
-                            </span>
+                                {s.jobs}
+                            </text>
                         )}
-                    </span>
+                        {/* X label */}
+                        <text
+                            x={cx} y={H - 6}
+                            textAnchor="middle"
+                            style={{ fontSize: 9, fill: "#94a3b8", fontWeight: 700 }}
+                        >
+                            {formatMonth(s.month).toUpperCase()}
+                        </text>
+                    </g>
                 );
             })}
-        </div>
-    );
-}
 
-// ── Chart layout constants ────────────────────────────────────────────────────
-const AXIS_W  = 60;   // fixed Y-axis SVG width
-const MT      = 28;   // top margin inside chart SVGs
-const MB      = 48;   // bottom margin (space for X labels)
-const MR      = 20;   // right padding inside scrollable SVG
-const SVG_H   = 300;  // total SVG height
-const CH      = SVG_H - MT - MB; // = 224  chart area height
+            {/* Rating area fill */}
+            <path d={areaPath} fill="url(#ratingAreaGrad)" />
 
-const BAR_SLOT = 52;  // px allocated per bar on the X axis
-const BAR_W    = 10;  // thin bar width (trading-chart style)
-const LINE_SLOT = 88; // px allocated per point on line charts
+            {/* Rating line */}
+            <polyline
+                points={stats.map((s, i) => {
+                    const cx = PL + i * slotW + slotW / 2;
+                    return `${cx},${ratingYScale(s.rating_end)}`;
+                }).join(" ")}
+                fill="none"
+                stroke="#f97316"
+                strokeWidth={2.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
 
-// ── Y-axis tick helper ────────────────────────────────────────────────────────
-function getNiceTicks(min: number, max: number, count = 5): number[] {
-    if (min === max) return [min - 1, min, min + 1];
-    const range = max - min;
-    const rawStep = range / count;
-    const magnitude = Math.pow(10, Math.floor(Math.log10(Math.abs(rawStep) || 1)));
-    const candidates = [1, 2, 2.5, 5, 10];
-    const norm = rawStep / magnitude;
-    const niceStep = (candidates.find((s) => s >= norm) || 10) * magnitude;
-    const start = Math.floor(min / niceStep) * niceStep;
-    const ticks: number[] = [];
-    for (let v = start; ticks.length <= count + 2; v += niceStep) {
-        ticks.push(Math.round(v * 1000) / 1000);
-        if (v > max + niceStep) break;
-    }
-    return ticks;
-}
-
-// ── Shared: Y-axis panel (fixed, non-scrolling) ───────────────────────────────
-function YAxisPanel({
-    ticks,
-    yScale,
-    formatTick,
-}: {
-    ticks: number[];
-    yScale: (v: number) => number;
-    formatTick: (v: number) => string;
-}) {
-    return (
-        <svg width={AXIS_W} height={SVG_H} className="flex-shrink-0 select-none">
-            <g transform={`translate(0,${MT})`}>
-                {ticks.map((tick, i) => {
-                    const y = yScale(tick);
-                    if (y < -2 || y > CH + 2) return null;
-                    return (
-                        <g key={i}>
-                            {/* small tick mark */}
-                            <line x1={AXIS_W - 5} y1={y} x2={AXIS_W} y2={y} stroke="#cbd5e1" strokeWidth={1} />
+            {/* Dots + value labels on line */}
+            {stats.map((s, i) => {
+                const cx = PL + i * slotW + slotW / 2;
+                const cy = ratingYScale(s.rating_end);
+                const isLast = i === n - 1;
+                return (
+                    <g key={i}>
+                        {isLast && (
+                            <circle cx={cx} cy={cy} r={6} fill="#f97316" opacity={0.2} />
+                        )}
+                        <circle cx={cx} cy={cy} r={isLast ? 5 : 3.5}
+                            fill="white" stroke="#f97316" strokeWidth={2} />
+                        {isLast && (
                             <text
-                                x={AXIS_W - 8}
-                                y={y}
-                                textAnchor="end"
-                                dominantBaseline="middle"
-                                style={{ fontSize: 9, fontWeight: 900, fill: "#94a3b8" }}
+                                x={cx} y={cy - 12}
+                                textAnchor="middle"
+                                style={{ fontSize: 10, fill: "#f97316", fontWeight: 900 }}
                             >
-                                {formatTick(tick)}
+                                {s.rating_end.toFixed(1)}
                             </text>
-                        </g>
-                    );
-                })}
-                {/* Y axis line */}
-                <line x1={AXIS_W} y1={0} x2={AXIS_W} y2={CH} stroke="#e2e8f0" strokeWidth={1.5} />
-                {/* bottom corner */}
-                <line x1={AXIS_W} y1={CH} x2={AXIS_W} y2={CH} stroke="#e2e8f0" strokeWidth={1.5} />
-            </g>
+                        )}
+                    </g>
+                );
+            })}
+
+            {/* Axes */}
+            <line x1={PL} y1={PT} x2={PL} y2={PT + chartH} stroke="#e2e8f0" strokeWidth={1.5} />
+            <line x1={PL} y1={PT + chartH} x2={W - PR} y2={PT + chartH} stroke="#e2e8f0" strokeWidth={1.5} />
+            <line x1={W - PR} y1={PT} x2={W - PR} y2={PT + chartH} stroke="#fed7aa" strokeWidth={1} strokeDasharray="3 2" />
         </svg>
     );
 }
 
-// ── Vertical bar chart (thin bars, scrollable) ────────────────────────────────
-interface BarDatum { label: string; value: number; color?: string }
-
-function BarChart({
-    bars,
-    multiColor = false,
-    defaultColor = "#10b981",
-    formatTick = (v: number) => (Number.isInteger(v) ? `${v}` : v.toFixed(1)),
-    formatBarLabel = (v: number) => (v > 0 ? `+${v}` : `${v}`),
-}: {
-    bars: BarDatum[];
-    multiColor?: boolean;
-    defaultColor?: string;
-    formatTick?: (v: number) => string;
-    formatBarLabel?: (v: number) => string;
-}) {
-    if (!bars.length) {
-        return (
-            <div className="h-40 flex items-center justify-center text-slate-400 text-[10px] font-black uppercase tracking-widest">
-                No data
-            </div>
-        );
-    }
-
-    const values = bars.map((b) => b.value);
-    const rawMin = Math.min(0, ...values);
-    const rawMax = Math.max(0, ...values, 1);
-    const ticks = getNiceTicks(rawMin, rawMax, 5);
-    const minY = ticks[0];
-    const maxY = ticks[ticks.length - 1];
-    const yRange = maxY - minY || 1;
-    const yScale = (v: number) => CH - ((v - minY) / yRange) * CH;
-    const zeroY = yScale(0);
-
-    const chartAreaW = bars.length * BAR_SLOT + MR;
-
-    return (
-        <div className="flex" style={{ height: SVG_H }}>
-            {/* Fixed Y axis */}
-            <YAxisPanel ticks={ticks} yScale={yScale} formatTick={formatTick} />
-
-            {/* Scrollable chart area */}
-            <div className="overflow-x-auto flex-1" style={{ height: SVG_H }}>
-                <svg width={chartAreaW} height={SVG_H} style={{ display: "block" }}>
-                    <g transform={`translate(0,${MT})`}>
-                        {/* Horizontal grid lines */}
-                        {ticks.map((tick, i) => {
-                            const y = yScale(tick);
-                            if (y < -2 || y > CH + 2) return null;
-                            return (
-                                <line key={i} x1={0} y1={y} x2={chartAreaW} y2={y}
-                                    stroke="#f1f5f9" strokeWidth={1} />
-                            );
-                        })}
-
-                        {/* Zero line */}
-                        <line x1={0} y1={zeroY} x2={chartAreaW} y2={zeroY}
-                            stroke="#cbd5e1" strokeWidth={1.5} />
-
-                        {/* Bars */}
-                        {bars.map((b, i) => {
-                            const cx = i * BAR_SLOT + BAR_SLOT / 2;
-                            const bx = cx - BAR_W / 2;
-                            const bTop = Math.min(yScale(b.value), zeroY);
-                            const bH = Math.max(Math.abs(yScale(b.value) - zeroY), 2);
-                            const fill = multiColor
-                                ? (b.color || defaultColor)
-                                : (b.value < 0 ? "#f43f5e" : defaultColor);
-                            const labelY = b.value >= 0 ? bTop - 5 : bTop + bH + 11;
-
-                            return (
-                                <g key={i}>
-                                    <rect x={bx} y={bTop} width={BAR_W} height={bH} rx={2} fill={fill} opacity={0.9} />
-                                    {b.value !== 0 && (
-                                        <text x={cx} y={labelY} textAnchor="middle"
-                                            style={{ fontSize: 8, fontWeight: 900, fill: b.value < 0 ? "#f43f5e" : "#475569" }}>
-                                            {formatBarLabel(b.value)}
-                                        </text>
-                                    )}
-                                    {/* X label */}
-                                    <text x={cx} y={CH + 18} textAnchor="middle"
-                                        style={{ fontSize: 9, fontWeight: 900, fill: "#94a3b8" }}>
-                                        {b.label.length > 7 ? b.label.slice(0, 6) + "…" : b.label.toUpperCase()}
-                                    </text>
-                                </g>
-                            );
-                        })}
-
-                        {/* X axis line */}
-                        <line x1={0} y1={CH} x2={chartAreaW} y2={CH} stroke="#e2e8f0" strokeWidth={1.5} />
-                    </g>
-                </svg>
-            </div>
-        </div>
-    );
-}
-
-// ── Line chart (trading style — scrollable, values on dots) ───────────────────
-function LineChart({
-    points,
-    color = "#10b981",
-    gradId,
-    formatTick = (v: number) => (Number.isInteger(v) ? `${v}` : v.toFixed(1)),
-}: {
-    points: { label: string; value: number }[];
-    color?: string;
-    gradId: string;
-    formatTick?: (v: number) => string;
-}) {
-    if (points.length < 2) {
-        return (
-            <div className="h-40 flex items-center justify-center text-slate-400 text-[10px] font-black uppercase tracking-widest">
-                Not enough data
-            </div>
-        );
-    }
-
-    const values = points.map((p) => p.value);
-    const rawMin = Math.min(...values);
-    const rawMax = Math.max(...values);
-    const ticks = getNiceTicks(rawMin, rawMax, 5);
-    const minY = ticks[0];
-    const maxY = ticks[ticks.length - 1];
-    const yRange = maxY - minY || 1;
-    const yScale = (v: number) => CH - ((v - minY) / yRange) * CH;
-
-    // Each point gets LINE_SLOT px; total from first to last
-    const chartAreaW = (points.length - 1) * LINE_SLOT + MR * 2 + 24;
-    const xScale = (i: number) => i * LINE_SLOT + 12;
-
-    const pts = points.map((p, i) => ({ x: xScale(i), y: yScale(p.value) }));
-    const linePts = pts.map((p) => `${p.x},${p.y}`).join(" ");
-    const areaPts = [
-        `${pts[0].x},${CH}`,
-        ...pts.map((p) => `${p.x},${p.y}`),
-        `${pts[pts.length - 1].x},${CH}`,
-    ].join(" ");
-
-    return (
-        <div className="flex" style={{ height: SVG_H }}>
-            {/* Fixed Y axis */}
-            <YAxisPanel ticks={ticks} yScale={yScale} formatTick={formatTick} />
-
-            {/* Scrollable chart area */}
-            <div className="overflow-x-auto flex-1" style={{ height: SVG_H }}>
-                <svg width={chartAreaW} height={SVG_H} style={{ display: "block" }}>
-                    <defs>
-                        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={color} stopOpacity={0.2} />
-                            <stop offset="100%" stopColor={color} stopOpacity={0.01} />
-                        </linearGradient>
-                    </defs>
-                    <g transform={`translate(0,${MT})`}>
-                        {/* Horizontal grid lines */}
-                        {ticks.map((tick, i) => {
-                            const y = yScale(tick);
-                            if (y < -2 || y > CH + 2) return null;
-                            return (
-                                <line key={i} x1={0} y1={y} x2={chartAreaW} y2={y}
-                                    stroke="#f1f5f9" strokeWidth={1} />
-                            );
-                        })}
-
-                        {/* Area fill */}
-                        <polygon points={areaPts} fill={`url(#${gradId})`} />
-
-                        {/* Line */}
-                        <polyline points={linePts} fill="none" stroke={color}
-                            strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-
-                        {/* Dots + value labels + X labels */}
-                        {pts.map((p, i) => (
-                            <g key={i}>
-                                {/* Value above dot */}
-                                <text x={p.x} y={p.y - 11} textAnchor="middle"
-                                    style={{ fontSize: 9, fontWeight: 900, fill: color }}>
-                                    {formatTick(points[i].value)}
-                                </text>
-                                <circle cx={p.x} cy={p.y} r={4} fill="white" stroke={color} strokeWidth={2} />
-                                {/* X label */}
-                                <text x={p.x} y={CH + 18} textAnchor="middle"
-                                    style={{ fontSize: 9, fontWeight: 900, fill: "#94a3b8" }}>
-                                    {points[i].label.toUpperCase()}
-                                </text>
-                            </g>
-                        ))}
-
-                        {/* X axis line */}
-                        <line x1={0} y1={CH} x2={chartAreaW} y2={CH} stroke="#e2e8f0" strokeWidth={1.5} />
-                    </g>
-                </svg>
-            </div>
-        </div>
-    );
-}
-
-// ── Page ─────────────────────────────────────────────────────────────────────
-const AUTO_REFRESH_MS = 30_000; // 30 seconds
+// ── Page ──────────────────────────────────────────────────────────────────────
+const AUTO_REFRESH_MS = 30_000;
 
 export default function ServicerAnalyticsPage() {
     const [loading, setLoading] = useState(true);
@@ -377,7 +268,6 @@ export default function ServicerAnalyticsPage() {
                 setFetchError("Could not connect to the server. Please ensure the backend is running.");
             } else {
                 setFetchError("Failed to load analytics data. Please try again.");
-                console.error("Analytics fetch error:", err);
             }
         } finally {
             setLoading(false);
@@ -386,7 +276,6 @@ export default function ServicerAnalyticsPage() {
     }, []);
 
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         void fetchAnalytics();
         const interval = setInterval(() => { void fetchAnalytics(); }, AUTO_REFRESH_MS);
         return () => clearInterval(interval);
@@ -396,16 +285,16 @@ export default function ServicerAnalyticsPage() {
 
     if (fetchError) {
         return (
-            <div className="space-y-10 animate-fade-in pb-16">
+            <div className="space-y-6 animate-fade-in pb-16">
                 <div>
-                    <h1 className="text-3xl font-black text-[#000000] tracking-tight uppercase">Analytics</h1>
-                    <p className="text-slate-500 text-sm font-black uppercase tracking-widest mt-1 opacity-60">
-                        Performance overview and point history
+                    <h1 className="text-2xl font-black text-slate-900 tracking-tight">Performance Analytics</h1>
+                    <p className="text-slate-400 text-xs font-semibold mt-1">
+                        Last 6 months · auto-updated · ★ rating live
                     </p>
                 </div>
                 <div className="bg-amber-50 border border-amber-200 text-amber-800 px-5 py-4 rounded-2xl flex items-center gap-3">
                     <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                    <span className="text-xs font-black uppercase tracking-widest">{fetchError}</span>
+                    <span className="text-xs font-semibold">{fetchError}</span>
                 </div>
             </div>
         );
@@ -413,257 +302,190 @@ export default function ServicerAnalyticsPage() {
 
     if (!data) return null;
 
-    const breakdown = data.points_breakdown;
-    const breakdownBars: BarDatum[] = [
-        { label: "Emergency", value: breakdown.emergency, color: "#10b981" },
-        { label: "Urgent",    value: breakdown.urgent,    color: "#3b82f6" },
-        { label: "Regular",   value: breakdown.regular,   color: "#64748b" },
-        { label: "Feedback",  value: breakdown.feedback,  color: "#f59e0b" },
-        { label: "Penalties", value: breakdown.penalties, color: "#f43f5e" },
-    ];
-
-    const recentLog = (data.recent_point_log || []).slice(0, 10);
-    const activityBars: BarDatum[] = recentLog.map((e) => ({
-        label: formatEventDate(e.created_at),
-        value: e.delta,
-    }));
-
     const monthlyStats = (data.monthly_stats || []).slice(-6);
-    const monthlyJobsBars: BarDatum[]   = monthlyStats.map((s) => ({ label: formatMonth(s.month), value: s.jobs }));
-    const monthlyPointsBars: BarDatum[] = monthlyStats.map((s) => ({ label: formatMonth(s.month), value: s.points_earned }));
-    const ratingLine = monthlyStats.map((s) => ({ label: formatMonth(s.month), value: s.rating_end }));
+    const recentLog = (data.recent_point_log || []).slice(0, 8);
+    const bd = data.points_breakdown;
+
+    const ptsToAutoVerify = Math.max(0, 1000 - data.total_points);
+    const starsToAutoVerify = (ptsToAutoVerify / 100).toFixed(1);
+    const progressPct = Math.min((data.total_points / 1000) * 100, 100);
+
+    const breakdownItems = [
+        { label: "5-star reviews",    pts: bd.feedback,  color: "#10b981" },
+        { label: "Regular completed", pts: bd.regular,   color: "#1e3a5f" },
+        { label: "Emergency completed", pts: bd.emergency, color: "#f97316" },
+        { label: "Urgent completed",  pts: bd.urgent,    color: "#f59e0b" },
+        { label: "Cancellations",     pts: bd.penalties, color: "#f43f5e" },
+    ];
+    const netTotal = bd.emergency + bd.urgent + bd.regular + bd.feedback + bd.penalties;
 
     return (
-        <div className="space-y-10 animate-fade-in pb-16">
+        <div className="space-y-6 animate-fade-in pb-16">
 
-            {/* Page Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-black text-[#000000] tracking-tight uppercase">Analytics</h1>
-                    <p className="text-slate-500 text-sm font-black uppercase tracking-widest mt-1 opacity-60">
-                        Performance overview · auto-refreshes every 30s
+                    <h1 className="text-2xl font-black text-slate-900 tracking-tight">Performance Analytics</h1>
+                    <p className="text-slate-400 text-xs font-semibold mt-1">
+                        Last 6 months · auto-updated · ★ rating live
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
                     {lastUpdated && (
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                        <span className="text-[11px] font-semibold text-slate-400">
                             Updated {lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                         </span>
                     )}
                     <button
                         onClick={() => fetchAnalytics(true)}
                         disabled={refreshing}
-                        className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-2 rounded-2xl hover:bg-emerald-100 transition-all disabled:opacity-50"
+                        className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-100 px-3 py-1.5 rounded-xl hover:bg-emerald-100 transition-all disabled:opacity-50 text-xs font-semibold"
                     >
-                        <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
-                        <span className="text-[10px] font-black uppercase tracking-widest">
-                            {refreshing ? "Refreshing…" : "Refresh"}
-                        </span>
+                        <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
+                        {refreshing ? "Refreshing…" : "Refresh"}
                     </button>
-                    <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-2 rounded-2xl">
-                        <BarChart2 className="w-4 h-4" />
-                        <span className="text-[10px] font-black uppercase tracking-widest">Live</span>
+                    <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-100 px-3 py-1.5 rounded-xl text-xs font-semibold">
+                        <BarChart2 className="w-3.5 h-3.5" />
+                        Live
                     </div>
                 </div>
             </div>
 
-            {/* Section 1: Summary stat cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-                <div className="bg-white border border-slate-200 p-8 rounded-[2.5rem] shadow-sm hover:-translate-y-1 transition-all">
-                    <div className="w-14 h-14 bg-emerald-50 text-[#064e3b] rounded-2xl flex items-center justify-center mb-6">
-                        <Briefcase className="w-7 h-7" />
-                    </div>
-                    <p className="text-4xl font-black text-[#000000] tracking-tighter">{data.total_jobs}</p>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Total Jobs</p>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                        <span className="text-[9px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-1 rounded-lg">
-                            {data.emergency_jobs} Emergency
-                        </span>
-                        <span className="text-[9px] font-black uppercase tracking-widest bg-blue-50 text-blue-700 border border-blue-100 px-2 py-1 rounded-lg">
-                            {data.urgent_jobs} Urgent
-                        </span>
-                        <span className="text-[9px] font-black uppercase tracking-widest bg-slate-50 text-slate-600 border border-slate-200 px-2 py-1 rounded-lg">
-                            {data.regular_jobs} Regular
-                        </span>
-                    </div>
-                </div>
+            {/* Top row: Star rating card + stat cards */}
+            <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-5">
 
-                <div className="bg-white border border-slate-200 p-8 rounded-[2.5rem] shadow-sm hover:-translate-y-1 transition-all">
-                    <div className="w-14 h-14 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center mb-6">
-                        <Star className="w-7 h-7" />
+                {/* Star Rating Card */}
+                <div className="bg-[#1e3a5f] text-white rounded-2xl p-6 flex flex-col justify-between min-h-[180px]">
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Your Star Rating</p>
+                    <div className="flex items-baseline gap-3 my-3">
+                        <span className="text-5xl font-black text-amber-400">★</span>
+                        <span className="text-5xl font-black tracking-tight">
+                            {data.current_rating > 0 ? data.current_rating.toFixed(1) : "New"}
+                        </span>
                     </div>
-                    <p className="text-4xl font-black text-[#000000] tracking-tighter">
-                        {data.current_rating > 0 ? data.current_rating.toFixed(1) : "N/A"}
+                    <p className="text-xs text-slate-300 font-medium mb-3">
+                        {data.total_points.toLocaleString()} points ·{" "}
+                        {ptsToAutoVerify > 0
+                            ? `${starsToAutoVerify} stars away from auto-verify`
+                            : "Auto-verified ✓"}
                     </p>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Current Rating</p>
-                    <div className="mt-4">
-                        <StarRating rating={data.current_rating} />
-                    </div>
-                </div>
-
-                <div className="bg-white border border-slate-200 p-8 rounded-[2.5rem] shadow-sm hover:-translate-y-1 transition-all">
-                    <div className="w-14 h-14 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center mb-6">
-                        <Award className="w-7 h-7" />
-                    </div>
-                    <p className="text-4xl font-black text-[#000000] tracking-tighter">{data.total_points.toLocaleString()}</p>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Total Points</p>
-                </div>
-
-                <div className="bg-white border border-slate-200 p-8 rounded-[2.5rem] shadow-sm hover:-translate-y-1 transition-all">
-                    <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-6">
-                        <TrendingUp className="w-7 h-7" />
-                    </div>
-                    <p className="text-4xl font-black text-[#000000] tracking-tighter">{data.completion_rate.toFixed(1)}%</p>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Completion Rate</p>
-                    <div className="mt-4 w-full bg-slate-100 rounded-full h-2">
+                    {/* Progress bar */}
+                    <div className="w-full bg-white/10 rounded-full h-1.5">
                         <div
-                            className="bg-blue-500 h-2 rounded-full transition-all"
-                            style={{ width: `${Math.min(data.completion_rate, 100)}%` }}
+                            className="bg-amber-400 h-1.5 rounded-full transition-all"
+                            style={{ width: `${progressPct}%` }}
                         />
                     </div>
-                </div>
-
-                <div className="bg-white border border-slate-200 p-8 rounded-[2.5rem] shadow-sm hover:-translate-y-1 transition-all">
-                    <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-6">
-                        <IndianRupee className="w-7 h-7" />
-                    </div>
-                    <p className="text-4xl font-black text-[#000000] tracking-tighter">
-                        {data.total_earnings > 0
-                            ? `₹${data.total_earnings.toLocaleString("en-IN")}`
-                            : "₹0"}
+                    <p className="text-[10px] text-slate-400 font-semibold mt-1.5">
+                        {data.total_points} / 1000 pts to ★ 10.0
                     </p>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Total Earned</p>
                 </div>
-            </div>
 
-            {/* Section 2: Points Breakdown */}
-            <div className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-sm">
-                <h2 className="text-sm font-black text-[#000000] uppercase tracking-[0.2em] flex items-center gap-3 mb-2">
-                    <BarChart2 className="w-4 h-4 text-[#064e3b]" />
-                    Points Breakdown
-                </h2>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-5">
-                    X: category · Y: points · scroll →
-                </p>
-                <div className="flex flex-wrap gap-3 mb-5">
-                    {breakdownBars.map((b) => (
-                        <div key={b.label} className="flex items-center gap-1.5">
-                            <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: b.color }} />
-                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{b.label}</span>
+                {/* 6 Stat Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {[
+                        { label: "Total Jobs",    value: data.total_jobs,                  sub: null,              accent: "text-slate-900" },
+                        { label: "Emergency Jobs", value: data.emergency_jobs,             sub: `${data.emergency_jobs > 0 ? Math.round((data.emergency_jobs / data.total_jobs) * 100) : 0}% of total`, accent: "text-rose-600" },
+                        { label: "Completion %",  value: `${data.completion_rate.toFixed(1)}%`, sub: `${Math.round(data.completion_rate * data.total_jobs / 100)} / ${data.total_jobs}`, accent: "text-emerald-600" },
+                        { label: "Urgent Jobs",   value: data.urgent_jobs,                sub: `${data.total_jobs > 0 ? Math.round((data.urgent_jobs / data.total_jobs) * 100) : 0}% of total`, accent: "text-amber-600" },
+                        { label: "Regular Jobs",  value: data.regular_jobs,               sub: `${data.total_jobs > 0 ? Math.round((data.regular_jobs / data.total_jobs) * 100) : 0}% of total`, accent: "text-blue-600" },
+                        { label: "Cancellations", value: data.cancelled_jobs,             sub: data.total_jobs > 0 ? `${((data.cancelled_jobs / (data.total_jobs + data.cancelled_jobs)) * 100).toFixed(1)}%` : "0%", accent: "text-rose-500" },
+                    ].map((card) => (
+                        <div key={card.label} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">{card.label}</p>
+                            <p className={`text-3xl font-black tracking-tight ${card.accent}`}>{card.value}</p>
+                            {card.sub && <p className="text-[11px] text-slate-400 font-medium mt-1">{card.sub}</p>}
                         </div>
                     ))}
                 </div>
-                <BarChart
-                    bars={breakdownBars}
-                    multiColor
-                    formatTick={(v) => (v > 0 ? `+${v}` : `${v}`)}
-                    formatBarLabel={(v) => (v > 0 ? `+${v}` : `${v}`)}
-                />
             </div>
 
-            {/* Section 3: Monthly Performance */}
-            <div className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-sm space-y-8">
-                <div>
-                    <h2 className="text-sm font-black text-[#000000] uppercase tracking-[0.2em] flex items-center gap-3">
-                        <Calendar className="w-4 h-4 text-[#064e3b]" />
-                        Monthly Performance
-                    </h2>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
-                        Last 6 months · X: month · Y: value · scroll →
+            {/* Bottom row: Trend chart + Points Breakdown */}
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-5">
+
+                {/* 6-Month Performance Trend */}
+                <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm">
+                    <div className="flex items-center justify-between mb-1">
+                        <p className="text-sm font-bold text-slate-900">6-Month Performance Trend</p>
+                        <div className="flex items-center gap-4 text-[11px] font-semibold text-slate-500">
+                            <span className="flex items-center gap-1.5">
+                                <span className="w-3 h-3 rounded-sm inline-block bg-[#1e3a5f]" />
+                                jobs
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                                <span className="w-3 h-0.5 inline-block bg-orange-400 rounded" />
+                                rating
+                            </span>
+                        </div>
+                    </div>
+                    <p className="text-[11px] text-slate-400 font-medium mb-4">
+                        Bars = jobs completed · Line = star rating (right axis)
                     </p>
+                    <div style={{ height: 200 }}>
+                        <ComboChart stats={monthlyStats} />
+                    </div>
                 </div>
 
-                {monthlyStats.length === 0 ? (
-                    <EmptyState icon={Calendar} title="No monthly data yet" description="Stats will appear after your first completed month" />
-                ) : (
-                    <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.15em] mb-3 flex items-center gap-2">
-                                    <Briefcase className="w-3.5 h-3.5 text-emerald-600" />
-                                    Jobs per Month
-                                </p>
-                                <BarChart
-                                    bars={monthlyJobsBars}
-                                    defaultColor="#10b981"
-                                    formatTick={(v) => `${Math.round(v)}`}
-                                    formatBarLabel={(v) => `${v}`}
-                                />
+                {/* Points Breakdown */}
+                <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm">
+                    <p className="text-sm font-bold text-slate-900 mb-4">Points Breakdown</p>
+                    <div className="space-y-3">
+                        {breakdownItems.map((item) => (
+                            <div key={item.label} className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                    <span
+                                        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                        style={{ background: item.color }}
+                                    />
+                                    <span className="text-xs text-slate-600 font-medium truncate">{item.label}</span>
+                                </div>
+                                <span
+                                    className="text-xs font-bold tabular-nums"
+                                    style={{ color: item.pts < 0 ? "#f43f5e" : "#374151" }}
+                                >
+                                    {item.pts > 0 ? `+${item.pts}` : item.pts}
+                                </span>
                             </div>
-                            <div>
-                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.15em] mb-3 flex items-center gap-2">
-                                    <Award className="w-3.5 h-3.5 text-purple-600" />
-                                    Points Earned
-                                </p>
-                                <BarChart
-                                    bars={monthlyPointsBars}
-                                    defaultColor="#a855f7"
-                                    formatTick={(v) => `${Math.round(v)}`}
-                                    formatBarLabel={(v) => `+${v}`}
-                                />
-                            </div>
+                        ))}
+                        <div className="border-t border-slate-100 pt-3 mt-3 flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-700">Net total</span>
+                            <span className="text-sm font-black text-slate-900">{netTotal > 0 ? `+${netTotal}` : netTotal} pts</span>
                         </div>
-
-                        <div>
-                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.15em] mb-3 flex items-center gap-2">
-                                <Star className="w-3.5 h-3.5 text-amber-500" />
-                                Rating Trend
-                            </p>
-                            <LineChart
-                                points={ratingLine}
-                                color="#f59e0b"
-                                gradId="rating-grad"
-                                formatTick={(v) => v.toFixed(1)}
-                            />
-                        </div>
-                    </>
-                )}
-            </div>
-
-            {/* Section 4: Recent Point Activity */}
-            <div className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-sm">
-                <div className="flex items-center gap-3 mb-2">
-                    <Activity className="w-4 h-4 text-[#064e3b]" />
-                    <h2 className="text-sm font-black text-[#000000] uppercase tracking-[0.2em]">Recent Point Activity</h2>
-                    <span className="ml-auto text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        Last {recentLog.length} Events
-                    </span>
+                        <p className="text-[10px] text-slate-400 font-medium">
+                            ≈ {(netTotal / 100).toFixed(1)} stars (uncapped scale)
+                        </p>
+                    </div>
                 </div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">
-                    X: event date · Y: points delta · scroll →
-                </p>
-
-                {recentLog.length === 0 ? (
-                    <EmptyState icon={Activity} title="No activity yet" description="Complete jobs to earn points" />
-                ) : (
-                    <>
-                        <BarChart
-                            bars={activityBars}
-                            defaultColor="#10b981"
-                            formatTick={(v) => (v > 0 ? `+${v}` : `${v}`)}
-                            formatBarLabel={(v) => (v > 0 ? `+${v}` : `${v}`)}
-                        />
-                        <div className="mt-5 space-y-1.5">
-                            {recentLog.map((entry, idx) => {
-                                const isPositive = entry.delta > 0;
-                                const label = entry.event_type
-                                    .toLowerCase()
-                                    .replace(/_/g, " ")
-                                    .replace(/\b\w/g, (c) => c.toUpperCase());
-                                return (
-                                    <div key={idx} className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest">
-                                        <span className="text-slate-400 w-10 shrink-0">{formatEventDate(entry.created_at)}</span>
-                                        <span className="text-slate-600 flex-1">{label}</span>
-                                        <span className={isPositive ? "text-emerald-600" : "text-rose-600"}>
-                                            {isPositive ? "+" : ""}{entry.delta}
-                                        </span>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </>
-                )}
             </div>
+
+            {/* Recent Activity */}
+            {recentLog.length > 0 && (
+                <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm">
+                    <p className="text-sm font-bold text-slate-900 mb-4">Recent Activity</p>
+                    <div className="space-y-2.5">
+                        {recentLog.map((entry, idx) => {
+                            const isPositive = entry.delta > 0;
+                            return (
+                                <div key={idx} className="flex items-center gap-4">
+                                    <span
+                                        className="text-xs font-black min-w-[36px] tabular-nums flex-shrink-0"
+                                        style={{ color: isPositive ? "#10b981" : "#f43f5e" }}
+                                    >
+                                        {isPositive ? "+" : ""}{entry.delta} pts
+                                    </span>
+                                    <span className="text-xs text-slate-600 font-medium flex-1 min-w-0 truncate">
+                                        {formatEventLabel(entry.event_type)}
+                                        {entry.note ? ` · ${entry.note}` : ""}
+                                    </span>
+                                    <span className="text-[11px] text-slate-400 font-medium whitespace-nowrap flex-shrink-0">
+                                        {formatEventDate(entry.created_at)}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

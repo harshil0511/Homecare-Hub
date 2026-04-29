@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import {
@@ -74,10 +74,12 @@ export default function AdminProvidersPage() {
     const [revokeLoading, setRevokeLoading] = useState(false);
     const [revokeError, setRevokeError] = useState("");
 
+    const [loadError, setLoadError] = useState(false);
+
     useEffect(() => {
         apiFetch("/admin/providers")
             .then((d) => setProviders(d || []))
-            .catch(() => {})
+            .catch(() => setLoadError(true))
             .finally(() => setLoading(false));
     }, []);
 
@@ -156,6 +158,9 @@ export default function AdminProvidersPage() {
 
     return (
         <div className="space-y-8 animate-fade-in pb-12">
+            {loadError && (
+                <div className="p-4 bg-red-50 text-red-700 rounded-lg text-sm">Failed to load data. Please refresh.</div>
+            )}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
                     <h1 className="text-3xl font-black text-[#000000] tracking-tight uppercase">Service Providers</h1>
@@ -231,18 +236,18 @@ export default function AdminProvidersPage() {
                                 {filtered.map((p) => (
                                     <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
                                         <td className="px-8 py-5">
-                                            <div className="flex items-center gap-4">
+                                            <div className="flex items-center gap-4 min-w-0">
                                                 <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center flex-shrink-0">
                                                     <Wrench className="w-4 h-4 text-emerald-700" />
                                                 </div>
-                                                <div>
-                                                    <p className="text-sm font-black text-[#000000] uppercase tracking-tight">{p.company_name}</p>
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-black text-[#000000] uppercase tracking-tight truncate">{p.company_name}</p>
                                                     <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
-                                                        <Mail className="w-3 h-3" />{p.email || "—"}
+                                                        <Mail className="w-3 h-3 shrink-0" /><span className="truncate">{p.email || "—"}</span>
                                                     </p>
                                                     {p.phone && (
                                                         <p className="text-[10px] text-slate-400 flex items-center gap-1">
-                                                            <Phone className="w-3 h-3" />{p.phone}
+                                                            <Phone className="w-3 h-3 shrink-0" /><span className="truncate">{p.phone}</span>
                                                         </p>
                                                     )}
                                                 </div>
@@ -260,7 +265,7 @@ export default function AdminProvidersPage() {
                                             </div>
                                         </td>
                                         <td className="px-8 py-5">
-                                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest ${AVAIL_STYLE[p.availability_status] ?? "text-slate-500 bg-slate-100"}`}>
+                                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest ${AVAIL_STYLE[p.availability_status] ?? "text-slate-500 bg-slate-100"}`}>
                                                 {p.availability_status}
                                             </span>
                                         </td>
@@ -271,7 +276,7 @@ export default function AdminProvidersPage() {
                                             }
                                         </td>
                                         <td className="px-8 py-5">
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex flex-wrap items-center gap-2">
                                                 <button
                                                     onClick={() => openReview(p.id)}
                                                     className="flex items-center gap-1.5 text-[10px] font-black px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 uppercase tracking-widest transition-all"
@@ -308,8 +313,8 @@ export default function AdminProvidersPage() {
 
             {/* Revoke Verification Modal */}
             {revokeTarget && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { if (!revokeLoading) { setRevokeTarget(null); setRevokeReason(""); setRevokeError(""); } }}>
-                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 mx-4" onClick={(e) => e.stopPropagation()}>
+                <div className="fixed inset-0 z-[1001] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { if (!revokeLoading) { setRevokeTarget(null); setRevokeReason(""); setRevokeError(""); } }}>
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-4 sm:p-8 mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
                         {/* Modal Header */}
                         <div className="flex items-center gap-4 mb-6">
                             <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center flex-shrink-0">
@@ -374,7 +379,7 @@ export default function AdminProvidersPage() {
 
             {/* Full-Screen Review Panel */}
             {(reviewProvider || reviewLoading) && (
-                <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
+                <div className="fixed inset-0 z-[1001] flex items-end md:items-center justify-center">
                     <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => { setReviewProvider(null); setReviewLoading(false); }} />
                     <div className="relative bg-white w-full max-w-2xl rounded-t-[2.5rem] md:rounded-[2.5rem] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
                         {/* Header */}
@@ -397,16 +402,16 @@ export default function AdminProvidersPage() {
                             <>
                                 <div className="overflow-y-auto flex-1 p-10 space-y-8">
                                     {/* Identity */}
-                                    <div className="flex items-center gap-6">
+                                    <div className="flex items-center gap-6 min-w-0">
                                         <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center flex-shrink-0">
                                             <Wrench className="w-8 h-8 text-emerald-600" />
                                         </div>
-                                        <div>
-                                            <h3 className="text-2xl font-black text-[#000000] uppercase tracking-tighter">{reviewProvider.name}</h3>
+                                        <div className="min-w-0">
+                                            <h3 className="text-2xl font-black text-[#000000] uppercase tracking-tighter truncate">{reviewProvider.name}</h3>
                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{reviewProvider.category}</p>
                                             {reviewProvider.is_verified
-                                                ? <span className="inline-flex items-center gap-1 text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg mt-1"><BadgeCheck className="w-3 h-3" />Verified</span>
-                                                : <span className="inline-flex items-center gap-1 text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg mt-1"><AlertTriangle className="w-3 h-3" />Pending Verification</span>
+                                                ? <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg mt-1"><BadgeCheck className="w-3 h-3" />Verified</span>
+                                                : <span className="inline-flex items-center gap-1 text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg mt-1"><AlertTriangle className="w-3 h-3" />Pending Verification</span>
                                             }
                                         </div>
                                     </div>
@@ -418,21 +423,21 @@ export default function AdminProvidersPage() {
                                                 <Star className="w-4 h-4 fill-amber-400" />
                                                 <span className="text-xl font-black">{reviewProvider.rating}</span>
                                             </div>
-                                            <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest">Rating</p>
+                                            <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Rating</p>
                                         </div>
                                         <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 text-center">
                                             <div className="flex items-center justify-center gap-1 text-slate-700 mb-1">
                                                 <ClipboardList className="w-4 h-4" />
                                                 <span className="text-xl font-black">{reviewProvider.total_bookings}</span>
                                             </div>
-                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Bookings</p>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bookings</p>
                                         </div>
                                         <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 text-center">
                                             <div className="flex items-center justify-center gap-1 text-blue-700 mb-1">
                                                 <ShieldCheck className="w-4 h-4" />
                                                 <span className="text-xl font-black">{reviewProvider.certificate_count}</span>
                                             </div>
-                                            <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Certificates</p>
+                                            <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Certificates</p>
                                         </div>
                                     </div>
 
@@ -443,14 +448,14 @@ export default function AdminProvidersPage() {
                                             <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex items-center gap-3">
                                                 <Mail className="w-4 h-4 text-slate-400 flex-shrink-0" />
                                                 <div>
-                                                    <p className="text-[9px] font-black text-slate-400 uppercase">Email</p>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase">Email</p>
                                                     <p className="text-sm font-bold text-slate-700">{reviewProvider.email || "—"}</p>
                                                 </div>
                                             </div>
                                             <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex items-center gap-3">
                                                 <Phone className="w-4 h-4 text-slate-400 flex-shrink-0" />
                                                 <div>
-                                                    <p className="text-[9px] font-black text-slate-400 uppercase">Phone</p>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase">Phone</p>
                                                     <p className="text-sm font-bold text-slate-700">{reviewProvider.phone || "—"}</p>
                                                 </div>
                                             </div>
@@ -458,7 +463,7 @@ export default function AdminProvidersPage() {
                                                 <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex items-center gap-3">
                                                     <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0" />
                                                     <div>
-                                                        <p className="text-[9px] font-black text-slate-400 uppercase">Location</p>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase">Location</p>
                                                         <p className="text-sm font-bold text-slate-700">{reviewProvider.location}</p>
                                                     </div>
                                                 </div>
@@ -467,7 +472,7 @@ export default function AdminProvidersPage() {
                                                 <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex items-center gap-3">
                                                     <DollarSign className="w-4 h-4 text-slate-400 flex-shrink-0" />
                                                     <div>
-                                                        <p className="text-[9px] font-black text-slate-400 uppercase">Hourly Rate</p>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase">Hourly Rate</p>
                                                         <p className="text-sm font-bold text-slate-700">₹{reviewProvider.hourly_rate}/hr</p>
                                                     </div>
                                                 </div>
@@ -506,10 +511,10 @@ export default function AdminProvidersPage() {
                                                             <div className="min-w-0">
                                                                 <p className="text-xs font-black text-slate-900 truncate">{cert.title || "Untitled"}</p>
                                                                 <div className="flex items-center gap-2 mt-0.5">
-                                                                    <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded uppercase">{cert.category}</span>
+                                                                    <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded uppercase">{cert.category}</span>
                                                                     {cert.is_verified
-                                                                        ? <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded uppercase">Verified</span>
-                                                                        : <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded uppercase">Pending</span>
+                                                                        ? <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded uppercase">Verified</span>
+                                                                        : <span className="text-[10px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded uppercase">Pending</span>
                                                                     }
                                                                 </div>
                                                             </div>
@@ -519,7 +524,7 @@ export default function AdminProvidersPage() {
                                                                 href={cert.certificate_url.startsWith("/") ? `${process.env.NEXT_PUBLIC_API_URL}${cert.certificate_url}` : cert.certificate_url}
                                                                 target="_blank"
                                                                 rel="noopener noreferrer"
-                                                                className="flex items-center gap-1 text-[9px] font-black text-blue-600 uppercase tracking-widest hover:underline flex-shrink-0"
+                                                                className="flex items-center gap-1 text-[10px] font-black text-blue-600 uppercase tracking-widest hover:underline flex-shrink-0"
                                                             >
                                                                 <ExternalLink className="w-3 h-3" /> View
                                                             </a>
@@ -547,7 +552,7 @@ export default function AdminProvidersPage() {
 
                                 {/* Action Buttons */}
                                 {!reviewProvider.is_verified && (
-                                    <div className="px-10 py-6 border-t border-slate-100 flex gap-3 flex-shrink-0 bg-white">
+                                    <div className="px-10 py-6 border-t border-slate-100 flex flex-wrap gap-3 flex-shrink-0 bg-white">
                                         {!showRejectInput ? (
                                             <>
                                                 <button

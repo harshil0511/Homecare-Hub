@@ -47,6 +47,8 @@ class EmergencyRequest(Base):
     photos = Column(Text, nullable=True)
     contact_name = Column(String, nullable=False)
     contact_phone = Column(String, nullable=False)
+    flow_type = Column(String, default="systematic", nullable=False, server_default="systematic")
+    targeted_provider_ids = Column(Text, nullable=True)  # JSON list of provider UUIDs; NULL = broadcast to all
     status = Column(String, default="PENDING", nullable=False, index=True)
     config_id = Column(PG_UUID(as_uuid=True), ForeignKey("emergency_config.id"), nullable=True)
     expires_at = Column(DateTime, nullable=False)
