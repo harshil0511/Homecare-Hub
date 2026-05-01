@@ -16,13 +16,13 @@ def create_test_users():
             {
                 "email": "user1@example.com",
                 "username": "demo_user1",
-                "password": "Demo@12345",
+                "password": os.environ.get("SEED_BULK_PASSWORD", "Demo@12345"),
                 "role": "USER"
             },
             {
                 "email": "servicer1@example.com",
                 "username": "demo_servicer1",
-                "password": "Demo@12345",
+                "password": os.environ.get("SEED_BULK_PASSWORD", "Demo@12345"),
                 "role": "SERVICER"
             }
         ]

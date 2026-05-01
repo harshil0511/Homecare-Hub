@@ -3,6 +3,8 @@
 .env
 .env.local
 .env.*.local
+backend/.env
+frontend/.env.local
 *.log
 
 # Uploaded user files (never commit real user data)

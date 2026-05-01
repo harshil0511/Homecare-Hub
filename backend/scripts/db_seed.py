@@ -26,7 +26,7 @@ def seed():
     user_harshil = User(
         email="servicer@example.com",
         username="demo_servicer",
-        hashed_password=get_password_hash("Demo@1234"),
+        hashed_password=get_password_hash(os.environ.get("SEED_SERVICER_PASSWORD", "Demo@1234")),
         role="SERVICER",
         is_active=True
     )
@@ -35,7 +35,7 @@ def seed():
     user_demo = User(
         email="demo@homecare.com",
         username="Demo User",
-        hashed_password=get_password_hash("password123"),
+        hashed_password=get_password_hash(os.environ.get("SEED_USER_PASSWORD", "Demo@User1")),
         role="USER",
         society_id=societies[0].id
     )
