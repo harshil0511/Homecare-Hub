@@ -13,15 +13,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy pyproject.toml first (layer cache — only re-runs pip install if deps change)
+# Copy pyproject.toml + app source so pip can find the package during install
 COPY pyproject.toml .
+COPY app/ app/
 
 # Install Python dependencies
 RUN pip install --upgrade pip && \
     pip install setuptools wheel && \
     pip install -e .
 
-# Copy entire backend code
+# Copy remaining files (alembic, scripts, etc.)
 COPY . .
 
 # Create uploads directory
