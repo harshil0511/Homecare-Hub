@@ -27,8 +27,8 @@ COPY . .
 # Create uploads directory
 RUN mkdir -p uploads
 
-# Expose port
+# Expose port (Render overrides with $PORT at runtime)
 EXPOSE 8002
 
-# Run Uvicorn (production — no --reload)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8002"]
+# Run Uvicorn — uses $PORT from Render, falls back to 8002 locally
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8002}"]
