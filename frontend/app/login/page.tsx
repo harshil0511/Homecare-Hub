@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { saveAuthData } from "@/lib/auth";
-import { HeartPulse, Mail, Lock, ArrowRight, Key, X, AlertCircle, CheckCircle } from "lucide-react";
+import { HeartPulse, Mail, Lock, ArrowRight, Key, X, AlertCircle, CheckCircle, Eye, EyeOff } from "lucide-react";
 
 interface SavedAccount {
     email: string;
@@ -37,6 +37,8 @@ export default function LoginPage() {
     const [forgotMsg, setForgotMsg] = useState("");
     const [forgotLoading, setForgotLoading] = useState(false);
 
+    const [showPassword, setShowPassword] = useState(false);
+    const [showNewPassword, setShowNewPassword] = useState(false);
     const [warming, setWarming] = useState(false);
 
     // Ping backend on page load so it wakes up before user submits
@@ -266,13 +268,21 @@ export default function LoginPage() {
                         <div className="relative">
                             <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                             <input
-                                type="password"
+                                type={showPassword ? "text" : "password"}
                                 required
                                 placeholder="••••••••"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition"
+                                className="w-full pl-10 pr-10 py-3 border border-slate-200 rounded-xl text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition"
                             />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(v => !v)}
+                                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                                tabIndex={-1}
+                            >
+                                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
                         </div>
                     </div>
 
@@ -346,12 +356,22 @@ export default function LoginPage() {
                             </div>
                             <div>
                                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">New Password</label>
-                                <input
-                                    type="password" required placeholder="••••••••"
-                                    value={newPass}
-                                    onChange={(e) => setNewPass(e.target.value)}
-                                    className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition"
-                                />
+                                <div className="relative">
+                                    <input
+                                        type={showNewPassword ? "text" : "password"} required placeholder="••••••••"
+                                        value={newPass}
+                                        onChange={(e) => setNewPass(e.target.value)}
+                                        className="w-full px-4 pr-10 py-3 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowNewPassword(v => !v)}
+                                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                                        tabIndex={-1}
+                                    >
+                                        {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    </button>
+                                </div>
                                 <p className="text-xs text-slate-400 mt-1.5 ml-1">Must have 1 uppercase letter + 1 special character</p>
                             </div>
                             <button
