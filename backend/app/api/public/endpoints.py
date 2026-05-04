@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.common.deps import get_db
+from app.auth.domain.model import User
 from app.service.domain.model import ServiceProvider
 from app.booking.domain.model import ServiceBooking
 
@@ -12,6 +13,14 @@ router = APIRouter(tags=["Public"])
 @router.get("/stats")
 def get_public_stats(db: Session = Depends(get_db)):
     total_bookings = db.query(func.count(ServiceBooking.id)).scalar() or 0
+
+    total_users = db.query(func.count(User.id)).scalar() or 0
+
+    total_providers = (
+        db.query(func.count(ServiceProvider.id))
+        .filter(ServiceProvider.is_verified == True)
+        .scalar() or 0
+    )
 
     avg_rating_result = db.query(func.avg(ServiceProvider.rating)).filter(
         ServiceProvider.is_verified == True,
@@ -41,6 +50,8 @@ def get_public_stats(db: Session = Depends(get_db)):
 
     return {
         "total_bookings": total_bookings,
+        "total_users": total_users,
+        "total_providers": total_providers,
         "avg_rating": avg_rating,
         "provider_avatars": provider_avatars,
     }

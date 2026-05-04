@@ -3,12 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
-  Hammer,
-  Users,
   Wrench,
   ArrowRight,
   ShieldCheck,
-  CalendarCheck,
   Star,
   CheckCircle,
   Phone,
@@ -16,19 +13,14 @@ import {
   Building2
 } from "lucide-react";
 
-const FALLBACK_AVATARS = [
-  { initials: "AK", bg: "bg-emerald-700" },
-  { initials: "SR", bg: "bg-teal-600" },
-  { initials: "MJ", bg: "bg-emerald-500" },
-  { initials: "PD", bg: "bg-emerald-800" },
-  { initials: "LN", bg: "bg-teal-700" },
-];
 const AVATAR_BG_CYCLE = [
   "bg-emerald-700", "bg-teal-600", "bg-emerald-500", "bg-emerald-800", "bg-teal-700",
 ];
 
 interface PublicStats {
   total_bookings: number;
+  total_users: number;
+  total_providers: number;
   avg_rating: number | null;
   provider_avatars: string[];
 }
@@ -44,16 +36,14 @@ export default function HomecareLandingPage() {
       .catch(() => {});
   }, []);
 
-  const avatars = stats && stats.provider_avatars.length > 0
-    ? stats.provider_avatars.map((initials, i) => ({
-        initials,
-        bg: AVATAR_BG_CYCLE[i % AVATAR_BG_CYCLE.length],
-      }))
-    : FALLBACK_AVATARS;
+  const avatars = (stats?.provider_avatars ?? []).map((initials, i) => ({
+    initials,
+    bg: AVATAR_BG_CYCLE[i % AVATAR_BG_CYCLE.length],
+  }));
 
   const ratingText = stats?.avg_rating != null
-    ? `${stats.avg_rating}/5 from ${stats.total_bookings > 0 ? `${stats.total_bookings.toLocaleString("en-IN")}+` : "our"} local services`
-    : "4.9/5 from 10k+ local services";
+    ? `★ ${stats.avg_rating} avg · ${stats.total_bookings > 0 ? `${stats.total_bookings.toLocaleString("en-IN")}+ bookings` : "growing community"}`
+    : null;
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 selection:bg-emerald-600/10">
@@ -134,21 +124,27 @@ export default function HomecareLandingPage() {
               </Link>
             </div>
 
-            <div className="mt-12 flex items-center space-x-6">
-              <div className="flex -space-x-3">
-                {avatars.map((u, i) => (
-                  <div key={i} className={`w-11 h-11 rounded-full border-4 border-white ${u.bg} flex items-center justify-center shadow-sm`}>
-                    <span className="text-white text-[10px] font-black">{u.initials}</span>
+            {(avatars.length > 0 || ratingText) && (
+              <div className="mt-12 flex items-center space-x-6">
+                {avatars.length > 0 && (
+                  <div className="flex -space-x-3">
+                    {avatars.map((u, i) => (
+                      <div key={i} className={`w-11 h-11 rounded-full border-4 border-white ${u.bg} flex items-center justify-center shadow-sm`}>
+                        <span className="text-white text-[10px] font-black">{u.initials}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
+                {ratingText && (
+                  <div className="text-sm font-bold text-slate-500">
+                    <div className="flex text-amber-400 gap-0.5 mb-1">
+                      {[1, 2, 3, 4, 5].map(i => <Star key={i} size={14} fill="currentColor" />)}
+                    </div>
+                    <span>{ratingText}</span>
+                  </div>
+                )}
               </div>
-              <div className="text-sm font-bold text-slate-500">
-                <div className="flex text-amber-400 gap-0.5 mb-1">
-                  {[1, 2, 3, 4, 5].map(i => <Star key={i} size={14} fill="currentColor" />)}
-                </div>
-                <span>{ratingText}</span>
-              </div>
-            </div>
+            )}
           </div>
 
           <div className="relative animate-in fade-in zoom-in-95 duration-1000">
@@ -166,6 +162,32 @@ export default function HomecareLandingPage() {
           </div>
         </div>
       </section>
+
+      {/* Live Stats Strip */}
+      {stats && (
+        <section className="bg-emerald-950 py-10 px-6">
+          <div className="max-w-5xl mx-auto grid grid-cols-3 gap-4 text-center">
+            <div>
+              <p className="text-3xl font-black text-white">
+                {stats.total_users > 0 ? `${stats.total_users.toLocaleString("en-IN")}+` : "—"}
+              </p>
+              <p className="text-emerald-300 text-xs font-bold uppercase tracking-widest mt-1">Registered Users</p>
+            </div>
+            <div>
+              <p className="text-3xl font-black text-white">
+                {stats.total_providers > 0 ? `${stats.total_providers.toLocaleString("en-IN")}+` : "—"}
+              </p>
+              <p className="text-emerald-300 text-xs font-bold uppercase tracking-widest mt-1">Verified Providers</p>
+            </div>
+            <div>
+              <p className="text-3xl font-black text-white">
+                {stats.total_bookings > 0 ? `${stats.total_bookings.toLocaleString("en-IN")}+` : "—"}
+              </p>
+              <p className="text-emerald-300 text-xs font-bold uppercase tracking-widest mt-1">Bookings Completed</p>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Services Section */}
       <section id="services" className="py-32 px-6 bg-[#f8fafc] relative">
