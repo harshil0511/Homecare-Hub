@@ -80,12 +80,15 @@ backend/
 
 **Never import from `app.internal.*` — that package was deleted.**
 
+> `/api/v1/public/stats` is the only unauthenticated endpoint. It uses `get_db` with no `RoleChecker` dependency.
+
 ---
 
 ## Router Mounts (`main.py`)
 
 | Router variable | Prefix |
 |---|---|
+| `public_router` | `/api/v1/public` |
 | `auth_router` | `/api/v1/auth` |
 | `user_router` | `/api/v1/user` |
 | `service_router` | `/api/v1/services` |

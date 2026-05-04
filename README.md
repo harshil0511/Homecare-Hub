@@ -290,6 +290,7 @@ All endpoints prefixed `/api/v1`. Docs at `http://localhost:8000/api/v1/docs`
 
 | Router | Prefix | Key Endpoints |
 | :--- | :--- | :--- |
+| Public | `/public` | `/stats` — platform-wide stats for landing page (no auth required) |
 | Auth | `/auth` | signup, login, forgot-password |
 | User | `/user` | profile, change-password |
 | Services | `/services` | societies CRUD, provider registration, certificates, availability |
