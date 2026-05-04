@@ -37,6 +37,20 @@ export default function LoginPage() {
     const [forgotMsg, setForgotMsg] = useState("");
     const [forgotLoading, setForgotLoading] = useState(false);
 
+    const [warming, setWarming] = useState(false);
+
+    // Ping backend on page load so it wakes up before user submits
+    useEffect(() => {
+        const ctrl = new AbortController();
+        setWarming(true);
+        fetch(`${(process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "").replace(/\/api\/v1$/, "")}/api/v1/health`, {
+            signal: ctrl.signal,
+        })
+            .catch(() => {})
+            .finally(() => setWarming(false));
+        return () => ctrl.abort();
+    }, []);
+
     // Load saved accounts from localStorage
     useEffect(() => {
         try {
@@ -89,6 +103,7 @@ export default function LoginPage() {
             const data = await apiFetch("/auth/login", {
                 method: "POST",
                 body: JSON.stringify({ email, password }),
+                timeout: 60000,
             });
 
             // Save all auth info to localStorage
@@ -262,13 +277,18 @@ export default function LoginPage() {
                     </div>
 
                     {/* Submit */}
+                    {warming && !loading && (
+                        <p className="text-xs text-amber-600 font-medium text-center -mb-1">
+                            ⏳ Server waking up, please wait…
+                        </p>
+                    )}
                     <button
                         type="submit"
-                        disabled={loading}
+                        disabled={loading || warming}
                         className="w-full flex items-center justify-center gap-2 bg-[#064e3b] hover:bg-emerald-950 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition text-sm mt-2"
                     >
-                        {loading ? "Signing in..." : "Sign In"}
-                        {!loading && <ArrowRight className="w-4 h-4" />}
+                        {loading ? "Signing in..." : warming ? "Server warming up..." : "Sign In"}
+                        {!loading && !warming && <ArrowRight className="w-4 h-4" />}
                     </button>
                 </form>
 
