@@ -158,9 +158,8 @@ export default function AdminDashboardPage() {
 
     const healthItems = [
         { label: "Database (PostgreSQL)", ok: health?.database ?? false },
-        { label: "FastAPI Backend",       ok: health?.api ?? true },
-        { label: "JWT Service",           ok: health?.jwt ?? true },
-        { label: "WebSocket Manager",     ok: true },
+        { label: "FastAPI Backend",       ok: health?.api ?? false },
+        { label: "JWT Service",           ok: health?.jwt ?? false },
     ];
 
     // Provider periods labels

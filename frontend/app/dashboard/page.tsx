@@ -398,7 +398,6 @@ export default function DashboardPage() {
                     title="Active Operations"
                     value={bookings.filter((b: ApiRecord) => b.status === "In Progress" || b.status === "Accepted").length}
                     icon={Activity}
-                    trend="+14%"
                     color="bg-emerald-600"
                     onClick={() => setActiveFilter(activeFilter === "OPERATIONS" ? "ALL" : "OPERATIONS")}
                     isActive={activeFilter === "OPERATIONS"}
@@ -423,7 +422,6 @@ export default function DashboardPage() {
                     title="Priority Tickets"
                     value={ledgerEntries.filter(e => e.priority === "Emergency" || e.priority === "Urgent").length}
                     icon={Clock}
-                    trend="Stable"
                     color="bg-rose-600"
                     onClick={() => setActiveFilter(activeFilter === "PRIORITY" ? "ALL" : "PRIORITY")}
                     isActive={activeFilter === "PRIORITY"}
