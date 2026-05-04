@@ -98,6 +98,35 @@ def _apply_engine(eng):
     except Exception as e:
         logger.warning("⚠️  Could not seed superadmin: %s", e)
 
+    try:
+        from datetime import datetime, timezone
+        from app.emergency.domain.model import EmergencyPenaltyConfig
+        db = SessionLocal()
+        try:
+            default_penalties = [
+                ("LATE_ARRIVAL", 0.5),
+                ("CANCELLATION", 1.0),
+                ("NO_SHOW", 2.0),
+            ]
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            for event_type, deduction in default_penalties:
+                exists = db.query(EmergencyPenaltyConfig).filter(
+                    EmergencyPenaltyConfig.event_type == event_type
+                ).first()
+                if not exists:
+                    db.add(EmergencyPenaltyConfig(
+                        event_type=event_type,
+                        star_deduction=deduction,
+                        created_at=now,
+                        updated_at=now,
+                    ))
+            db.commit()
+            logger.info("✅ Emergency penalty configs seeded.")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning("⚠️  Could not seed penalty configs: %s", e)
+
 
 def _retry_loop():
     """Background thread: keep retrying DB connection every 5 seconds until success."""
