@@ -11,8 +11,6 @@ import {
   Phone,
   Handshake,
   Building2,
-  Users,
-  CalendarCheck
 } from "lucide-react";
 
 const AVATAR_BG_CYCLE = [
@@ -43,8 +41,12 @@ export default function HomecareLandingPage() {
     bg: AVATAR_BG_CYCLE[i % AVATAR_BG_CYCLE.length],
   }));
 
-  const ratingText = stats?.avg_rating != null
-    ? `★ ${stats.avg_rating} avg · ${stats.total_bookings > 0 ? `${stats.total_bookings.toLocaleString("en-IN")}+ bookings` : "growing community"}`
+  const ratingText = stats
+    ? [
+        stats.avg_rating != null ? `${stats.avg_rating} avg` : null,
+        stats.total_users > 0 ? `${stats.total_users.toLocaleString("en-IN")}+ users` : null,
+        stats.total_bookings > 0 ? `${stats.total_bookings.toLocaleString("en-IN")}+ bookings` : null,
+      ].filter(Boolean).join(" · ")
     : null;
 
   return (
@@ -126,7 +128,7 @@ export default function HomecareLandingPage() {
               </Link>
             </div>
 
-            {(avatars.length > 0 || ratingText) && (
+            {stats && (avatars.length > 0 || ratingText) && (
               <div className="mt-12 flex items-center space-x-6">
                 {avatars.length > 0 && (
                   <div className="flex -space-x-3">
@@ -165,28 +167,6 @@ export default function HomecareLandingPage() {
         </div>
       </section>
 
-      {/* Live Stats Strip */}
-      {stats && (
-        <section className="py-16 px-6 bg-[#f8fafc]">
-          <div className="max-w-5xl mx-auto grid grid-cols-3 gap-6">
-            {[
-              { value: stats.total_users, label: "Registered Users", icon: Users, color: "text-emerald-700", bg: "bg-emerald-50" },
-              { value: stats.total_providers, label: "Verified Providers", icon: ShieldCheck, color: "text-teal-700", bg: "bg-teal-50" },
-              { value: stats.total_bookings, label: "Bookings Completed", icon: CalendarCheck, color: "text-emerald-800", bg: "bg-emerald-50" },
-            ].map(({ value, label, icon: Icon, color, bg }, i) => (
-              <div key={i} className="bg-white border border-slate-200 rounded-3xl p-8 text-center shadow-lg shadow-slate-200/40 hover:shadow-xl hover:shadow-emerald-900/10 transition-all hover:-translate-y-1 duration-300">
-                <div className={`w-14 h-14 ${bg} ${color} rounded-2xl flex items-center justify-center mx-auto mb-4`}>
-                  <Icon size={28} strokeWidth={2} />
-                </div>
-                <p className="text-3xl font-black text-slate-900 mb-1">
-                  {value > 0 ? `${value.toLocaleString("en-IN")}+` : "—"}
-                </p>
-                <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">{label}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
 
       {/* Services Section */}
       <section id="services" className="py-32 px-6 bg-[#f8fafc] relative">
