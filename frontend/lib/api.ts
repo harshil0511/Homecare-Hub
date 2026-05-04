@@ -316,6 +316,7 @@ export const adminEmergencyApi = {
 // WebSocket helpers
 const WS_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000")
     .replace(/\/$/, "")
+    .replace(/\/api\/v1$/, "")
     .replace(/^http/, "ws");
 
 export function createUserEmergencySocket(requestId: string): WebSocket {

@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react";
 import { WifiOff, RefreshCw } from "lucide-react";
 
-const API = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
+const API = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000")
+    .replace(/\/$/, "")
+    .replace(/\/api\/v1$/, "");
 
 export default function BackendStatus() {
     const [offline, setOffline] = useState(false);
