@@ -142,7 +142,7 @@ export default function HomecareLandingPage() {
               <h2 className="text-4xl md:text-5xl font-black tracking-tight mb-6 text-slate-900">Total Maintenance <br /> For Your Society</h2>
               <p className="text-slate-500 text-lg font-medium">From electrical repairs to daily household support, our hub connects you with the most trusted professionals in your community.</p>
             </div>
-            <Link href="/dashboard/maintenance" className="inline-flex items-center space-x-2 font-bold text-emerald-700 hover:translate-x-1 transition-transform">
+            <Link href="/dashboard" className="inline-flex items-center space-x-2 font-bold text-emerald-700 hover:translate-x-1 transition-transform">
               <span>All Services</span>
               <ArrowRight size={20} />
             </Link>
