@@ -1,5 +1,6 @@
 import logging
 import os
+import subprocess
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
@@ -68,10 +69,29 @@ def _seed_penalty_configs() -> None:
         db.close()
 
 
+def _run_migrations() -> None:
+    """Run alembic upgrade head automatically on startup."""
+    try:
+        backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        result = subprocess.run(
+            ["alembic", "upgrade", "head"],
+            cwd=backend_dir,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            logger.info("Migrations applied: %s", result.stdout.strip() or "already up to date")
+        else:
+            logger.error("Migration failed: %s", result.stderr.strip())
+    except Exception:
+        logger.exception("Could not run migrations.")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: init DB, seed configs, start alert scheduler. Shutdown: stop scheduler."""
+    """Startup: run migrations, init DB, seed configs, start scheduler. Shutdown: stop scheduler."""
     logger.info("Starting HomeCare Hub API ...")
+    _run_migrations()
     init_db()
     _seed_penalty_configs()
     start_scheduler()
