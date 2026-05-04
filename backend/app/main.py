@@ -25,6 +25,7 @@ from app.api.service.contracts_endpoints import router as servicer_contracts_rou
 from app.api.request.endpoints import router as request_router
 from app.api.emergency.endpoints import router as emergency_router, servicer_router as emergency_servicer_router
 from app.api.payment.endpoints import router as payment_router
+from app.api.public.endpoints import router as public_router
 from app.core.db.session import init_db, SessionLocal
 from app.core.config import settings
 from app.core.scheduler import start_scheduler, stop_scheduler
@@ -169,6 +170,7 @@ app.include_router(emergency_router,        prefix="/api/v1/emergency")
 app.include_router(emergency_servicer_router, prefix="/api/v1/emergency")
 app.include_router(admin_emergency_router,  prefix="/api/v1/admin/emergency")
 app.include_router(payment_router,          prefix="/api/v1/payment")
+app.include_router(public_router,           prefix="/api/v1/public")
 
 
 # ── WebSocket endpoints ────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import {
   Hammer,
   Users,
@@ -15,7 +16,45 @@ import {
   Building2
 } from "lucide-react";
 
+const FALLBACK_AVATARS = [
+  { initials: "AK", bg: "bg-emerald-700" },
+  { initials: "SR", bg: "bg-teal-600" },
+  { initials: "MJ", bg: "bg-emerald-500" },
+  { initials: "PD", bg: "bg-emerald-800" },
+  { initials: "LN", bg: "bg-teal-700" },
+];
+const AVATAR_BG_CYCLE = [
+  "bg-emerald-700", "bg-teal-600", "bg-emerald-500", "bg-emerald-800", "bg-teal-700",
+];
+
+interface PublicStats {
+  total_bookings: number;
+  avg_rating: number | null;
+  provider_avatars: string[];
+}
+
 export default function HomecareLandingPage() {
+  const [stats, setStats] = useState<PublicStats | null>(null);
+
+  useEffect(() => {
+    const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+    fetch(`${base}/public/stats`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setStats(data); })
+      .catch(() => {});
+  }, []);
+
+  const avatars = stats && stats.provider_avatars.length > 0
+    ? stats.provider_avatars.map((initials, i) => ({
+        initials,
+        bg: AVATAR_BG_CYCLE[i % AVATAR_BG_CYCLE.length],
+      }))
+    : FALLBACK_AVATARS;
+
+  const ratingText = stats?.avg_rating != null
+    ? `${stats.avg_rating}/5 from ${stats.total_bookings > 0 ? `${stats.total_bookings.toLocaleString("en-IN")}+` : "our"} local services`
+    : "4.9/5 from 10k+ local services";
+
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 selection:bg-emerald-600/10">
       {/* Navbar section */}
@@ -97,13 +136,7 @@ export default function HomecareLandingPage() {
 
             <div className="mt-12 flex items-center space-x-6">
               <div className="flex -space-x-3">
-                {[
-                  { initials: "AK", bg: "bg-emerald-700" },
-                  { initials: "SR", bg: "bg-teal-600" },
-                  { initials: "MJ", bg: "bg-emerald-500" },
-                  { initials: "PD", bg: "bg-emerald-800" },
-                  { initials: "LN", bg: "bg-teal-700" },
-                ].map((u, i) => (
+                {avatars.map((u, i) => (
                   <div key={i} className={`w-11 h-11 rounded-full border-4 border-white ${u.bg} flex items-center justify-center shadow-sm`}>
                     <span className="text-white text-[10px] font-black">{u.initials}</span>
                   </div>
@@ -113,7 +146,7 @@ export default function HomecareLandingPage() {
                 <div className="flex text-amber-400 gap-0.5 mb-1">
                   {[1, 2, 3, 4, 5].map(i => <Star key={i} size={14} fill="currentColor" />)}
                 </div>
-                <span>4.9/5 from 10k+ local services</span>
+                <span>{ratingText}</span>
               </div>
             </div>
           </div>
