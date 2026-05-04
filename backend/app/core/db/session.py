@@ -87,6 +87,12 @@ def _apply_engine(eng):
                 db.add(admin)
                 db.commit()
                 logger.info("✅ Superadmin seeded: %s", cfg.SUPERADMIN_EMAIL)
+            else:
+                existing.hashed_password = security.get_password_hash(cfg.SUPERADMIN_PASSWORD)
+                existing.role = "ADMIN"
+                existing.is_active = True
+                db.commit()
+                logger.info("✅ Superadmin credentials synced: %s", cfg.SUPERADMIN_EMAIL)
         finally:
             db.close()
     except Exception as e:
