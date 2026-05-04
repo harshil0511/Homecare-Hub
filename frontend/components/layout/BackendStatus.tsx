@@ -10,7 +10,7 @@ export default function BackendStatus() {
 
     const checkHealth = async () => {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 5000);
+        const timeout = setTimeout(() => controller.abort(), 35000);
         try {
             const res = await fetch(`${API_BASE}/api/v1/health`, {
                 method: "GET",
@@ -44,8 +44,8 @@ export default function BackendStatus() {
             <div className="flex items-center gap-3 bg-rose-600 text-white px-5 py-3.5 rounded-2xl shadow-2xl shadow-rose-900/30 border border-rose-500">
                 <WifiOff className="w-4 h-4 flex-shrink-0" />
                 <div className="min-w-0">
-                    <p className="text-xs font-black uppercase tracking-widest">Backend Offline</p>
-                    <p className="text-[10px] font-medium text-rose-100 mt-0.5">Please start the backend server</p>
+                    <p className="text-xs font-black uppercase tracking-widest">Server Waking Up</p>
+                    <p className="text-[10px] font-medium text-rose-100 mt-0.5">Please wait 30–60 seconds and retry</p>
                 </div>
                 <button
                     onClick={handleRetry}

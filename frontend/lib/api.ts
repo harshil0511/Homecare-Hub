@@ -8,7 +8,7 @@ interface ApiOptions extends RequestInit {
 }
 
 export async function apiFetch(endpoint: string, options: ApiOptions = {}) {
-    const { timeout = 10000, ...fetchOptions } = options;
+    const { timeout = 30000, ...fetchOptions } = options;
 
     // Get the token for the role that owns the current URL
     const token = typeof window !== "undefined"
