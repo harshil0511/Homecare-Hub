@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
@@ -77,7 +78,7 @@ def _run_migrations() -> None:
     try:
         backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         result = subprocess.run(
-            ["alembic", "upgrade", "head"],
+            [sys.executable, "-m", "alembic", "upgrade", "head"],
             cwd=backend_dir,
             capture_output=True,
             text=True,

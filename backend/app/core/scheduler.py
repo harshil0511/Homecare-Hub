@@ -3,11 +3,6 @@ from datetime import datetime, timedelta, date, timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from app.core.db.session import SessionLocal
-from app.maintenance.domain.model import MaintenanceTask
-from app.notification.domain.model import Notification
-from app.contract.domain.model import SocietyContract
-
 logger = logging.getLogger(__name__)
 
 scheduler = BackgroundScheduler(timezone="UTC")
@@ -15,6 +10,9 @@ scheduler = BackgroundScheduler(timezone="UTC")
 
 def _check_alert_notifications() -> None:
     """Run every hour. Fire WARNING / FINAL / OVERDUE notifications for due maintenance tasks."""
+    from app.core.db.session import SessionLocal
+    from app.maintenance.domain.model import MaintenanceTask
+    from app.notification.domain.model import Notification
     db = SessionLocal()
     try:
         today = datetime.now(timezone.utc).date()
@@ -118,6 +116,9 @@ def _check_alert_notifications() -> None:
 
 def _expire_contracts() -> None:
     """Run daily. Mark ACTIVE contracts whose end_date has passed as EXPIRED."""
+    from app.core.db.session import SessionLocal
+    from app.notification.domain.model import Notification
+    from app.contract.domain.model import SocietyContract
     from app.auth.domain.model import User
     db = SessionLocal()
     try:
@@ -167,6 +168,8 @@ def _expire_contracts() -> None:
 
 def _send_booking_reminders() -> None:
     """Run every hour. Send a reminder notification ~24 h before each scheduled booking."""
+    from app.core.db.session import SessionLocal
+    from app.notification.domain.model import Notification
     from app.booking.domain.model import ServiceBooking
     db = SessionLocal()
     try:
@@ -210,6 +213,8 @@ def _send_booking_reminders() -> None:
 
 def _cleanup_old_notifications() -> None:
     """Run daily. Delete read notifications older than 90 days."""
+    from app.core.db.session import SessionLocal
+    from app.notification.domain.model import Notification
     db = SessionLocal()
     try:
         cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=90)
@@ -230,6 +235,8 @@ def _cleanup_old_notifications() -> None:
 
 def _expire_stale_emergencies() -> None:
     """Run every minute. Mark PENDING EmergencyRequests whose expires_at has passed as EXPIRED."""
+    from app.core.db.session import SessionLocal
+    from app.notification.domain.model import Notification
     from app.emergency.domain.model import EmergencyRequest
     db = SessionLocal()
     try:
