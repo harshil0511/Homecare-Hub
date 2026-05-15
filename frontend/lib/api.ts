@@ -319,6 +319,57 @@ const WS_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000")
     .replace(/\/api\/v1$/, "")
     .replace(/^http/, "ws");
 
+/**
+ * Opens a self-reconnecting WebSocket.
+ * Returns a cleanup function — call it in your useEffect return to permanently close.
+ *
+ * Handles the Render cold-start race: if the WS handshake fails (onerror/onclose
+ * while still CONNECTING), it retries up to `maxRetries` times with linear backoff.
+ * Calling the cleanup function before a retry fires prevents a "closed before
+ * established" browser error.
+ */
+export function createReconnectingSocket(
+    url: string,
+    onMessage: (evt: MessageEvent) => void,
+    options: { maxRetries?: number; baseDelayMs?: number } = {}
+): () => void {
+    const { maxRetries = 6, baseDelayMs = 2000 } = options;
+    let ws: WebSocket | null = null;
+    let retries = 0;
+    let destroyed = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    function connect() {
+        if (destroyed) return;
+        ws = new WebSocket(url);
+
+        ws.onmessage = onMessage;
+
+        ws.onclose = () => {
+            if (destroyed) return;
+            if (retries < maxRetries) {
+                retries++;
+                retryTimer = setTimeout(connect, baseDelayMs * retries);
+            }
+        };
+
+        ws.onerror = () => {
+            // onclose fires after onerror — let it handle reconnection
+        };
+    }
+
+    connect();
+
+    return () => {
+        destroyed = true;
+        if (retryTimer !== null) clearTimeout(retryTimer);
+        // Only close if not already closed/closing — avoids "closed before established" error
+        if (ws && ws.readyState !== WebSocket.CLOSING && ws.readyState !== WebSocket.CLOSED) {
+            ws.close();
+        }
+    };
+}
+
 export function createUserEmergencySocket(requestId: string): WebSocket {
     return new WebSocket(`${WS_BASE}/ws/emergency/${requestId}`);
 }

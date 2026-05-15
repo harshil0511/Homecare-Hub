@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Briefcase, Clock, MapPin, CheckCircle, XCircle, User, IndianRupee, Calendar, Send, X, FileText, ShieldAlert } from "lucide-react";
-import { apiFetch, emergencyApi, createServicerAlertSocket, IncomingEmergencyRead } from "@/lib/api";
+import { apiFetch, emergencyApi, createReconnectingSocket, IncomingEmergencyRead } from "@/lib/api";
 import { useToast } from "@/lib/toast-context";
 import Spinner from "@/components/ui/Spinner";
 import EmptyState from "@/components/ui/EmptyState";
@@ -136,7 +136,7 @@ export default function ServicerJobsPage() {
     const [emergencyArrivalTime, setEmergencyArrivalTime] = useState("");
     const [submittingEmergencyResponse, setSubmittingEmergencyResponse] = useState(false);
     const [providerId, setProviderId] = useState<string | null>(null);
-    const emergencyWsRef = useRef<WebSocket | null>(null);
+    const emergencyWsCleanupRef = useRef<(() => void) | null>(null);
 
     const [countdown, setCountdown] = useState<Record<string, string>>({});
 
@@ -259,25 +259,29 @@ export default function ServicerJobsPage() {
             .finally(() => setEmergencyLoading(false));
 
         if (providerId) {
-            const ws = createServicerAlertSocket(providerId);
-            emergencyWsRef.current = ws;
-            ws.onmessage = (evt) => {
-                try {
-                    const msg = JSON.parse(evt.data);
-                    if (msg.event === "emergency_alert") {
-                        emergencyApi.getIncoming().then(d => setEmergencies(d || [])).catch(() => {});
-                    } else if (msg.event === "request_cancelled") {
-                        setEmergencies(prev => prev.filter(e => e.id !== msg.request_id));
-                    } else if (msg.event === "response_accepted") {
-                        // User accepted our response — refresh active jobs and switch to Jobs tab
-                        fetchJobs();
-                        setActiveTab("jobs");
-                    }
-                } catch { /* ignore malformed frames */ }
-            };
+            const WS_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000")
+                .replace(/\/$/, "").replace(/\/api\/v1$/, "").replace(/^http/, "ws");
+
+            const cleanup = createReconnectingSocket(
+                `${WS_BASE}/ws/servicer/alerts?provider_id=${providerId}`,
+                (evt) => {
+                    try {
+                        const msg = JSON.parse(evt.data);
+                        if (msg.event === "emergency_alert") {
+                            emergencyApi.getIncoming().then(d => setEmergencies(d || [])).catch(() => {});
+                        } else if (msg.event === "request_cancelled") {
+                            setEmergencies(prev => prev.filter(e => e.id !== msg.request_id));
+                        } else if (msg.event === "response_accepted") {
+                            fetchJobs();
+                            setActiveTab("jobs");
+                        }
+                    } catch { /* ignore malformed frames */ }
+                }
+            );
+            emergencyWsCleanupRef.current = cleanup;
             return () => {
-                ws.close();
-                emergencyWsRef.current = null;
+                cleanup();
+                emergencyWsCleanupRef.current = null;
             };
         }
     }, [activeTab, providerId, fetchJobs]);

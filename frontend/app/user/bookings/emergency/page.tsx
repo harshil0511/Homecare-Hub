@@ -9,7 +9,7 @@ import Link from "next/link";
 import {
     apiFetch,
     emergencyApi,
-    createUserEmergencySocket,
+    createReconnectingSocket,
     EmergencyConfig,
     EmergencyRequestRead,
     EmergencyResponseRead,
@@ -84,7 +84,7 @@ function EmergencySOSContent() {
     const [responses, setResponses] = useState<EmergencyResponseRead[]>([]);
     const [resultingBookingId, setResultingBookingId] = useState<string | null>(null);
 
-    const wsRef = useRef<WebSocket | null>(null);
+    const wsCleanupRef = useRef<(() => void) | null>(null);
     const countdown = useCountdown(emergencyRequest?.expires_at ?? null);
 
     // On mount: load configs + check for existing active emergency + prefill user info
@@ -138,44 +138,48 @@ function EmergencySOSContent() {
     useEffect(() => {
         if (step !== "waiting" || !emergencyRequestId) return;
 
-        const ws = createUserEmergencySocket(emergencyRequestId);
-        wsRef.current = ws;
+        const WS_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000")
+            .replace(/\/$/, "").replace(/\/api\/v1$/, "").replace(/^http/, "ws");
 
-        ws.onmessage = (evt) => {
-            try {
-                const msg = JSON.parse(evt.data);
-                if (msg.event === "new_response") {
-                    setResponses(prev => {
-                        if (prev.find(r => r.id === msg.response_id)) return prev;
-                        return [...prev, {
-                            id: msg.response_id,
-                            request_id: emergencyRequestId,
-                            provider_id: msg.provider_id,
-                            arrival_time: msg.arrival_time,
-                            status: "PENDING",
-                            penalty_count: 0,
-                            created_at: msg.created_at ?? null,
-                            provider: {
-                                id: msg.provider_id,
-                                first_name: msg.provider_name,
-                                rating: msg.rating,
-                            },
-                        }];
-                    });
-                } else if (msg.event === "request_accepted") {
-                    setResultingBookingId(msg.booking_id);
-                    setStep("done");
-                } else if (msg.event === "request_cancelled") {
-                    setEmergencyRequest(null);
-                    setResponses([]);
-                    setStep("category");
-                }
-            } catch { /* ignore malformed frames */ }
-        };
+        const cleanup = createReconnectingSocket(
+            `${WS_BASE}/ws/emergency/${emergencyRequestId}`,
+            (evt) => {
+                try {
+                    const msg = JSON.parse(evt.data);
+                    if (msg.event === "new_response") {
+                        setResponses(prev => {
+                            if (prev.find(r => r.id === msg.response_id)) return prev;
+                            return [...prev, {
+                                id: msg.response_id,
+                                request_id: emergencyRequestId,
+                                provider_id: msg.provider_id,
+                                arrival_time: msg.arrival_time,
+                                status: "PENDING",
+                                penalty_count: 0,
+                                created_at: msg.created_at ?? null,
+                                provider: {
+                                    id: msg.provider_id,
+                                    first_name: msg.provider_name,
+                                    rating: msg.rating,
+                                },
+                            }];
+                        });
+                    } else if (msg.event === "request_accepted") {
+                        setResultingBookingId(msg.booking_id);
+                        setStep("done");
+                    } else if (msg.event === "request_cancelled") {
+                        setEmergencyRequest(null);
+                        setResponses([]);
+                        setStep("category");
+                    }
+                } catch { /* ignore malformed frames */ }
+            }
+        );
+        wsCleanupRef.current = cleanup;
 
         return () => {
-            ws.close();
-            wsRef.current = null;
+            cleanup();
+            wsCleanupRef.current = null;
         };
     }, [step, emergencyRequestId]);
 
