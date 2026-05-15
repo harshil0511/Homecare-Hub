@@ -14,7 +14,7 @@ class PaymentProfile(Base):
     account_holder_name: Mapped[str] = mapped_column(String(60), nullable=False)
     account_number_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
     account_number_last4: Mapped[str] = mapped_column(String(4), nullable=False)
-    ifsc_code: Mapped[str] = mapped_column(String(11), nullable=False)
+    ifsc_code: Mapped[str] = mapped_column(String(30), nullable=False)
     branch: Mapped[str] = mapped_column(String(100), nullable=False)
     upi_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     upi_qr_image_url: Mapped[str | None] = mapped_column(Text, nullable=True)

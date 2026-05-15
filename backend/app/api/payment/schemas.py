@@ -37,8 +37,8 @@ class UserPaymentProfileCreate(BaseModel):
     @classmethod
     def validate_ifsc(cls, v: str) -> str:
         v = v.upper().strip()
-        if not IFSC_RE.match(v):
-            raise ValueError("Invalid IFSC code format")
+        if not v:
+            raise ValueError("IFSC code is required")
         return v
 
     @field_validator("branch")

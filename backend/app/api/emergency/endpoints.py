@@ -404,22 +404,14 @@ async def cancel_emergency_request(
     if em.status not in ("PENDING", "ACTIVE"):
         raise HTTPException(status_code=400, detail="Only PENDING or ACTIVE requests can be cancelled")
 
-    em.status = "CANCELLED"
-
-    cancelled_responses = db.query(EmergencyResponse).filter(
+    all_responses = db.query(EmergencyResponse).filter(
         EmergencyResponse.request_id == request_id,
-        EmergencyResponse.status == "PENDING",
     ).all()
 
-    cancelled_provider_ids = [r.provider_id for r in cancelled_responses]
+    responded_provider_ids = [r.provider_id for r in all_responses]
 
-    db.query(EmergencyResponse).filter(
-        EmergencyResponse.request_id == request_id,
-        EmergencyResponse.status == "PENDING",
-    ).update({"status": "CANCELLED"})
-
-    # Notify providers who had responded
-    for r in cancelled_responses:
+    # Notify providers who had responded before deleting
+    for r in all_responses:
         provider = db.query(ServiceProvider).filter(
             ServiceProvider.id == r.provider_id
         ).first()
@@ -428,11 +420,12 @@ async def cancel_emergency_request(
                     "The emergency request you responded to has been cancelled by the user.",
                     notification_type="INFO", link="/service/jobs?tab=emergency")
 
+    db.delete(em)
     db.commit()
 
     background_tasks.add_task(
         emergency_manager.broadcast_alert_to_servicers,
-        [str(pid) for pid in cancelled_provider_ids],
+        [str(pid) for pid in responded_provider_ids],
         {"event": "request_cancelled", "request_id": str(request_id)},
     )
     await emergency_manager.send_to_user(str(request_id), {"event": "request_cancelled"})

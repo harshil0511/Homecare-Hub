@@ -14,7 +14,6 @@ interface PaymentProfile {
     updated_at: string;
 }
 
-const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/i;
 const UPI_RE = /^[\w.\-]+@[\w.\-]+$/;
 const ACCOUNT_RE = /^\d{9,18}$/;
 const HOLDER_NAME_RE = /^[a-zA-Z\s]{3,100}$/;
@@ -64,8 +63,8 @@ export default function UserPaymentPage() {
             setConfirmError("Account numbers do not match");
             return;
         }
-        if (!IFSC_RE.test(ifsc)) {
-            setIfscError("Invalid IFSC code format");
+        if (!ifsc.trim()) {
+            setIfscError("IFSC code is required");
             return;
         }
         setLoading(true);
@@ -227,7 +226,7 @@ export default function UserPaymentPage() {
                                     value={ifsc}
                                     onChange={(e) => setIfsc(e.target.value.toUpperCase())}
                                     onBlur={() => {
-                                        if (ifsc && !IFSC_RE.test(ifsc)) setIfscError("Invalid IFSC code format");
+                                        if (!ifsc.trim()) setIfscError("IFSC code is required");
                                         else setIfscError("");
                                     }}
                                 />

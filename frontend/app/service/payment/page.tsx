@@ -16,7 +16,6 @@ interface PaymentProfile {
     updated_at: string;
 }
 
-const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/i;
 const UPI_RE = /^[\w.\-]+@[\w.\-]+$/;
 const ACCOUNT_RE = /^\d{9,18}$/;
 const HOLDER_NAME_RE = /^[a-zA-Z\s]{3,100}$/;
@@ -108,8 +107,8 @@ export default function ProviderPaymentPage() {
             setConfirmError("Account numbers do not match");
             return;
         }
-        if (!IFSC_RE.test(ifsc)) {
-            setIfscError("Invalid IFSC code format");
+        if (!ifsc.trim()) {
+            setIfscError("IFSC code is required");
             return;
         }
         if (upiId.trim() && !UPI_RE.test(upiId.trim())) {
@@ -292,7 +291,7 @@ export default function ProviderPaymentPage() {
                             <label className="block text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] ml-1">IFSC Code</label>
                             <div className="relative group">
                                 <Hash className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-[#064e3b] transition-colors" />
-                                <input required className={`w-full bg-slate-50 border rounded-2xl py-4 pl-14 pr-6 text-slate-900 outline-none focus:ring-2 focus:ring-[#064e3b] focus:bg-white transition-all font-bold tracking-tight uppercase shadow-inner shadow-black/[0.01] ${ifscError ? "border-rose-300" : "border-slate-100"}`} placeholder="e.g. HDFC0001234" value={ifsc} onChange={(e) => setIfsc(e.target.value.toUpperCase())} onBlur={() => { if (ifsc && !IFSC_RE.test(ifsc)) setIfscError("Invalid IFSC code format"); else setIfscError(""); }} />
+                                <input required className={`w-full bg-slate-50 border rounded-2xl py-4 pl-14 pr-6 text-slate-900 outline-none focus:ring-2 focus:ring-[#064e3b] focus:bg-white transition-all font-bold tracking-tight uppercase shadow-inner shadow-black/[0.01] ${ifscError ? "border-rose-300" : "border-slate-100"}`} placeholder="e.g. HDFC0001234" value={ifsc} onChange={(e) => setIfsc(e.target.value.toUpperCase())} onBlur={() => { if (!ifsc.trim()) setIfscError("IFSC code is required"); else setIfscError(""); }} />
                             </div>
                             {ifscError && <p className="text-[10px] text-rose-600 font-bold ml-1">{ifscError}</p>}
                         </div>
