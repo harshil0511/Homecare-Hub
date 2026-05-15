@@ -1,3 +1,5 @@
+import asyncio
+import json
 import logging
 import os
 import subprocess
@@ -181,8 +183,15 @@ async def ws_user_emergency(websocket: WebSocket, request_id: str):
     await emergency_manager.connect_user(request_id, websocket)
     try:
         while True:
-            await websocket.receive_text()  # keep connection alive; server pushes
+            try:
+                # Wait up to 30 s for a client frame; send a ping if idle
+                # (prevents Cloudflare / Render proxy from closing idle connections)
+                await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+            except asyncio.TimeoutError:
+                await websocket.send_text(json.dumps({"event": "ping"}))
     except WebSocketDisconnect:
+        emergency_manager.disconnect_user(request_id)
+    except Exception:
         emergency_manager.disconnect_user(request_id)
 
 
@@ -192,8 +201,13 @@ async def ws_servicer_alerts(websocket: WebSocket, provider_id: str):
     await emergency_manager.connect_servicer(provider_id, websocket)
     try:
         while True:
-            await websocket.receive_text()  # keep connection alive; server pushes
+            try:
+                await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+            except asyncio.TimeoutError:
+                await websocket.send_text(json.dumps({"event": "ping"}))
     except WebSocketDisconnect:
+        emergency_manager.disconnect_servicer(provider_id)
+    except Exception:
         emergency_manager.disconnect_servicer(provider_id)
 
 

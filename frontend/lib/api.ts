@@ -341,11 +341,23 @@ export function createReconnectingSocket(
 
     function connect() {
         if (destroyed) return;
-        ws = new WebSocket(url);
+        const socket = new WebSocket(url);
+        ws = socket;
 
-        ws.onmessage = onMessage;
+        socket.onopen = () => {
+            // If cleanup ran while we were still handshaking, close now that we're open.
+            // This avoids "WebSocket closed before established" in the browser console.
+            if (destroyed) { socket.close(); return; }
+            retries = 0;
+        };
 
-        ws.onclose = () => {
+        socket.onmessage = (evt) => {
+            // Ignore backend keepalive pings; forward everything else.
+            try { if (JSON.parse(evt.data)?.event === "ping") return; } catch { /* not JSON */ }
+            onMessage(evt);
+        };
+
+        socket.onclose = () => {
             if (destroyed) return;
             if (retries < maxRetries) {
                 retries++;
@@ -353,8 +365,8 @@ export function createReconnectingSocket(
             }
         };
 
-        ws.onerror = () => {
-            // onclose fires after onerror — let it handle reconnection
+        socket.onerror = () => {
+            // onclose fires right after onerror — let it handle reconnection.
         };
     }
 
@@ -363,8 +375,10 @@ export function createReconnectingSocket(
     return () => {
         destroyed = true;
         if (retryTimer !== null) clearTimeout(retryTimer);
-        // Only close if not already closed/closing — avoids "closed before established" error
-        if (ws && ws.readyState !== WebSocket.CLOSING && ws.readyState !== WebSocket.CLOSED) {
+        // Only close OPEN sockets immediately.
+        // CONNECTING sockets are handled by the onopen guard above — calling ws.close()
+        // on a CONNECTING socket is what causes "WebSocket closed before established".
+        if (ws && ws.readyState === WebSocket.OPEN) {
             ws.close();
         }
     };
